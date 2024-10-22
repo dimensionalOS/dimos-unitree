@@ -1,0 +1,3 @@
+[submodule "dimos/external/colmap"]
+	path = dimos/external/colmap
+	url = https://github.com/colmap/colmap
