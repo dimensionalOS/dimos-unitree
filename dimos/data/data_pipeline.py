@@ -1,7 +1,7 @@
-from .depth import Depth
-from .labels import Labels
-from .pointcloud import PointCloud
-from .segmentation import Segmentation
+from .depth import DepthProcessor
+from .labels import LabelProcessor
+from .pointcloud import PointCloudProcessor
+from .segmentation import SegmentationProcessor
 from dimos.types.videostream import VideoStream # Lukas to implement
 import warnings
 from concurrent.futures import ProcessPoolExecutor, as_completed
@@ -29,10 +29,10 @@ class DataPipeline:
             ValueError: If invalid pipeline configurations are provided.
         """
         self.video_stream = video_stream
-        self.depth_processor = Depth(debug=True) if run_depth else None
-        self.labels_processor = Labels(debug=True) if run_labels else None
-        self.pointcloud_processor = PointCloud(debug=True) if run_pointclouds else None
-        self.segmentation_processor = Segmentation(debug=True) if run_segmentations else None
+        self.depth_processor = DepthProcessor(debug=True) if run_depth else None
+        self.labels_processor = LabelProcessor(debug=True) if run_labels else None
+        self.pointcloud_processor = PointCloudProcessor(debug=True) if run_pointclouds else None
+        self.segmentation_processor = SegmentationProcessor(debug=True) if run_segmentations else None
 
         self.run_depth = run_depth
         self.run_labels = run_labels
