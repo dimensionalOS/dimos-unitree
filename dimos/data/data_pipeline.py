@@ -1,8 +1,8 @@
 from .depth import DepthProcessor
 from .labels import LabelProcessor
 from .pointcloud import PointCloudProcessor
-from .segmentation import SegmentationProcessor
-from dimos.types.videostream import VideoStream # Lukas to implement
+from .segment import SegmentProcessor
+from dimos.stream.videostream import VideoStream   # Lukas to implement
 import warnings
 from concurrent.futures import ProcessPoolExecutor, as_completed
 from collections import deque
@@ -33,7 +33,6 @@ class DataPipeline:
         self.labels_processor = LabelProcessor(debug=True) if run_labels else None
         self.pointcloud_processor = PointCloudProcessor(debug=True) if run_pointclouds else None
         self.segmentation_processor = SegmentationProcessor(debug=True) if run_segmentations else None
-
         self.run_depth = run_depth
         self.run_labels = run_labels
         self.run_pointclouds = run_pointclouds
@@ -84,7 +83,7 @@ class DataPipeline:
         """Execute the selected pipeline layers in parallel."""
         with ProcessPoolExecutor(max_workers=self.max_workers) as executor:
             future_to_frame = {}
-            for frame in self.video_stream.frames:
+            for frame in self.video_stream:
                 # Submit frame processing to the executor
                 future = executor.submit(self._process_frame, frame)
                 future_to_frame[future] = frame
@@ -111,15 +110,15 @@ class DataPipeline:
         segmentation = None
 
         if self.run_depth:
-            depth_map = self.depth_processor.generate_depth_map(frame)
+            depth_map = self.depth_processor.process(frame)
 
         if self.run_labels:
             label = self.labels_processor.caption_image_data(frame)
 
         if self.run_pointclouds and depth_map is not None:
-            pointcloud = self.pointcloud_processor.generate_pointcloud(frame, depth_map)
+            pointcloud = self.pointcloud_processor.process_frame(frame, depth_map)
 
         if self.run_segmentations and label is not None:
-            segmentation = self.segmentation_processor.generate_segmentation(frame, label)
+            segmentation = self.segmentation_processor.process_frame(frame, label)
 
         return depth_map, label, pointcloud, segmentation
