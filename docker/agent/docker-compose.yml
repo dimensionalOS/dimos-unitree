@@ -2,15 +2,15 @@
 services:
   dimos:
     image: dimos:latest
+    build: ./../../
+    env_file:
+      - ./../../.env
+    mem_limit: 8048m
     stdin_open: true
     tty: true
     volumes:
-      - ./assets:/app/dimos/assets
-    mem_limit: 8048m
-    env_file:
-      - .env
+      - ./../../assets:/app/assets
     ports:
-      # - "23000:23000/udp"
       - "5555:5555"
     # command: [ "python", "-m", "tests.test_agent" ] 
     # ^^ Working Sanity Test Cases - Expand to Agent Class
@@ -25,11 +25,10 @@ services:
     # ^^ Working Instance - Needs Tests. 
     # 
     command: [ "python", "-m", "demos.agent_manip_flow_test" ] 
-    # ^^ Workin
 
 # ----
 # TO RUN:
-#   docker build -t dimos . && docker compose up
+#   docker build -f ./Dockerfile -t dimos ../../ && docker compose up
 # GO TO:
 #   127.0.0.1:5555 (when flask server fixed)
 # ----
@@ -38,6 +37,6 @@ services:
 #    build: ./video-service
 #    image: video-service:latest
 #    volumes:
-#      - ./assets:/app/dimos-env/assets
+#      - ./../../assets:/app/dimos-env/assets
 #    ports:
 #      - "23001:23001"
