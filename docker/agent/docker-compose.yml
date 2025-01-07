@@ -23,6 +23,11 @@ services:
     # ^^ Working Instance - Needs Tests. 
     # 
     command: [ "python", "-m", "tests.agent_manip_flow_test" ] 
+    # ^^ Working Instance - Needs Optical Flow Fix. 
+
+    # command: [ "python", "-m", "tests.agent_memory_test" ] 
+    # ^^ WIP - Agent Memory Testing
+
     # command: ["tail", "-f", "/dev/null"]
     stdin_open: true
     tty: true
