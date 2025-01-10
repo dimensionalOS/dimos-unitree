@@ -1,50 +1,71 @@
-from agents.memory.base import AbstractAgentMemory
+from dimos.agents.memory.base import AbstractAgentSemanticMemory
 
+import chromadb
 from langchain_openai import OpenAIEmbeddings
+from langchain_chroma import Chroma
+import os
 
-
-class AgentMemoryChroma(AbstractAgentMemory):
-    def __init__(self, connection_type='local', host='localhost', port=6379, db=0):
-        """Initialize the connection to the Chroma DB.
-        Args:
-            host (str): The host on which Chroma DB is running.
-            port (int): The port on which Chroma DB is accessible.
-            db (int): The database index to use.
-            connection_type (str): Whether to connect to a local or remote database.'
-        """
-        super().__init__(connection_type=connection_type, host=host, port=port, db=db)
-        self.db_connection
-        
+class AgentMemoryChroma(AbstractAgentSemanticMemory):
+    def __init__(self, collection_name="my_collection"):
+        """Initialize the connection to the local Chroma DB."""
+        self.collection_name = collection_name
+        super().__init__(connection_type='local')
 
     def connect(self):
-        try:
-            import dimos.agents.memory.chroma_impl as chroma_impl
-            self.connection = chroma_impl.connect(self.host, self.port, self.db)
-            self.logger.info("Connected successfully to Chroma DB")
-        except Exception as e:
-            self.logger.error("Failed to connect to Chroma DB", exc_info=True)
+        # Stub
+        return super().connect()
+
+    def create(self):
+        """Connect locally, creating the ChromaDB client."""
+
+        # Get OpenAI key
+        self.OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+        if not self.OPENAI_API_KEY:
+            raise Exception("OpenAI key was not specified.")
+
+        # Set embeddings
+        self.embeddings = OpenAIEmbeddings(
+            model="text-embedding-3-large",
+            dimensions=1024,
+            api_key=self.OPENAI_API_KEY,
+        )
+
+        # Create the local database
+        self.db_connection = Chroma(
+            collection_name=self.collection_name,
+            embedding_function=self.embeddings,
+        )
 
     def add_vector(self, vector_id, vector_data):
-        try:
-            self.connection.add(vector_id, vector_data)
-        except Exception as e:
-            self.logger.error(f"Failed to add vector {vector_id}", exc_info=True)
+        """Add a vector to the ChromaDB collection."""
+        if not self.db_connection:
+            raise Exception("Collection not initialized. Call connect() first.")
+        self.db_connection.add_texts(
+            ids=[vector_id],
+            texts=[vector_data],
+            metadatas=[{"name": vector_id}],
+        )
 
     def get_vector(self, vector_id):
-        try:
-            return self.connection.get(vector_id)
-        except Exception as e:
-            self.logger.error(f"Failed to retrieve vector {vector_id}", exc_info=True)
-            return None
+        """Retrieve a vector from the ChromaDB by its identifier."""
+        result = self.db_connection.get(include=['embeddings'], ids=[vector_id])
+        return result
 
     def update_vector(self, vector_id, new_vector_data):
-        try:
-            self.connection.update(vector_id, new_vector_data)
-        except Exception as e:
-            self.logger.error(f"Failed to update vector {vector_id}", exc_info=True)
+        # TODO
+        return super().connect()
 
     def delete_vector(self, vector_id):
-        try:
-            self.connection.delete(vector_id)
-        except Exception as e:
-            self.logger.error(f"Failed to delete vector {vector_id}", exc_info=True)
+        """Delete a vector from the ChromaDB using its identifier."""
+        if not self.my_collection:
+            raise Exception("Collection not initialized. Call connect() first.")
+        self.my_collection.delete(ids=[vector_id])
+    
+    def query(self, query_texts, n_results=2):
+        """Query the collection with a specific text and return up to n results."""
+        if not self.db_connection:
+            raise Exception("Collection not initialized. Call connect() first.")
+        return self.db_connection.similarity_search(
+            query=query_texts,
+            k=n_results
+        )
