@@ -11,7 +11,7 @@ import time
 from streaming.nvenc_streamer import NVENCStreamer
 
 # Specify the input USDA file
-USDA_FILE_PATH = "~/dimos/assets/TestSim3.usda"
+USDA_FILE_PATH = "/dimos/assets/TestSim3.usda"
 
 # Initialize the video streamer
 streamer = NVENCStreamer(
