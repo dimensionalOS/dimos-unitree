@@ -1,8 +1,14 @@
 from abc import ABC, abstractmethod
 import logging
-from exceptions.agent_memory_exceptions import UnknownConnectionTypeError, AgentMemoryConnectionError
+from dimos.exceptions.agent_memory_exceptions import UnknownConnectionTypeError, AgentMemoryConnectionError
 
-class AbstractAgentMemory(ABC):
+# TODO
+# class AbstractAgentMemory(ABC):
+
+# TODO
+# class AbstractAgentSymbolicMemory(AbstractAgentMemory):
+
+class AbstractAgentSemanticMemory(): # AbstractAgentMemory):
     def __init__(self, connection_type='local', **kwargs):
         """
         Initialize with dynamic connection parameters.
@@ -31,14 +37,16 @@ class AbstractAgentMemory(ABC):
             self.logger.error("Failed to initialize database connection: %s", str(e), exc_info=True)
             raise AgentMemoryConnectionError("Initialization failed due to an unexpected error.", cause=e) from e
 
+    
     @abstractmethod
     def connect(self):
-        """Establish a connection to the database using dynamic parameters specified during initialization."""
+        """Establish a connection to the data store using dynamic parameters specified during initialization."""
 
     @abstractmethod
     def create(self):
-        """Create a local instance of the database tailored to specific requirements."""
+        """Create a local instance of the data store tailored to specific requirements."""
 
+    ## Create ##
     @abstractmethod
     def add_vector(self, vector_id, vector_data):
         """Add a vector to the database.
@@ -47,13 +55,22 @@ class AbstractAgentMemory(ABC):
             vector_data (any): The actual data of the vector to be stored.
         """
 
+    ## Read ##
     @abstractmethod
     def get_vector(self, vector_id):
         """Retrieve a vector from the database by its identifier.
         Args:
             vector_id (any): The identifier of the vector to retrieve.
         """
+    
+    @abstractmethod
+    def query(self, ):
+        """Query the database using its identifier.
+        Args:
+            vector_id (any): The identifier of the vector to delete.
+        """
 
+    ## Update ##
     @abstractmethod
     def update_vector(self, vector_id, new_vector_data):
         """Update an existing vector in the database.
@@ -62,9 +79,20 @@ class AbstractAgentMemory(ABC):
             new_vector_data (any): The new data to replace the existing vector data.
         """
 
+    ## Delete ##
     @abstractmethod
     def delete_vector(self, vector_id):
         """Delete a vector from the database using its identifier.
         Args:
             vector_id (any): The identifier of the vector to delete.
         """
+
+
+# query(string, metadata/tag, n_rets, kwargs)
+
+# query by string, timestamp, id, n_rets
+
+# (some sort of tag/metadata)
+
+# temporal
+

@@ -17,10 +17,7 @@ class Agent:
         self.dev_name = dev_name
         self.agent_type = agent_type
         self.disposables = CompositeDisposable()
-    
-    # def process_frame(self):
-    #     """Processes a single frame. Should be implemented by subclasses."""
-    #     raise NotImplementedError("Frame processing must be handled by subclass")
+        self.agent_memory = None
 
     def dispose_all(self):
         """Disposes of all active subscriptions managed by this agent."""

@@ -14,5 +14,8 @@ Flask>=2.2
 reactivex
 
 # Agent Memory 
-langchain-chroma>=0.1.2
+langchain-chroma>=0.1.4
 langchain-openai>=0.2.14
+
+# Developer Specific
+ipykernel
