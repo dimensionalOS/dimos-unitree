@@ -11,7 +11,9 @@ sudo docker run --name isaac-sim --entrypoint bash -it --runtime=nvidia --gpus a
     -v ~/docker/isaac-sim/logs:/root/.nvidia-omniverse/logs:rw \
     -v ~/docker/isaac-sim/data:/root/.local/share/ov/data:rw \
     -v ~/docker/isaac-sim/documents:/root/Documents:rw \
+    -v ~/dimos:/dimos:rw \
     nvcr.io/nvidia/isaac-sim:4.2.0
 
-# Run Isaac Sim headless
-./runheadless.webrtc.sh -v
+cd /dimos/tests/isaacsim
+/isaac-sim/python.sh -m pip install -r requirements.txt 
+/isaac-sim/python.sh stream_camera.py
