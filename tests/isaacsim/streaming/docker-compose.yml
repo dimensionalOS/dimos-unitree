@@ -1,0 +1,17 @@
+version: '3'
+services:
+  livekit:
+    image: livekit/livekit-server:latest
+    ports:
+      - "7880:7880"
+      - "7881:7881"
+      - "7882:7882/udp"
+    volumes:
+      - ./livekit.yaml:/etc/livekit.yaml
+    command: --config /etc/livekit.yaml
+    network_mode: host  # Important for WebRTC performance
+
+  redis:
+    image: redis:6-alpine
+    ports:
+      - "6379:6379" 

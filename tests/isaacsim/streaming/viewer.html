@@ -2,6 +2,7 @@
 <html>
 <head>
     <title>Isaac Sim Stream Viewer</title>
+    <script src="https://unpkg.com/livekit-client/dist/livekit-client.min.js"></script>
     <style>
         video {
             width: 100%;
@@ -14,38 +15,25 @@
 <body>
     <video id="videoElement" autoplay playsinline></video>
     <script>
-        const videoElement = document.getElementById('videoElement');
+        const room = new LiveKit.Room();
         
         async function startViewing() {
             try {
-                const pc = new RTCPeerConnection();
+                // Get connection info from our server
+                const response = await fetch('http://localhost:8080/watch/simulator_room');
+                const { token, ws_url } = await response.json();
                 
-                pc.ontrack = (event) => {
-                    if (event.track.kind === 'video') {
-                        videoElement.srcObject = event.streams[0];
+                // Connect to LiveKit room
+                await room.connect(ws_url, token);
+                
+                // Subscribe to all publications
+                room.on(LiveKit.RoomEvent.TrackPublished, async (track) => {
+                    if (track.kind === 'video') {
+                        const videoElement = document.getElementById('videoElement');
+                        videoElement.srcObject = new MediaStream([track.track]);
                     }
-                };
-                
-                // Connect to your WebRTC server here
-                const response = await fetch('http://your-webrtc-server:8080/watch', {
-                    method: 'POST'
                 });
-                const { sdp } = await response.json();
                 
-                await pc.setRemoteDescription(new RTCSessionDescription({
-                    type: 'offer',
-                    sdp
-                }));
-                
-                const answer = await pc.createAnswer();
-                await pc.setLocalDescription(answer);
-                
-                await fetch('http://your-webrtc-server:8080/answer', {
-                    method: 'POST',
-                    body: JSON.stringify({
-                        sdp: answer.sdp
-                    })
-                });
             } catch (e) {
                 console.error('Error:', e);
             }

@@ -35,8 +35,7 @@ class NVENCStreamer:
             '-maxrate', '5M',
             '-bufsize', '1M',
             '-f', 'whip',  # WHIP output
-            '-whip_header', 'Authorization: Bearer your_token_here',
-            self.whip_endpoint
+            f'http://localhost:8080/whip/simulator_room'  # Updated WHIP endpoint
         ]
         
     def start(self):
