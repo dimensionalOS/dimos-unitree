@@ -23,7 +23,7 @@ app.add_middleware(
 load_dotenv(Path(__file__).parent / '.env')
 
 # LiveKit configuration
-LIVEKIT_HOST = 'http://18.189.249.222:7880'  # Updated to use EC2 IP
+LIVEKIT_HOST = 'http://localhost:7880'  # Internal connection to LiveKit
 API_KEY = os.getenv('LIVEKIT_API_KEY')
 API_SECRET = os.getenv('LIVEKIT_SECRET')
 

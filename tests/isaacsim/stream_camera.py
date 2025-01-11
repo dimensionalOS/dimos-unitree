@@ -1,4 +1,7 @@
 from isaacsim import SimulationApp
+# Initialize the Isaac Sim application in headless mode
+simulation_app = SimulationApp({"headless": True})
+
 import os
 import omni.usd
 import omni.replicator.core as rep
@@ -6,19 +9,9 @@ from PIL import Image
 from pxr import UsdGeom, Sdf
 import time
 from streaming.nvenc_streamer import NVENCStreamer
-import requests
-
-# Initialize the Isaac Sim application in headless mode
-simulation_app = SimulationApp({"headless": True})
 
 # Specify the input USDA file
-USDA_FILE_PATH = "/home/stash/Downloads/TestSim3.usda"
-
-def get_public_ip():
-    try:
-        return requests.get('http://169.254.169.254/latest/meta-data/public-ipv4', timeout=1).text
-    except:
-        return "localhost"  # fallback to localhost if not on EC2
+USDA_FILE_PATH = "~/dimos/assets/TestSim3.usda"
 
 # Initialize the video streamer
 streamer = NVENCStreamer(
