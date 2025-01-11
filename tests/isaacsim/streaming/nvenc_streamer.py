@@ -34,8 +34,22 @@ class NVENCStreamer:
             '-b:v', '5M',  # 5 Mbps bitrate
             '-maxrate', '5M',
             '-bufsize', '1M',
+            '-g', '30',  # GOP size
+            '-keyint_min', '30',
+            '-sc_threshold', '0',  # Disable scene change detection
+            '-f', 'rtp',  # Use RTP output
+            '-sdp_file', 'stream.sdp',  # Save SDP file
+            'rtp://127.0.0.1:5004'  # RTP output endpoint
+        ]
+        
+        # WebRTC command for forwarding RTP stream
+        self.webrtc_command = [
+            'ffmpeg',
+            '-protocol_whitelist', 'file,rtp,udp',
+            '-i', 'stream.sdp',
+            '-c', 'copy',  # Copy without re-encoding
             '-f', 'whip',  # WHIP output
-            f'http://localhost:8080/whip/simulator_room'  # Updated WHIP endpoint
+            '-whip_url', self.whip_endpoint,  # WHIP endpoint
         ]
         
     def start(self):
@@ -46,10 +60,20 @@ class NVENCStreamer:
         self.encoder_thread = threading.Thread(target=self._encoder_loop)
         self.encoder_thread.start()
         
+        # Start WebRTC forwarder
+        self.webrtc_process = subprocess.Popen(
+            self.webrtc_command,
+            stdin=subprocess.PIPE,
+            stderr=subprocess.PIPE
+        )
+        
     def stop(self):
         self.running = False
         if self.encoder_thread:
             self.encoder_thread.join()
+        if hasattr(self, 'webrtc_process'):
+            self.webrtc_process.terminate()
+            self.webrtc_process.wait()
             
     def push_frame(self, frame: np.ndarray):
         """Push a new frame to the encoding queue"""

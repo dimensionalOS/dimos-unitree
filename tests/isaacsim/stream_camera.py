@@ -6,6 +6,7 @@ from PIL import Image
 from pxr import UsdGeom, Sdf
 import time
 from streaming.nvenc_streamer import NVENCStreamer
+import requests
 
 # Initialize the Isaac Sim application in headless mode
 simulation_app = SimulationApp({"headless": True})
@@ -13,12 +14,18 @@ simulation_app = SimulationApp({"headless": True})
 # Specify the input USDA file
 USDA_FILE_PATH = "/home/stash/Downloads/TestSim3.usda"
 
+def get_public_ip():
+    try:
+        return requests.get('http://169.254.169.254/latest/meta-data/public-ipv4', timeout=1).text
+    except:
+        return "localhost"  # fallback to localhost if not on EC2
+
 # Initialize the video streamer
 streamer = NVENCStreamer(
     width=1920,
     height=1080,
     fps=30,
-    whip_endpoint="http://your-webrtc-server:8080/whip"
+    whip_endpoint="http://18.189.249.222:8080/whip/simulator_room"
 )
 
 # Open the specified USDA file

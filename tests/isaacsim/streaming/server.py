@@ -5,22 +5,30 @@ import jwt
 import time
 import os
 from pydantic import BaseModel
+from dotenv import load_dotenv
+from pathlib import Path
 
 app = FastAPI()
 
-# Add CORS middleware
+# Add CORS middleware with more permissive settings for testing
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=["*"],  # Allows all origins
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["*"],  # Allows all methods
+    allow_headers=["*"],  # Allows all headers
 )
 
+# Load .env from streaming directory
+load_dotenv(Path(__file__).parent / '.env')
+
 # LiveKit configuration
-LIVEKIT_HOST = "http://localhost:7880"
-API_KEY = "your-api-key"
-API_SECRET = "your-api-secret"
+LIVEKIT_HOST = 'http://18.189.249.222:7880'  # Updated to use EC2 IP
+API_KEY = os.getenv('LIVEKIT_API_KEY')
+API_SECRET = os.getenv('LIVEKIT_SECRET')
+
+if not all([API_KEY, API_SECRET]):
+    raise ValueError("API_KEY and API_SECRET must be set in .env file")
 
 class WHIPRequest(BaseModel):
     sdp: str
@@ -80,7 +88,7 @@ async def watch_endpoint(room_name: str):
     
     return {
         "token": token,
-        "ws_url": f"ws://localhost:7880?token={token}"
+        "ws_url": f"ws://18.189.249.222:7880?token={token}"  # Updated to use EC2 IP
     }
 
 if __name__ == "__main__":

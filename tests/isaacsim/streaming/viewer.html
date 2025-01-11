@@ -17,10 +17,13 @@
     <script>
         const room = new LiveKit.Room();
         
+        // EC2 public IP address
+        const SERVER_ADDRESS = '18.189.249.222';
+        
         async function startViewing() {
             try {
                 // Get connection info from our server
-                const response = await fetch('http://localhost:8080/watch/simulator_room');
+                const response = await fetch(`http://${SERVER_ADDRESS}:8080/watch/simulator_room`);
                 const { token, ws_url } = await response.json();
                 
                 // Connect to LiveKit room
