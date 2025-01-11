@@ -18,7 +18,7 @@ streamer = NVENCStreamer(
     width=1920,
     height=1080,
     fps=30,
-    whip_endpoint="http://18.189.249.222:8080/whip/simulator_room"
+    whip_endpoint="http://localhost:8080/whip/simulator_room"
 )
 
 # Open the specified USDA file
