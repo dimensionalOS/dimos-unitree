@@ -47,16 +47,22 @@ time.sleep(5)
 
 # Create a render product for the camera
 render_product = rep.create.render_product(camera_path, resolution=(1920, 1080))
+print("[Setup] Successfully created render product")
 
 # Attach an RGB annotator to the render product
 rgb_annotator = rep.AnnotatorRegistry.get_annotator("rgb")
 rgb_annotator.attach(render_product)
+print("[Setup] Successfully attached RGB annotator")
 
 # Start the streamer
 streamer.start()
+print("[Setup] Successfully started video streamer")
 
 try:
-    print("Starting camera stream...")
+    print("[Stream] Starting camera stream loop...")
+    frame_count = 0
+    start_time = time.time()
+    
     while True:
         # Step the simulation to generate a new frame
         rep.orchestrator.step()
@@ -65,9 +71,18 @@ try:
         rgb_data = rgb_annotator.get_data()
         streamer.push_frame(rgb_data)
         
+        frame_count += 1
+        if frame_count % 100 == 0:
+            elapsed_time = time.time() - start_time
+            fps = frame_count / elapsed_time
+            print(f"[Stream] Processed {frame_count} frames | Current FPS: {fps:.2f}")
+        
 except KeyboardInterrupt:
-    print("\nStopping stream...")
+    print("\n[Stream] Received keyboard interrupt, stopping stream...")
 finally:
     # Clean up
+    print("[Cleanup] Stopping video streamer...")
     streamer.stop()
+    print("[Cleanup] Closing simulation...")
     simulation_app.close()
+    print("[Cleanup] Successfully cleaned up resources")
