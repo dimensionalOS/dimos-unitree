@@ -55,31 +55,43 @@ def create_token(room_name: str, identity: str, is_publisher: bool) -> str:
 @app.post("/whip/{room_name}")
 async def whip_endpoint(room_name: str, request: WHIPRequest):
     """Handle WHIP requests from the simulator"""
-    token = create_token(room_name, f"publisher_{int(time.time())}", True)
+    print(f"[WHIP] Received request for room: {room_name}")
+    print(f"[WHIP] SDP: {request.sdp[:100]}...")  # Print first 100 chars of SDP
     
-    async with httpx.AsyncClient() as client:
-        # Create or join room
-        headers = {"Authorization": f"Bearer {token}"}
-        response = await client.post(
-            f"{LIVEKIT_HOST}/room/create",
-            json={"name": room_name},
-            headers=headers
-        )
-        
-        if response.status_code != 200:
-            raise HTTPException(status_code=500, detail="Failed to create room")
-        
-        # Connect as publisher
-        response = await client.post(
-            f"{LIVEKIT_HOST}/rtc/connect",
-            json={"sdp": request.sdp},
-            headers=headers
-        )
-        
-        if response.status_code != 200:
-            raise HTTPException(status_code=500, detail="Failed to connect")
+    token = create_token(room_name, f"publisher_{int(time.time())}", True)
+    print(f"[WHIP] Created token: {token[:30]}...")
+
+    try:
+        async with httpx.AsyncClient() as client:
+            headers = {"Authorization": f"Bearer {token}"}
+            print("[WHIP] Creating room...")
+            response = await client.post(
+                f"{LIVEKIT_HOST}/room/create",
+                json={"name": room_name},
+                headers=headers
+            )
+            print(f"[WHIP] Room creation response: {response.status_code}")
             
-        return response.json()
+            if response.status_code != 200:
+                print(f"[WHIP] Room creation failed: {response.text}")
+                raise HTTPException(status_code=500, detail="Failed to create room")
+            
+            print("[WHIP] Connecting publisher...")
+            response = await client.post(
+                f"{LIVEKIT_HOST}/rtc/connect",
+                json={"sdp": request.sdp},
+                headers=headers
+            )
+            print(f"[WHIP] Publisher connection response: {response.status_code}")
+            
+            if response.status_code != 200:
+                print(f"[WHIP] Publisher connection failed: {response.text}")
+                raise HTTPException(status_code=500, detail="Failed to connect")
+                
+            return response.json()
+    except Exception as e:
+        print(f"[WHIP] Error: {str(e)}")
+        raise
 
 @app.post("/watch/{room_name}")
 async def watch_endpoint(room_name: str):

@@ -9,48 +9,33 @@ from typing import Optional
 class NVENCStreamer:
     def __init__(self, width: int = 1920, height: int = 1080, fps: int = 30, 
                  whip_endpoint: str = "http://localhost:8080/whip"):
+        print(f"[NVENCStreamer] Initializing with endpoint: {whip_endpoint}")
         self.width = width
         self.height = height
         self.fps = fps
         self.whip_endpoint = whip_endpoint
-        self.frame_queue = queue.Queue(maxsize=2)  # Small queue size to minimize latency
+        self.frame_queue = queue.Queue(maxsize=2)
         self.running = False
         self.encoder_thread = None
         
-        # FFmpeg command optimized for low latency
+        # Single FFmpeg command - simplified for testing
         self.ffmpeg_command = [
             'ffmpeg',
-            '-y',  # Overwrite output files
+            '-y',
             '-f', 'rawvideo',
             '-vcodec', 'rawvideo',
             '-s', f'{width}x{height}',
             '-pix_fmt', 'rgba',
             '-r', str(fps),
-            '-i', '-',  # Input from pipe
-            '-c:v', 'h264_nvenc',  # Use NVENC encoder
-            '-preset', 'p1',  # Lowest latency preset
-            '-tune', 'ull',  # Ultra-low latency tuning
+            '-i', '-',
+            '-c:v', 'h264_nvenc',
+            '-preset', 'p1',
+            '-tune', 'ull',
             '-zerolatency', '1',
-            '-b:v', '5M',  # 5 Mbps bitrate
-            '-maxrate', '5M',
-            '-bufsize', '1M',
-            '-g', '30',  # GOP size
-            '-keyint_min', '30',
-            '-sc_threshold', '0',  # Disable scene change detection
-            '-f', 'rtp',  # Use RTP output
-            '-sdp_file', 'stream.sdp',  # Save SDP file
-            'rtp://127.0.0.1:5004'  # RTP output endpoint
+            '-f', 'whip',
+            self.whip_endpoint
         ]
-        
-        # WebRTC command for forwarding RTP stream
-        self.webrtc_command = [
-            'ffmpeg',
-            '-protocol_whitelist', 'file,rtp,udp',
-            '-i', 'stream.sdp',
-            '-c', 'copy',  # Copy without re-encoding
-            '-f', 'whip',  # WHIP output
-            '-whip_url', self.whip_endpoint,  # WHIP endpoint
-        ]
+        print(f"[NVENCStreamer] FFmpeg command: {' '.join(self.ffmpeg_command)}")
         
     def start(self):
         if self.running:
@@ -84,19 +69,36 @@ class NVENCStreamer:
             pass
             
     def _encoder_loop(self):
+        print("[NVENCStreamer] Starting encoder loop")
         process = subprocess.Popen(
             self.ffmpeg_command,
             stdin=subprocess.PIPE,
-            stderr=subprocess.PIPE
+            stderr=subprocess.PIPE,
+            universal_newlines=True
         )
+        
+        # Start a thread to read stderr
+        def log_stderr():
+            for line in process.stderr:
+                print(f"[FFmpeg] {line.strip()}")
+        
+        stderr_thread = threading.Thread(target=log_stderr)
+        stderr_thread.daemon = True
+        stderr_thread.start()
         
         while self.running:
             try:
                 frame = self.frame_queue.get(timeout=1.0)
                 process.stdin.write(frame.tobytes())
+                process.stdin.flush()  # Force the write
             except queue.Empty:
+                print("[NVENCStreamer] No frame available")
                 continue
             except BrokenPipeError:
+                print("[NVENCStreamer] Broken pipe error!")
+                break
+            except Exception as e:
+                print(f"[NVENCStreamer] Error: {str(e)}")
                 break
                 
         process.stdin.close()
