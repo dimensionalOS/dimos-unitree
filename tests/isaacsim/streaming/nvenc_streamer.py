@@ -5,6 +5,7 @@ import threading
 import av
 import time
 from typing import Optional
+import cv2
 
 class NVENCStreamer:
     def __init__(self, width: int = 1920, height: int = 1080, fps: int = 30, 
@@ -24,7 +25,7 @@ class NVENCStreamer:
             '-f', 'rawvideo',
             '-vcodec', 'rawvideo',
             '-s', f'{width}x{height}',
-            '-pix_fmt', 'rgba',
+            '-pix_fmt', 'bgr24',
             '-r', str(fps),
             '-i', '-',
             '-c:v', 'h264_nvenc',
@@ -35,8 +36,8 @@ class NVENCStreamer:
             '-maxrate', '5M',
             '-bufsize', '1M',
             '-f', 'rtsp',
-            '-rtsp_transport', 'tcp',  # TCP for reliability
-            f'rtsp://18.189.249.222:8554/live'  # Stream to your EC2 IP
+            '-rtsp_transport', 'tcp',
+            f'rtsp://18.189.249.222:8554/live'
         ]
         print(f"[NVENCStreamer] FFmpeg command: {' '.join(self.ffmpeg_command)}")
         
@@ -58,7 +59,9 @@ class NVENCStreamer:
     def push_frame(self, frame: np.ndarray):
         """Push a new frame to the encoding queue"""
         try:
-            self.frame_queue.put_nowait(frame)
+            # Convert RGBA to BGR
+            frame_bgr = cv2.cvtColor(frame, cv2.COLOR_RGBA2BGR)
+            self.frame_queue.put_nowait(frame_bgr)
             print("[NVENCStreamer] Frame queued")
         except queue.Full:
             print("[NVENCStreamer] Queue full, dropping frame")
