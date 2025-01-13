@@ -12,6 +12,7 @@ class NVENCStreamer:
         self.fps = fps
         self.frame_interval = 1.0 / fps
         self.last_frame_time = 0
+        self.last_fps_print = time.time()
         self.frame_queue = queue.Queue(maxsize=120)
         self.running = False
         self.encoder_thread = None
