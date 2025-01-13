@@ -2,9 +2,13 @@ paths:
   live:
     runOnInit: ffmpeg -i rtsp://localhost:8554/live -c copy -f rtsp rtsp://0.0.0.0:8554/live
     runOnInitRestart: yes
+    readBufferCount: 512
+    sourceProtocol: tcp
+    sourceOnDemand: no
+    rtspTransport: tcp
 
 rtspAddress: 0.0.0.0:8554
 metrics: yes
 pprof: yes
-readTimeout: 10s
-writeTimeout: 10s 
+readTimeout: 30s
+writeTimeout: 30s 
