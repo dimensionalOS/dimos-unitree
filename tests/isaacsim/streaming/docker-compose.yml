@@ -6,4 +6,4 @@ services:
       dockerfile: Dockerfile.rtsp
     network_mode: "host"
     volumes:
-      - ./rtsp-simple-server.yml:/rtsp-simple-server.yml 
+      - ./rtsp-simple-server.yml:/mediamtx.yml 

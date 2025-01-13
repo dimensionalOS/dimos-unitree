@@ -1,6 +1,11 @@
-FROM aler9/rtsp-simple-server
+FROM jrottenberg/ffmpeg:alpine
 
-USER root
-RUN apk add --no-cache ffmpeg
+# Install MediaMTX (formerly known as rtsp-simple-server)
+RUN wget https://github.com/bluenviron/mediamtx/releases/download/v1.11.0/mediamtx_v1.11.0_linux_amd64.tar.gz && \
+    tar -xvf mediamtx_v1.11.0_linux_amd64.tar.gz && \
+    mv mediamtx /usr/local/bin/ && \
+    rm mediamtx_v1.11.0_linux_amd64.tar.gz
 
-USER rtsp 
+EXPOSE 8554
+
+ENTRYPOINT ["/usr/local/bin/mediamtx"] 
