@@ -7,38 +7,35 @@ import cv2
 
 class NVENCStreamer:
     def __init__(self, width: int = 1920, height: int = 1080, fps: int = 30):
-        print(f"[NVENCStreamer] Initializing RTSP stream at {fps} FPS")
         self.width = width
         self.height = height
         self.fps = fps
         self.frame_interval = 1.0 / fps
         self.last_frame_time = 0
-        self.frame_queue = queue.Queue(maxsize=50)
+        self.frame_queue = queue.Queue(maxsize=5)
         self.running = False
         self.encoder_thread = None
         self.frames_processed = 0
         self.start_time = None
         
-        # FFmpeg command using RTSP output
+        # FFmpeg command using RTSP output with more robust settings
         self.ffmpeg_command = [
             'ffmpeg',
-            '-y',
+            '-y',  # Overwrite output files
             '-f', 'rawvideo',
             '-vcodec', 'rawvideo',
             '-s', f'{width}x{height}',
-            '-pix_fmt', 'rgb24',
+            '-pix_fmt', 'rgba',  # Changed from bgr24 to rgba since Isaac Sim outputs RGBA
             '-r', str(fps),
-            '-i', '-',
-            '-c:v', 'h264_nvenc',
-            '-preset', 'p1',
-            '-tune', 'ull',
+            '-i', '-',  # Read from pipe
+            '-c:v', 'h264_nvenc',  # Use NVIDIA encoder
+            '-preset', 'p1',  # Low-latency preset
+            '-tune', 'ull',  # Ultra-low latency tuning
             '-zerolatency', '1',
-            '-b:v', '5M',
-            '-maxrate', '5M',
-            '-bufsize', '1M',
+            '-b:v', '5M',  # Bitrate
             '-f', 'rtsp',
-            '-rtsp_transport', 'tcp',
-            f'rtsp://18.189.249.222:8554/live'
+            '-rtsp_transport', 'tcp',  # Use TCP for more reliable streaming
+            'rtsp://localhost:8554/live'  # Stream to local RTSP server first
         ]
 
     def start(self):
@@ -64,88 +61,59 @@ class NVENCStreamer:
         
         # Rate limiting
         if current_time - self.last_frame_time < self.frame_interval:
-            print("[NVENCStreamer] Frame skipped due to rate limiting")
             return
             
         try:
-            print("[NVENCStreamer] Using RGB24 pipeline, dropping alpha channel if present...")
-            if frame.shape[2] == 4:
-                frame_rgb = frame[:, :, :3]  # Remove alpha channel
-            else:
-                frame_rgb = frame
-            
-            # If queue is full, remove oldest frame
+            # No need to convert RGBA to BGR anymore - we'll use the RGBA directly
             if self.frame_queue.full():
                 try:
                     self.frame_queue.get_nowait()
-                    print("[NVENCStreamer] Queue full, dropped oldest frame")
                 except queue.Empty:
                     pass
                     
-            self.frame_queue.put_nowait(frame_rgb)
+            self.frame_queue.put_nowait(frame)  # Put the RGBA frame directly
             self.last_frame_time = current_time
-            print("[NVENCStreamer] Frame successfully queued (RGB24)")
             
         except Exception as e:
-            print(f"[NVENCStreamer] Frame processing error: {str(e)}")
-            
+            print(f"[NVENCStreamer] Error processing frame: {str(e)}")
+
     def _encoder_loop(self):
-        print("[NVENCStreamer] Starting encoder loop")
         if self.start_time is None:
             self.start_time = time.time()
             
-        print(f"[NVENCStreamer] Starting FFmpeg with command: {' '.join(self.ffmpeg_command)}")
         process = subprocess.Popen(
             self.ffmpeg_command,
             stdin=subprocess.PIPE,
+            stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             universal_newlines=False
         )
-        
-        # Start a thread to read stderr and print everything for debugging
-        def log_stderr():
-            print("[FFmpeg] Starting stderr logging thread")
-            while True:
-                line = process.stderr.readline()
-                if not line:
-                    break
-                print(f"[FFmpeg] {line.decode().strip()}")
-        
-        stderr_thread = threading.Thread(target=log_stderr)
-        stderr_thread.daemon = True
-        stderr_thread.start()
         
         last_fps_print = time.time()
         
         while self.running:
             try:
-                print("[NVENCStreamer] Waiting for frame from queue...")
                 frame = self.frame_queue.get(timeout=1.0)
-                print("[NVENCStreamer] Got frame from queue, writing to FFmpeg...")
                 process.stdin.write(frame.tobytes())
                 process.stdin.flush()
                 self.frames_processed += 1
-                print("[NVENCStreamer] Frame successfully written to FFmpeg")
                 
                 # Print FPS every 5 seconds
                 current_time = time.time()
                 if current_time - last_fps_print >= 5.0:
                     elapsed = current_time - self.start_time
                     fps = self.frames_processed / elapsed
-                    print(f"[NVENCStreamer] Current FPS: {fps:.2f}")
+                    print(f"[NVENCStreamer] Streaming at {fps:.2f} FPS")
                     last_fps_print = current_time
                     
             except queue.Empty:
-                print("[NVENCStreamer] Queue empty, waiting for next frame...")
                 continue
             except BrokenPipeError:
-                print("[NVENCStreamer] Broken pipe error!")
+                print("[NVENCStreamer] FFmpeg process closed unexpectedly")
                 break
             except Exception as e:
-                print(f"[NVENCStreamer] Error: {str(e)}")
+                print(f"[NVENCStreamer] Streaming error: {str(e)}")
                 break
                 
-        print("[NVENCStreamer] Encoder loop ending, cleaning up...")
         process.stdin.close()
-        process.wait()
-        print("[NVENCStreamer] Encoder loop ended") 
+        process.wait() 

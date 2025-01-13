@@ -1,23 +1,9 @@
 version: '3'
 services:
-  livekit:
-    image: livekit/livekit-server:latest
-    ports:
-      - "7880:7880"
-      - "7881:7881"
-      - "7882:7882/udp"
-    volumes:
-      - ./livekit.yaml:/etc/livekit.yaml
-    command: --config /etc/livekit.yaml
-    network_mode: host  # Important for WebRTC performance
-
-  redis:
-    image: redis:6-alpine
-    ports:
-      - "6379:6379" 
-
   rtsp:
     image: aler9/rtsp-simple-server
-    network_mode: host
     ports:
-      - "8554:8554"  # RTSP port 
+      - "8554:8554"  # RTSP port
+    network_mode: "host"  # Use host networking for better performance
+    volumes:
+      - ./rtsp-simple-server.yml:/rtsp-simple-server.yml 
