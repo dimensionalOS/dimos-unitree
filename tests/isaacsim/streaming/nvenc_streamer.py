@@ -18,7 +18,7 @@ class NVENCStreamer:
         self.running = False
         self.encoder_thread = None
         
-        # Single FFmpeg command - simplified for testing
+        # FFmpeg command using RTP output
         self.ffmpeg_command = [
             'ffmpeg',
             '-y',
@@ -32,8 +32,11 @@ class NVENCStreamer:
             '-preset', 'p1',
             '-tune', 'ull',
             '-zerolatency', '1',
-            '-f', 'whip',
-            self.whip_endpoint
+            '-b:v', '5M',
+            '-maxrate', '5M',
+            '-bufsize', '1M',
+            '-f', 'rtp',
+            'rtp://127.0.0.1:5004'
         ]
         print(f"[NVENCStreamer] FFmpeg command: {' '.join(self.ffmpeg_command)}")
         
@@ -67,13 +70,16 @@ class NVENCStreamer:
             self.ffmpeg_command,
             stdin=subprocess.PIPE,
             stderr=subprocess.PIPE,
-            universal_newlines=True
+            universal_newlines=False  # Changed to handle binary data
         )
         
         # Start a thread to read stderr
         def log_stderr():
-            for line in process.stderr:
-                print(f"[FFmpeg] {line.strip()}")
+            while True:
+                line = process.stderr.readline()
+                if not line:
+                    break
+                print(f"[FFmpeg] {line.decode().strip()}")
         
         stderr_thread = threading.Thread(target=log_stderr)
         stderr_thread.daemon = True
@@ -82,11 +88,10 @@ class NVENCStreamer:
         while self.running:
             try:
                 frame = self.frame_queue.get(timeout=1.0)
-                process.stdin.write(frame.tobytes())
-                process.stdin.flush()  # Force the write
+                process.stdin.write(frame.tobytes())  # Write raw bytes
+                process.stdin.flush()
                 print("[NVENCStreamer] Frame sent to FFmpeg")
             except queue.Empty:
-                print("[NVENCStreamer] No frame available")
                 continue
             except BrokenPipeError:
                 print("[NVENCStreamer] Broken pipe error!")
