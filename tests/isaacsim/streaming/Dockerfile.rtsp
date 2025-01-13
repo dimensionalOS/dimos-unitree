@@ -1,0 +1,6 @@
+FROM aler9/rtsp-simple-server
+
+USER root
+RUN apk add --no-cache ffmpeg
+
+USER rtsp 

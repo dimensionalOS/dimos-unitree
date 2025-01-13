@@ -1,9 +1,9 @@
 version: '3'
 services:
   rtsp:
-    image: aler9/rtsp-simple-server
-    ports:
-      - "8554:8554"  # RTSP port
-    network_mode: "host"  # Use host networking for better performance
+    build:
+      context: .
+      dockerfile: Dockerfile.rtsp
+    network_mode: "host"
     volumes:
       - ./rtsp-simple-server.yml:/rtsp-simple-server.yml 
