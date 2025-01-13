@@ -1,11 +1,9 @@
 paths:
   live:
-    runOnInit: ffmpeg -i rtsp://localhost:8554/live -c copy -f rtsp rtsp://0.0.0.0:8554/live
     runOnInitRestart: yes
 
-
 rtspAddress: 0.0.0.0:8554
-rtspTransport: tcp
 metrics: yes
-readTimeout: 30s
-writeTimeout: 30s 
+pprof: yes
+readTimeout: 10s
+writeTimeout: 10s 
