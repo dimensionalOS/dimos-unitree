@@ -43,7 +43,8 @@ class NVENCStreamer:
             '-max_delay', '0',
             '-avoid_negative_ts', 'make_zero',
             '-fflags', 'nobuffer',
-            'rtsp://0.0.0.0:8554/live'
+            '-rtsp_flags', 'prefer_tcp',
+            'rtsp://127.0.0.1:8554/live'
         ]
 
     def start(self):
