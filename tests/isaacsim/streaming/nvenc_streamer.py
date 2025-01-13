@@ -26,7 +26,7 @@ class NVENCStreamer:
             '-f', 'rawvideo',
             '-vcodec', 'rawvideo',
             '-s', f'{width}x{height}',
-            '-pix_fmt', 'bgr24',
+            '-pix_fmt', 'rgb24',
             '-r', str(fps),
             '-i', '-',
             '-c:v', 'h264_nvenc',
@@ -68,9 +68,11 @@ class NVENCStreamer:
             return
             
         try:
-            print("[NVENCStreamer] Converting RGBA to BGR...")
-            # Convert RGBA to BGR
-            frame_bgr = cv2.cvtColor(frame, cv2.COLOR_RGBA2BGR)
+            print("[NVENCStreamer] Using RGB24 pipeline, dropping alpha channel if present...")
+            if frame.shape[2] == 4:
+                frame_rgb = frame[:, :, :3]  # Remove alpha channel
+            else:
+                frame_rgb = frame
             
             # If queue is full, remove oldest frame
             if self.frame_queue.full():
@@ -80,9 +82,9 @@ class NVENCStreamer:
                 except queue.Empty:
                     pass
                     
-            self.frame_queue.put_nowait(frame_bgr)
+            self.frame_queue.put_nowait(frame_rgb)
             self.last_frame_time = current_time
-            print("[NVENCStreamer] Frame successfully queued")
+            print("[NVENCStreamer] Frame successfully queued (RGB24)")
             
         except Exception as e:
             print(f"[NVENCStreamer] Frame processing error: {str(e)}")
