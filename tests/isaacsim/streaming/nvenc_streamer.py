@@ -44,28 +44,21 @@ class NVENCStreamer:
         self.running = True
         self.encoder_thread = threading.Thread(target=self._encoder_loop)
         self.encoder_thread.start()
-        
-        # Start WebRTC forwarder
-        self.webrtc_process = subprocess.Popen(
-            self.webrtc_command,
-            stdin=subprocess.PIPE,
-            stderr=subprocess.PIPE
-        )
+        print("[NVENCStreamer] Encoder thread started")
         
     def stop(self):
         self.running = False
         if self.encoder_thread:
             self.encoder_thread.join()
-        if hasattr(self, 'webrtc_process'):
-            self.webrtc_process.terminate()
-            self.webrtc_process.wait()
+        print("[NVENCStreamer] Encoder thread stopped")
             
     def push_frame(self, frame: np.ndarray):
         """Push a new frame to the encoding queue"""
         try:
             self.frame_queue.put_nowait(frame)
+            print("[NVENCStreamer] Frame queued")
         except queue.Full:
-            # Drop frame if queue is full to maintain low latency
+            print("[NVENCStreamer] Queue full, dropping frame")
             pass
             
     def _encoder_loop(self):
@@ -91,6 +84,7 @@ class NVENCStreamer:
                 frame = self.frame_queue.get(timeout=1.0)
                 process.stdin.write(frame.tobytes())
                 process.stdin.flush()  # Force the write
+                print("[NVENCStreamer] Frame sent to FFmpeg")
             except queue.Empty:
                 print("[NVENCStreamer] No frame available")
                 continue
