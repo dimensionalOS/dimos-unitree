@@ -6,4 +6,5 @@ rtspAddress: 0.0.0.0:8554
 metrics: yes
 pprof: yes
 readTimeout: 10s
-writeTimeout: 10s 
+writeTimeout: 10s
+protocols: [tcp]
