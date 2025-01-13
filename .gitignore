@@ -10,3 +10,5 @@ venv*
 
 .env
 **/.DS_Store
+
+tests/isaacsim/streaming/livekit.yaml
