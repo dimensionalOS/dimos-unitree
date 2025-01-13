@@ -4,11 +4,9 @@ paths:
     runOnInitRestart: yes
     readTimeout: 30s
     writeTimeout: 30s
-    protocols: [tcp]
 
 rtspAddress: 0.0.0.0:8554
-protocols: [tcp]
+rtspTransport: tcp
 metrics: yes
-pprof: yes
 readTimeout: 30s
 writeTimeout: 30s 
