@@ -19,7 +19,7 @@ class NVENCStreamer:
         self.frames_processed = 0
         self.start_time = None
         
-        # Updated FFmpeg command with better compatibility settings
+        # Match exactly with the working standalone implementation
         self.ffmpeg_command = [
             'ffmpeg',
             '-y',
@@ -33,15 +33,9 @@ class NVENCStreamer:
             '-an',  # No audio
             '-c:v', 'libx264',
             '-preset', 'ultrafast',
-            '-tune', 'zerolatency',
-            '-profile:v', 'baseline',
-            '-x264-params', 'keyint=60:min-keyint=60',  # Keyframe interval
-            '-b:v', '4M',  # Bitrate
-            '-bufsize', '8M',
-            '-maxrate', '4M',
             '-f', 'rtsp',
-            '-rtsp_transport', 'tcp',
-            'rtsp://mediamtx:8554/stream'
+            'rtsp://mediamtx:8554/stream',
+            '-rtsp_transport', 'tcp'  # Enforce TCP transport
         ]
 
     def start(self):
@@ -70,9 +64,22 @@ class NVENCStreamer:
             return
             
         try:
-            # Convert RGBA to BGR (if input is RGBA)
+            # Convert RGBA to BGR and ensure correct format
+            # Input: RGBA uint8 (height, width, 4)
+            # Output: BGR uint8 (height, width, 3)
             if frame.shape[-1] == 4:
                 frame = cv2.cvtColor(frame, cv2.COLOR_RGBA2BGR)
+            
+            # Ensure frame is contiguous in memory before converting to bytes
+            if not frame.flags['C_CONTIGUOUS']:
+                frame = np.ascontiguousarray(frame)
+            
+            # At this point frame should be:
+            # - BGR format
+            # - uint8 type
+            # - shape (height, width, 3)
+            # - C-contiguous in memory
+            # This matches exactly what cv2.VideoCapture produces
             
             if self.frame_queue.full():
                 try:

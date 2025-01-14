@@ -17,7 +17,7 @@ USDA_FILE_PATH = "/dimos/assets/TestSim3.usda"
 streamer = NVENCStreamer(
     width=1920,
     height=1080,
-    fps=30
+    fps=60
     )
 
 # Open the specified USDA file
