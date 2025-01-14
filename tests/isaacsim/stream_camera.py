@@ -16,7 +16,7 @@ USDA_FILE_PATH = "/dimos/assets/TestSim3.usda"
 
 # FFmpeg configuration
 width, height = 1920, 1080
-fps = 10
+fps = 65
 
 command = [
     'ffmpeg',
@@ -26,7 +26,7 @@ command = [
     '-vcodec', 'rawvideo',
     '-pix_fmt', 'bgr24',
     '-s', f"{width}x{height}",
-    #'-r', str(fps),
+    '-r', str(fps),
     '-i', '-',
     '-an',  # No audio
     '-c:v', 'h264_nvenc',
@@ -83,6 +83,9 @@ try:
     last_fps_print = time.time()
     
     while True:
+        # Time the full frame processing
+        frame_start = time.time()
+        
         # Step the simulation to generate a new frame
         rep.orchestrator.step()
         
@@ -91,6 +94,7 @@ try:
         frame = rgb_annotator.get_data()
         get_data_time = time.time() - start
         print(f"[Stream] Getting frame data took {get_data_time*1000:.2f}ms")
+        
         start = time.time()
         frame = cv2.cvtColor(frame, cv2.COLOR_RGBA2BGR)
         cvt_time = time.time() - start
@@ -103,6 +107,10 @@ try:
         # Write frame directly to FFmpeg
         proc.stdin.write(frame.tobytes())
         proc.stdin.flush()
+        
+        # Calculate and print total frame time
+        frame_time = time.time() - frame_start
+        print(f"[Stream] Total frame processing took {frame_time*1000:.2f}ms")
         
         frame_count += 1
         if frame_count % 100 == 0:
