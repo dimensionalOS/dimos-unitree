@@ -19,7 +19,7 @@ class NVENCStreamer:
         self.frames_processed = 0
         self.start_time = None
         
-        # Update FFmpeg command to match the standalone implementation
+        # Updated FFmpeg command with better compatibility settings
         self.ffmpeg_command = [
             'ffmpeg',
             '-y',
@@ -33,9 +33,15 @@ class NVENCStreamer:
             '-an',  # No audio
             '-c:v', 'libx264',
             '-preset', 'ultrafast',
+            '-tune', 'zerolatency',
+            '-profile:v', 'baseline',
+            '-x264-params', 'keyint=60:min-keyint=60',  # Keyframe interval
+            '-b:v', '4M',  # Bitrate
+            '-bufsize', '8M',
+            '-maxrate', '4M',
             '-f', 'rtsp',
-            'rtsp://mediamtx:8554/stream',
-            '-rtsp_transport', 'tcp'
+            '-rtsp_transport', 'tcp',
+            'rtsp://mediamtx:8554/stream'
         ]
 
     def start(self):
