@@ -26,7 +26,7 @@ command = [
     '-vcodec', 'rawvideo',
     '-pix_fmt', 'bgr24',
     '-s', f"{width}x{height}",
-    '-r', str(fps),
+    #'-r', str(fps),
     '-i', '-',
     '-an',  # No audio
     '-c:v', 'h264_nvenc',
@@ -87,8 +87,14 @@ try:
         rep.orchestrator.step()
         
         # Get RGB data and convert to BGR
+        start = time.time()
         frame = rgb_annotator.get_data()
+        get_data_time = time.time() - start
+        print(f"[Stream] Getting frame data took {get_data_time*1000:.2f}ms")
+        start = time.time()
         frame = cv2.cvtColor(frame, cv2.COLOR_RGBA2BGR)
+        cvt_time = time.time() - start
+        print(f"[Stream] Color conversion took {cvt_time*1000:.2f}ms")
         
         # Ensure frame is contiguous
         # if not frame.flags['C_CONTIGUOUS']:
