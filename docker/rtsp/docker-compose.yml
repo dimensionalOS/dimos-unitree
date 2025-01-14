@@ -16,13 +16,16 @@ services:
     # command: ["tail", "-f", "/dev/null"]
     stdin_open: true
     tty: true
+    networks:
+      - rtsp_net
     depends_on:
       - mediamtx
 
   mediamtx:
     image: bluenviron/mediamtx:latest
     container_name: mediamtx
-
+    networks:
+      - rtsp_net
     ports:
       - "8554:8554"  # RTSP port
       - "1935:1935"  # RTMP port 
@@ -30,6 +33,10 @@ services:
     environment:
       - MTX_PROTOCOLS=tcp # Enable TCP for all protocols
       - MTX_LOG_LEVEL=info 
+
+networks:
+  rtsp_net:
+    name: rtsp_net
 
 # ----
 # Pre-reqs:
