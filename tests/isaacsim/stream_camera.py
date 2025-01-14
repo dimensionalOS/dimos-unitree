@@ -5,20 +5,39 @@ simulation_app = SimulationApp({"headless": True})
 import os
 import omni.usd
 import omni.replicator.core as rep
-from PIL import Image
+import subprocess
+import cv2
+import numpy as np
 from pxr import UsdGeom, Sdf
 import time
-from streaming.nvenc_streamer import NVENCStreamer
 
 # Specify the input USDA file
 USDA_FILE_PATH = "/dimos/assets/TestSim3.usda"
 
-# Initialize the video streamer
-streamer = NVENCStreamer(
-    width=1920,
-    height=1080,
-    fps=60
-    )
+# FFmpeg configuration
+width, height = 1920, 1080
+fps = 10
+
+command = [
+    'ffmpeg',
+    '-y',
+    '-loglevel', 'debug',
+    '-f', 'rawvideo',
+    '-vcodec', 'rawvideo',
+    '-pix_fmt', 'bgr24',
+    '-s', f"{width}x{height}",
+    '-r', str(fps),
+    '-i', '-',
+    '-an',  # No audio
+    '-c:v', 'h264_nvenc',
+    '-preset', 'fast',
+    '-f', 'rtsp',
+    'rtsp://mediamtx:8554/stream',
+    '-rtsp_transport', 'tcp'
+]
+
+# Open FFmpeg process
+proc = subprocess.Popen(command, stdin=subprocess.PIPE)
 
 # Open the specified USDA file
 omni.usd.get_context().open_stage(USDA_FILE_PATH)
@@ -45,7 +64,7 @@ print("Waiting 5 seconds for scene to initialize...")
 time.sleep(5)
 
 # Create a render product for the camera
-render_product = rep.create.render_product(camera_path, resolution=(1920, 1080))
+render_product = rep.create.render_product(camera_path, resolution=(width, height))
 print("[Setup] Successfully created render product")
 
 # Attach an RGB annotator to the render product
@@ -54,25 +73,35 @@ rgb_annotator.attach(render_product)
 print("[Setup] Successfully attached RGB annotator")
 
 # Start the streamer
-streamer.start()
-print("[Setup] Successfully started video streamer")
+#streamer.start()
+#print("[Setup] Successfully started video streamer")
 
 try:
     print("[Stream] Starting camera stream loop...")
     frame_count = 0
     start_time = time.time()
+    last_fps_print = time.time()
     
     while True:
         # Step the simulation to generate a new frame
         rep.orchestrator.step()
         
-        # Get RGB data and stream it
-        rgb_data = rgb_annotator.get_data()
-        streamer.push_frame(rgb_data)
+        # Get RGB data and convert to BGR
+        frame = rgb_annotator.get_data()
+        frame = cv2.cvtColor(frame, cv2.COLOR_RGBA2BGR)
+        
+        # Ensure frame is contiguous
+        if not frame.flags['C_CONTIGUOUS']:
+            frame = np.ascontiguousarray(frame)
+            
+        # Write frame directly to FFmpeg
+        proc.stdin.write(frame.tobytes())
+        proc.stdin.flush()
         
         frame_count += 1
         if frame_count % 100 == 0:
-            elapsed_time = time.time() - start_time
+            current_time = time.time()
+            elapsed_time = current_time - start_time
             fps = frame_count / elapsed_time
             print(f"[Stream] Processed {frame_count} frames | Current FPS: {fps:.2f}")
         
@@ -80,8 +109,9 @@ except KeyboardInterrupt:
     print("\n[Stream] Received keyboard interrupt, stopping stream...")
 finally:
     # Clean up
-    print("[Cleanup] Stopping video streamer...")
-    streamer.stop()
+    print("[Cleanup] Stopping FFmpeg process...")
+    proc.stdin.close()
+    proc.wait()
     print("[Cleanup] Closing simulation...")
     simulation_app.close()
     print("[Cleanup] Successfully cleaned up resources")
