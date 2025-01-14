@@ -29,24 +29,22 @@ class NVENCStreamer:
             '-pix_fmt', 'rgba',
             '-r', str(fps),
             '-i', '-',
-            '-c:v', 'h264_nvenc',
-            '-preset', 'p1',
-            '-tune', 'ull',
-            '-zerolatency', '1',
-            '-b:v', '5M',
-            '-maxrate', '5M',
-            '-bufsize', '10M',
-            '-g', '30',
-            '-keyint_min', '30',
-            '-max_delay', '0',
-            '-avoid_negative_ts', 'make_zero',
-            '-fflags', 'nobuffer',
-            '-preset', 'ultrafast',
-            '-f', 'rtsp',
-            'rtsp://mediamtx:8554/stream',
-            '-rtsp_transport', 'tcp'  # Enforce TCP transport
-
-        ]
+            'ffmpeg',
+    '-y',
+    '-loglevel', 'debug',  # Add this for detailed logs
+    '-f', 'rawvideo',
+    '-vcodec', 'rawvideo',
+    '-pix_fmt', 'bgr24',
+    '-s', f"{width}x{height}",
+    '-r', str(fps),
+    '-i', '-',
+    '-an',  # No audio
+    '-c:v', 'libx264',
+    '-preset', 'ultrafast',
+    '-f', 'rtsp',
+    'rtsp://mediamtx:8554/stream',
+    '-rtsp_transport', 'tcp'  # Enforce TCP transport
+]
 
     def start(self):
         """Start the encoder thread"""
@@ -74,14 +72,16 @@ class NVENCStreamer:
             return
             
         try:
-            # No need to convert RGBA to BGR anymore - we'll use the RGBA directly
+            # Convert RGBA to BGR
+            bgr_frame = cv2.cvtColor(frame, cv2.COLOR_RGBA2BGR)
+            
             if self.frame_queue.full():
                 try:
                     self.frame_queue.get_nowait()
                 except queue.Empty:
                     pass
                     
-            self.frame_queue.put_nowait(frame)  # Put the RGBA frame directly
+            self.frame_queue.put_nowait(bgr_frame)  # Put the BGR frame
             self.last_frame_time = current_time
             
         except Exception as e:
