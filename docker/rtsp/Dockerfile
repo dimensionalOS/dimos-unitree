@@ -16,4 +16,4 @@ COPY ./tests ./tests
 
 COPY ./dimos/__init__.py ./
 
-CMD [ "python", "-m", "tests.test_standalone_rtsp_streamer" ]
+# CMD [ "python", "-m", "tests.test_standalone_rtsp_streamer" ]

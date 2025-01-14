@@ -6,7 +6,7 @@ import time
 import cv2
 
 class NVENCStreamer:
-    def __init__(self, width: int = 1920, height: int = 1080, fps: int = 30):
+    def __init__(self, width: int = 1920, height: int = 1080, fps: int = 60):
         self.width = width
         self.height = height
         self.fps = fps
@@ -38,13 +38,14 @@ class NVENCStreamer:
             '-bufsize', '10M',
             '-g', '30',
             '-keyint_min', '30',
-            '-f', 'rtsp',
-            '-rtsp_transport', 'tcp',
             '-max_delay', '0',
             '-avoid_negative_ts', 'make_zero',
             '-fflags', 'nobuffer',
-            '-rtsp_flags', 'prefer_tcp',
-            'rtsp://127.0.0.1:8554/live'
+            '-preset', 'ultrafast',
+            '-f', 'rtsp',
+            'rtsp://mediamtx:8554/stream',
+            '-rtsp_transport', 'tcp'  # Enforce TCP transport
+
         ]
 
     def start(self):

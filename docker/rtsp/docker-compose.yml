@@ -12,7 +12,7 @@ services:
     #   - "8554:8554"
     environment:
       - PYTHONUNBUFFERED=1
-    command: [ "python", "-m", "tests.test_standalone_rtsp_streamer" ]
+    # command: [ "python", "-m", "tests.test_standalone_rtsp_streamer" ]
     # command: ["tail", "-f", "/dev/null"]
     stdin_open: true
     tty: true
@@ -21,7 +21,8 @@ services:
 
   mediamtx:
     image: bluenviron/mediamtx:latest
-    container_name: mediamtx
+    container_name: mediamtx:x
+
     ports:
       - "8554:8554"  # RTSP port
       - "1935:1935"  # RTMP port 
