@@ -81,3 +81,7 @@ This will:
 ## Viewing the Stream
 
 The camera stream will be available at: 
+
+- RTSP: `rtsp://localhost:8554/stream` or `rtsp://<STATIC_IP>:8554/stream`
+
+You can view it using VLC or any RTSP-capable player.
