@@ -1,4 +1,4 @@
-import omni.replicator.core as rep
+from isaacsim import SimulationApp
 import cv2
 import numpy as np
 import subprocess
@@ -46,6 +46,10 @@ class SimulationStream:
         self.transport = transport
         self.rtsp_url = rtsp_url
         
+        # Import omni.replicator only after SimulationApp is initialized
+        import omni.replicator.core as rep
+        self.rep = rep
+        
         # Initialize stage if USD path provided
         if usd_path:
             self._load_stage(usd_path)
@@ -71,7 +75,7 @@ class SimulationStream:
             raise RuntimeError(f"Failed to find camera at path: {self.camera_path}")
             
         # Create render product
-        self.render_product = rep.create.render_product(
+        self.render_product = self.rep.create.render_product(
             self.camera_path,
             resolution=(self.width, self.height)
         )
@@ -98,7 +102,7 @@ class SimulationStream:
         
     def _setup_annotator(self):
         """Setup the specified annotator."""
-        self.annotator = rep.AnnotatorRegistry.get_annotator(self.annotator_type)
+        self.annotator = self.rep.AnnotatorRegistry.get_annotator(self.annotator_type)
         self.annotator.attach(self.render_product)
         
     def stream(self):
@@ -113,7 +117,7 @@ class SimulationStream:
                 
                 # Step simulation and get frame
                 step_start = time.time()
-                rep.orchestrator.step()
+                self.rep.orchestrator.step()
                 step_time = time.time() - step_start
                 print(f"[Stream] Simulation step took {step_time*1000:.2f}ms")
                 frame = self.annotator.get_data()
