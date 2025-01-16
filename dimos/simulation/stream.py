@@ -62,22 +62,12 @@ class SimulationStream:
     def _load_stage(self, usd_path: Union[str, Path]):
         """Load USD stage from file."""
         import omni.usd
-        import os
-        
-        print(f"Current working directory: {os.getcwd()}")
-        print(f"Attempting to load USD from: {usd_path}")
-        
-        # Try with original path first
-        omni.usd.get_context().open_stage(str(usd_path))
+        # Convert to absolute path
+        abs_path = str(Path(usd_path).resolve())
+        omni.usd.get_context().open_stage(abs_path)
         self.stage = self.simulator.get_stage()
         if not self.stage:
-            # If failed, try with absolute path
-            abs_path = str(Path(usd_path).resolve())
-            print(f"Failed with relative path, trying absolute: {abs_path}")
-            omni.usd.get_context().open_stage(abs_path)
-            self.stage = self.simulator.get_stage()
-            if not self.stage:
-                raise RuntimeError(f"Failed to load stage: {usd_path}")
+            raise RuntimeError(f"Failed to load stage: {abs_path}")
             
     def _setup_camera(self):
         """Setup and validate camera."""

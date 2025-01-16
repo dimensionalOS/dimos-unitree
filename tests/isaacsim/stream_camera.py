@@ -15,7 +15,7 @@ def main():
         annotator='rgb',
         transport='tcp',
         rtsp_url="rtsp://mediamtx:8554/stream",
-        usd_path="./assets/TestSim3.usda"
+        usd_path="/app/assets/TestSim3.usda"
     )
     
     # Start streaming
