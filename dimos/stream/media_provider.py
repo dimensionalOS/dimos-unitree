@@ -4,7 +4,7 @@ import reactivex as rx
 from reactivex import operators as ops
 from reactivex.disposable import CompositeDisposable
 from reactivex.scheduler import ThreadPoolScheduler, CurrentThreadScheduler
-
+from threading import Lock
 
 class MediaProvider:
     def __init__(self, dev_name:str="NA"):
@@ -24,8 +24,8 @@ class VideoProviderExample(MediaProvider):
     def __init__(self, dev_name: str, video_source:str="/app/assets/video-f30-480p.mp4"):
         super().__init__(dev_name)
         self.video_source = video_source
-        # self.scheduler = ThreadPoolScheduler(1) # CurrentThreadScheduler
         self.cap = None
+        self.lock = Lock()  # Ensure thread-safe access
 
     def get_capture(self):
         """Ensure that the capture device is correctly initialized and open."""
@@ -45,29 +45,36 @@ class VideoProviderExample(MediaProvider):
         def emit_frames(observer, scheduler):
             try:
                 while cap.isOpened():
-                    ret, frame = cap.read()
+                    with self.lock:  # Ensure thread-safe access to the capture
+                        ret, frame = cap.read()
                     if ret:
                         observer.on_next(frame)
                     else:
-                        cap.set(cv2.CAP_PROP_POS_FRAMES, 0)  # If loading from a video, loop it
+                        # If the video ends, loop back to the beginning
+                        with self.lock:
+                            cap.set(cv2.CAP_PROP_POS_FRAMES, 0)
                         continue
-                        # observer.on_completed()
-                        # break
             except Exception as e:
+                print(f"Error in video capture: {e}")
                 observer.on_error(e)
             finally:
-                cap.release()
+                # Release resources on completion or error
+                with self.lock:
+                    if cap.isOpened():
+                        cap.release()
+                    print("Capture released")
+                observer.on_completed()
 
         return rx.create(emit_frames).pipe(
-            # ops.observe_on(self.scheduler),  #
-            # ops.subscribe_on(self.scheduler),  #
-            ops.share()
+            ops.share()  # Allow multiple subscribers to share the same stream
         )
     
     def dispose_all(self):
         """Disposes of all resources."""
-        if self.cap and self.cap.isOpened():
-            self.cap.release()
+        with self.lock:
+            if self.cap and self.cap.isOpened():
+                self.cap.release()
+                print("Capture released in dispose_all")
         super().dispose_all()
 
     def __del__(self):

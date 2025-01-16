@@ -1,10 +1,14 @@
-from time import sleep
+from datetime import timedelta
+import time
 import cv2
 import reactivex as rx
 from reactivex import operators as ops
+from reactivex.observable import Observable
 from reactivex.disposable import CompositeDisposable
 from reactivex.scheduler import ThreadPoolScheduler, CurrentThreadScheduler
+from threading import Lock
 
+from dimos.types.videostream import FrameProcessor
 
 class MediaProvider:
     def __init__(self, dev_name:str="NA"):
@@ -24,8 +28,8 @@ class VideoProviderExample(MediaProvider):
     def __init__(self, dev_name: str, video_source:str="/app/assets/video-f30-480p.mp4"):
         super().__init__(dev_name)
         self.video_source = video_source
-        # self.scheduler = ThreadPoolScheduler(1) # CurrentThreadScheduler
         self.cap = None
+        self.lock = Lock()  # Ensure thread-safe access
 
     def get_capture(self):
         """Ensure that the capture device is correctly initialized and open."""
@@ -39,111 +43,90 @@ class VideoProviderExample(MediaProvider):
                 raise Exception("Failed to open video source")
         return self.cap
 
-    def video_capture_to_observable(self):
+    # def video_capture_to_observable(self):
+    #     cap = self.get_capture()
+
+    #     def emit_frames(observer, scheduler):
+    #         try:
+    #             while cap.isOpened():
+    #                 with self.lock:  # Ensure thread-safe access to the capture
+    #                     ret, frame = cap.read()
+    #                 if ret:
+    #                     observer.on_next(frame)
+    #                 else:
+    #                     with self.lock:
+    #                         cap.set(cv2.CAP_PROP_POS_FRAMES, 0)  # If loading from a video, loop it
+    #                     continue
+    #                     # observer.on_completed()
+    #                     # break
+    #         except Exception as e:
+    #             observer.on_error(e)
+    #         finally:
+    #             with self.lock:
+    #                 if cap.isOpened():
+    #                     cap.release()
+    #                 print("Capture released")
+    #             observer.on_completed()
+
+    #     return rx.create(emit_frames).pipe(
+    #         ops.share()
+    #     )
+
+    def video_capture_to_observable(self, fps=30):
+        """Creates an Observable from video capture that emits at specified FPS.
+
+        Args:
+            fps: Frames per second to emit. Defaults to 30fps.
+
+        Returns:
+            Observable emitting frames at the specified rate.
+        """
         cap = self.get_capture()
+        frame_interval = 1.0 / fps
 
         def emit_frames(observer, scheduler):
             try:
+                frame_time = time.monotonic()
                 while cap.isOpened():
-                    ret, frame = cap.read()
+                    with self.lock:  # Thread-safe access
+                        ret, frame = cap.read()
+                    
                     if ret:
+                        # Control frame rate
+                        now = time.monotonic()
+                        next_frame_time = frame_time + frame_interval
+                        sleep_time = next_frame_time - now
+                        
+                        if sleep_time > 0:
+                            time.sleep(sleep_time)
+                        
                         observer.on_next(frame)
+                        frame_time = next_frame_time
                     else:
-                        cap.set(cv2.CAP_PROP_POS_FRAMES, 0)  # If loading from a video, loop it
+                        with self.lock:
+                            cap.set(cv2.CAP_PROP_POS_FRAMES, 0)  # Loop video
                         continue
-                        # observer.on_completed()
-                        # break
             except Exception as e:
                 observer.on_error(e)
             finally:
-                cap.release()
+                with self.lock:
+                    if cap.isOpened():
+                        cap.release()
+                    print("Capture released")
+                observer.on_completed()
 
         return rx.create(emit_frames).pipe(
-            # ops.observe_on(self.scheduler),  #
-            # ops.subscribe_on(self.scheduler),  #
             ops.share()
         )
-    
+
     def dispose_all(self):
         """Disposes of all resources."""
-        if self.cap and self.cap.isOpened():
-            self.cap.release()
+        with self.lock:
+            if self.cap and self.cap.isOpened():
+                self.cap.release()
+                print("Capture released in dispose_all")
         super().dispose_all()
 
     def __del__(self):
         """Destructor to ensure resources are cleaned up if not explicitly disposed."""
         self.dispose_all()
-
-    
-
-
-
-
-# class VideoProviderExample(MediaProvider):
-#     def __init__(self, dev_name: str, provider_type:str="Video", video_source:str="/app/assets/video-f30-480p.mp4"):
-#         super().__init__(dev_name)
-#         self.provider_type = provider_type
-#         self.video_source = video_source
-
-#     def video_capture_to_observable(self, cap):
-#         """Creates an observable from a video capture source."""
-#         def on_subscribe(observer, scheduler=None):
-            
-#             def read_frame(): # scheduler, state):
-#                 while True:
-#                     try:
-#                         ret, frame = cap.read()
-#                         if ret:
-#                             observer.on_next(frame)
-#                             # cv2.waitKey(1)
-#                             # Reschedule reading the next frame
-#                             #if scheduler:
-#                             #scheduler.schedule(read_frame)
-#                         else:
-#                             cap.set(cv2.CAP_PROP_POS_FRAMES, 0)
-#                             continue
-#                             # observer.on_completed()
-#                             # cap.release()
-#                     except Exception as e:
-#                         observer.on_error(e)
-#                         cap.release()
-            
-#             # Schedule the first frame read
-#             #if scheduler:
-#             #scheduler.schedule(read_frame)
-#             #else:
-#             read_frame()  # Direct call on the same thread
-#         return rx.create(on_subscribe).pipe(
-#             ops.publish(),  # Convert the observable from cold to hot
-#             ops.ref_count()  # Start emitting when the first subscriber subscribes and stop when the last unsubscribes
-#         )
-
-#     def get_capture(self): # , video_source="/app/assets/video-f30-480p.mp4"):
-#         # video_source = root_dir + '' # "udp://0.0.0.0:23000" # "/dev/video0"
-#         cap = cv2.VideoCapture(self.video_source)
-#         print("Opening video source")
-#         print(f"Source: {self.video_source}")
-#         if not cap.isOpened():
-#             print("Failed to open video source")
-#             exit()
-#         print("Opened video source")
-#         return cap
-    
-#     def video_capture_to_observable(self): # , video_source="/app/assets/video-f30-480p.mp4"):
-#         cap = self.get_capture()
-#         return self.video_capture_to_observable(cap)
-
-#     # def dispose():
-#     #     self.disposeables.dispose()
-#             # from time import sleep
-#             # while True:
-#             #     sleep(1)
-#         # if cv2.waitKey(1) & 0xFF == ord('q'):
-#         #     # disposable.dispose()
-#         #     disposable_flask.dispose()
-#         #     disposable_oai.dispose()
-#         #     for _ in disposablables:
-#         #         disposablables.dispose()
-
-#         #     cv2.destroyAllWindows()
-#         #     break
