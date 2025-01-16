@@ -1,9 +1,0 @@
-version: '3'
-services:
-  rtsp:
-    build:
-      context: .
-      dockerfile: Dockerfile.rtsp
-    network_mode: "host"
-    volumes:
-      - ./rtsp-simple-server.yml:/mediamtx.yml 

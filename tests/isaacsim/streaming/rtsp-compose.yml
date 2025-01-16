@@ -1,7 +1,0 @@
-version: '3'
-services:
-  rtsp:
-    image: aler9/rtsp-simple-server
-    network_mode: host
-    ports:
-      - "8554:8554"  # RTSP port 
