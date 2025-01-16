@@ -54,7 +54,7 @@ class OpenAI_Agent(Agent):
 
         Args:
             dev_name (str): The device name of the agent.
-            agent_type (str): The type of the agent, typically 'Vision' for this class.
+            agent_type (str): The type of the agent, defaulting to 'Vision'.
             query (str): The default query to send along with images to OpenAI.
             output_dir (str): Directory where output files are stored.
             agent_memory (AbstractAgentSemanticMemory): The memory system for the agent.

@@ -100,8 +100,6 @@ def main():
     #
     # ====== Agent Orchastrator (Qu.s Awareness, Temporality, Routing) ====== 
     #
-    
-    # TODO: Expand
 
     # Agent 1
     # my_agent = OpenAI_Agent(
@@ -118,9 +116,9 @@ def main():
     # disposables.add(my_agent_two.disposables)
 
     #
-    # ====== Create and start the Flask server ====== 
+    # ====== Create and start the FastAPI server ====== 
     #
-
+    
     # Will be visible at http://[host]:[port]/video_feed/[key]
     streams = {
         "video_one": video_stream_obs,

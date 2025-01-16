@@ -24,10 +24,10 @@ services:
     # command: [ "python", "-m", "tests.web.edge_io" ] 
     # ^^ Working Instance - Needs Tests. 
     # 
-    #command: [ "python", "-m", "tests.agent_manip_flow_flask_test" ]
+    command: [ "python", "-m", "tests.agent_manip_flow_flask_test" ]
     # ^^ Working Instance
 
-    command: [ "python", "-m", "tests.agent_manip_flow_fastapi_test" ]
+    # command: [ "python", "-m", "tests.agent_manip_flow_fastapi_test" ]
     # ^^ Working Instance - Needs threading / start / stop functionality bugfix.
 
     # command: [ "python", "-m", "tests.test_standalone_project_out" ]
