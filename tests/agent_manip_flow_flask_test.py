@@ -102,8 +102,6 @@ def main():
     #
     # ====== Agent Orchastrator (Qu.s Awareness, Temporality, Routing) ====== 
     #
-    
-    # TODO: Expand
 
     # Agent 1
     # my_agent = OpenAI_Agent(
