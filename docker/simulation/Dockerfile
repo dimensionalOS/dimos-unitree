@@ -59,6 +59,7 @@ WORKDIR /app
 # Copy application code
 COPY ./dimos ./dimos
 COPY ./tests ./tests
+COPY ./assets ./assets
 COPY ./dimos/__init__.py ./
 COPY ./docker/simulation/entrypoint.sh /
 RUN chmod +x /entrypoint.sh
