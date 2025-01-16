@@ -12,7 +12,7 @@ from pxr import UsdGeom, Sdf
 import time
 
 # Specify the input USDA file
-USDA_FILE_PATH = "/dimos/assets/TestSim3.usda"
+USDA_FILE_PATH = "./assets/TestSim3.usda"
 
 # FFmpeg configuration
 width, height = 1920, 1080
