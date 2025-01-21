@@ -45,6 +45,10 @@ RUN add-apt-repository universe -y \
         ros-humble-joint-trajectory-controller \
         ros-humble-joint-state-broadcaster \
         ros-humble-vision-msgs \
+        ros-humble-nav2-msgs \
+        ros-humble-nav2-common \
+        ros-humble-navigation2 \
+        ros-humble-nav2-bringup \
         ros-dev-tools \
         python3-rosdep \
         python3-colcon-common-extensions \
