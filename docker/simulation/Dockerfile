@@ -25,6 +25,26 @@ RUN add-apt-repository universe -y \
     && apt-get install -y \
         ros-humble-desktop \
         ros-humble-ros-base \
+        ros-humble-foxglove-bridge \
+        ros-humble-moveit \
+        ros-humble-moveit-visual-tools \
+        ros-humble-moveit-ros-visualization \
+        ros-humble-moveit-servo \
+        ros-humble-joint-state-publisher-gui \
+        ros-humble-rosbridge-suite \
+        ros-humble-xacro \
+        ros-humble-robot-state-publisher \
+        ros-humble-teleop-twist-keyboard \
+        ros-humble-teleop-twist-joy \
+        ros-humble-joy \
+        ros-humble-controller-manager \
+        ros-humble-ros2-control \
+        ros-humble-ros2-controllers \
+        ros-humble-robot-state-publisher \
+        ros-humble-joint-state-publisher \
+        ros-humble-joint-trajectory-controller \
+        ros-humble-joint-state-broadcaster \
+        ros-humble-vision-msgs \
         ros-dev-tools \
         python3-rosdep \
         python3-colcon-common-extensions \
