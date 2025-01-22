@@ -174,11 +174,6 @@ ENV PATH=${CUDA_HOME}/bin:${PATH}
 ENV LD_LIBRARY_PATH=${CUDA_HOME}/lib64:${LD_LIBRARY_PATH}
 
 
-# Build dev_ws
-RUN /bin/bash -c "source /opt/ros/humble/setup.bash && \
-    cd /home/$USERNAME/dev_ws && \
-    colcon build --symlink-install"
-
 WORKDIR /app
 
 # Copy application code
