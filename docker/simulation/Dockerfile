@@ -160,6 +160,12 @@ RUN chown -R $USER_UID:$USER_GID /home/$USERNAME/
 RUN /bin/bash -c "source /opt/ros/humble/setup.bash && cd /home/$USERNAME/IsaacSim-ros_workspaces/humble_ws && colcon build"
 RUN rm -rf /var/lib/apt/lists/*
 
+ENV CUDA_HOME=/usr/local/lib/python3.10/dist-packages/nvidia/cuda_runtime
+ENV CUDA_TOOLKIT_ROOT_DIR=${CUDA_HOME}
+ENV PATH=${CUDA_HOME}/bin:${PATH}
+ENV LD_LIBRARY_PATH=${CUDA_HOME}/lib64:${LD_LIBRARY_PATH}
+
+
 # Build dev_ws
 RUN /bin/bash -c "source /opt/ros/humble/setup.bash && \
     cd /home/$USERNAME/dev_ws && \
