@@ -151,6 +151,14 @@ RUN /bin/bash -c "cd /home/$USERNAME/IsaacSim-ros_workspaces/humble_ws && rosdep
 RUN mkdir -p /home/$USERNAME/dev_ws/src
 RUN cd /home/$USERNAME/dev_ws/src && git clone https://github.com/yashas-salankimatt/thesis_ros_ws.git
 
+# Install ZED SDK
+RUN wget https://stereolabs.sfo2.cdn.digitaloceanspaces.com/zedsdk/4.2/ZED_SDK_Ubuntu22_cuda12.1_v4.2.1.zstd.run && chmod +x ZED_SDK_Ubuntu22_cuda12.1_v4.2.1.zstd.run
+RUN /bin/bash -c "./ZED_SDK_Ubuntu22_cuda12.1_v4.2.1.zstd.run -- silent skip_cuda"
+
+ENV ZED_SDK_ROOT_DIR=/usr/local/zed
+ENV CMAKE_PREFIX_PATH=${CMAKE_PREFIX_PATH}:${ZED_SDK_ROOT_DIR}
+
+
 RUN mkdir -p /home/$USERNAME/deps
 RUN cd /home/$USERNAME/deps && git clone https://github.com/facebookresearch/segment-anything-2.git
 RUN cd /home/$USERNAME/deps/segment-anything-2 && pip install -e .
