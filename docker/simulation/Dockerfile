@@ -160,6 +160,11 @@ RUN chown -R $USER_UID:$USER_GID /home/$USERNAME/
 RUN /bin/bash -c "source /opt/ros/humble/setup.bash && cd /home/$USERNAME/IsaacSim-ros_workspaces/humble_ws && colcon build"
 RUN rm -rf /var/lib/apt/lists/*
 
+# Build dev_ws
+RUN /bin/bash -c "source /opt/ros/humble/setup.bash && \
+    cd /home/$USERNAME/dev_ws && \
+    colcon build --symlink-install"
+
 WORKDIR /app
 
 # Copy application code
