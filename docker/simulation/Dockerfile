@@ -1,5 +1,15 @@
 FROM nvcr.io/nvidia/isaac-sim:4.2.0
 
+# Set up locales
+ENV LANG=en_US.UTF-8
+ENV LANGUAGE=en_US:en
+ENV LC_ALL=en_US.UTF-8
+
+RUN apt-get update && apt-get install -y locales && \
+    locale-gen en_US en_US.UTF-8 && \
+    update-locale LC_ALL=en_US.UTF-8 LANG=en_US.UTF-8 && \
+    rm -rf /var/lib/apt/lists/*
+
 # Prevent interactive prompts during installation
 ENV DEBIAN_FRONTEND=noninteractive
 
@@ -25,6 +35,32 @@ RUN add-apt-repository universe -y \
     && apt-get install -y \
         ros-humble-desktop \
         ros-humble-ros-base \
+        ros-dev-tools \
+        python3-rosdep \
+        python3-colcon-common-extensions \
+        python3-pip \
+        python3.10-venv \
+        ament-cmake \
+        ros-humble-ament-cmake \
+        build-essential \
+        cmake \
+        build-essential \
+        cmake \
+        python3-colcon-common-extensions \
+        python3-flake8 \
+        python3-rosdep \
+        python3-setuptools \
+        python3-vcstool \
+        python3-rosinstall \
+        python3-rosinstall-generator \
+        python3-wstool \
+        nano \
+        wget \
+        curl \
+        vim \
+        git \
+        x11-apps \
+        tmux \
         ros-humble-foxglove-bridge \
         ros-humble-moveit \
         ros-humble-moveit-visual-tools \
@@ -45,20 +81,32 @@ RUN add-apt-repository universe -y \
         ros-humble-joint-trajectory-controller \
         ros-humble-joint-state-broadcaster \
         ros-humble-vision-msgs \
-        ros-humble-nav2-msgs \
-        ros-humble-nav2-common \
+        ros-humble-ackermann-msgs \
         ros-humble-navigation2 \
         ros-humble-nav2-bringup \
-        ros-dev-tools \
-        python3-rosdep \
-        python3-colcon-common-extensions \
+        ros-humble-nav2-msgs \
+        ros-humble-nav2-common \
+        ros-humble-nav2-behavior-tree \
+        ros-humble-nav2-costmap-2d \
+        ros-humble-nav2-core \
+        ros-humble-nav2-bt-navigator \
+        ros-humble-pointcloud-to-laserscan \
+        iputils-ping \
+        net-tools \
+        htop \
         python3-pip \
-        python3.10-venv \
-        ament-cmake \
-        ros-humble-ament-cmake \
-        build-essential \
-        cmake \
-    && rm -rf /var/lib/apt/lists/*
+        ros-humble-tf* \
+        ros-humble-gazebo-ros-pkgs \
+        dos2unix \
+        python3-genmsg \
+        gpg \
+        pass \
+        ros-humble-depthai-ros \
+        zstd \
+        && rm -rf /var/lib/apt/lists/*
+
+RUN apt-get upgrade -y
+
 
 # Initialize rosdep
 RUN rosdep init && rosdep update
@@ -68,29 +116,49 @@ RUN echo "source /opt/ros/humble/setup.bash" >> ~/.bashrc
 
 # Install Python packages directly
 RUN pip install --no-cache-dir \
+    rospkg \
+    numpy==1.24.4 \
+    jsonpickle \
+    scipy \
+    easydict \
+    matplotlib==3.9.1 \
+    opencv-python \
+    pyyaml \
+    pyquaternion \
+    pybullet \
+    requests \
+    pillow \
+    open3d \
     av==10.0.0 \
-    numpy>=1.21.0 \
-    pillow>=9.0.0 \
-    opencv-python>=4.5.0 \
     transforms3d \
-    scipy
+    torch \
+    torchvision \
+    torchaudio \
+    transformers
 
-# Create and setup ROS 2 workspaces
-RUN mkdir -p /home/ros/dev_ws/src && \
-    cd /home/ros && \
-    git clone https://github.com/isaac-sim/IsaacSim-ros_workspaces.git && \
-    cd IsaacSim-ros_workspaces/humble_ws && \
-    bash -c "source /opt/ros/humble/setup.bash && \
-    rosdep install -i --from-path src --rosdistro humble -y && \
-    colcon build" && \
-    echo "source /home/ros/IsaacSim-ros_workspaces/humble_ws/install/setup.bash" >> ~/.bashrc && \
-    cd /home/ros/dev_ws && \
-    git clone https://github.com/yashas-salankimatt/thesis_ros_ws.git src/thesis_ros_ws && \
-    bash -c "source /opt/ros/humble/setup.bash && \
-    source /home/ros/IsaacSim-ros_workspaces/humble_ws/install/setup.bash && \
-    rosdep install --from-paths src --ignore-src -r -y && \
-    colcon build" && \
-    echo "source /home/ros/dev_ws/install/setup.bash" >> ~/.bashrc
+
+ARG USERNAME=ros
+ARG USER_UID=1000
+ARG USER_GID=$USER_UID
+
+# Create ros home directory
+RUN mkdir -p /home/$USERNAME
+
+RUN cd /home/$USERNAME && git clone https://github.com/isaac-sim/IsaacSim-ros_workspaces.git
+RUN rosdep update
+RUN /bin/bash -c "cd /home/$USERNAME/IsaacSim-ros_workspaces/humble_ws && rosdep install -i --from-path src --rosdistro humble -y"
+
+RUN mkdir -p /home/$USERNAME/dev_ws/src
+RUN cd /home/$USERNAME/dev_ws/src && git clone https://github.com/yashas-salankimatt/thesis_ros_ws.git
+
+RUN mkdir -p /home/$USERNAME/deps
+RUN cd /home/$USERNAME/deps && git clone https://github.com/facebookresearch/segment-anything-2.git
+RUN cd /home/$USERNAME/deps/segment-anything-2 && pip install -e .
+RUN cd /home/$USERNAME/dev_ws
+RUN chown -R $USER_UID:$USER_GID /home/$USERNAME/
+
+RUN /bin/bash -c "source /opt/ros/humble/setup.bash && cd /home/$USERNAME/IsaacSim-ros_workspaces/humble_ws && colcon build"
+RUN rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 
