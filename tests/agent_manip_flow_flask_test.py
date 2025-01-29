@@ -131,7 +131,7 @@ def main():
         max_input_tokens_per_request=1000,
         max_output_tokens_per_request=300,
         json_mode=False,
-        model_name="gpt-4o-2024-08-06"
+        model_name="gpt-4o-2024-08-06",
     )
     
     ai_2_obs = optical_flow_stream_obs.pipe(
