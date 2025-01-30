@@ -51,6 +51,9 @@ services:
     command: [ "python", "-m", "tests.test_standalone_openai_json_struct_func" ]
     # ^^ WIP
 
+    # command: [ "python", "-m", "tests.test_standalone_openai_json_struct_func_playground" ]
+    # ^^ WIP
+
     # command: [ "python", "-m", "tests.test_skill_library" ]
     # ^^ Working Instance
 

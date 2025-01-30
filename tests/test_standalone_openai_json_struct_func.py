@@ -73,13 +73,15 @@ def call_function(name, args):
     else:
         return f"Local function not found: {name}"
     
-def callback(message, messages):
+def callback(message, messages, response_message, tool_calls):
     if message is None or message.tool_calls is None:
         print("No message or tools were called.")
         return
 
     has_called_tools = False
     for tool_call in message.tool_calls:
+        messages.append(response_message)
+
         has_called_tools = True
         name = tool_call.function.name
         args = json.loads(tool_call.function.arguments)
@@ -90,7 +92,8 @@ def callback(message, messages):
         messages.append({
             "role": "tool",
             "tool_call_id": tool_call.id,
-            "content": str(result)
+            "content": str(result),
+            "name": name
         })
     
     # Complete the second call, after the functions have completed.
@@ -106,7 +109,7 @@ def callback(message, messages):
         return completion_2.choices[0].message
     else:
         print("No Need for Second Query.")
-        return 
+        return None
 
 # endregion Function Calling
 
@@ -116,45 +119,51 @@ def get_math_solution(question: str):
             {"role": "system", "content": dedent(prompt)},
             {"role": "user", "content": question},
         ]
-    completion = client.beta.chat.completions.parse(
+    response = client.beta.chat.completions.parse(
         model=MODEL,
         messages=messages, 
         response_format=MathReasoning,
         tools=tools
     )
 
-    callback(completion.choices[0].message, messages)
+    response_message = response.choices[0].message
+    tool_calls = response_message.tool_calls
 
-    return completion.choices[0].message
+    new_response = callback(response.choices[0].message, messages, response_message, tool_calls)
+
+    return new_response or response.choices[0].message
 
 # Define Problem
 problems = [
     "What is the derivative of 3x^2",
     "What's the weather like in San Fran today?"
 ]
-problem = problems[1]
-print(f"Problem: {problem}")
+problem = problems[0]
 
-# Query for result
-solution = get_math_solution(problem)
+for problem in problems:
+    print("================")
+    print(f"Problem: {problem}")
 
-# If the query was refused
-if solution.refusal:
-    print(f"Refusal: {solution.refusal}")
-    exit()
+    # Query for result
+    solution = get_math_solution(problem)
 
-# If we were able to successfully parse the response back
-parsed_solution = solution.parsed
-if not parsed_solution:
-    print(f"Unable to Parse Solution")
-    print(f"Solution: {solution}")
-    exit()
-    
-# Print solution from class definitions
-print(f"Parsed: {parsed_solution}")
+    # If the query was refused
+    if solution.refusal:
+        print(f"Refusal: {solution.refusal}")
+        break
 
-steps = parsed_solution.steps
-print(f"Steps: {steps}")
+    # If we were able to successfully parse the response back
+    parsed_solution = solution.parsed
+    if not parsed_solution:
+        print(f"Unable to Parse Solution")
+        print(f"Solution: {solution}")
+        break
+        
+    # Print solution from class definitions
+    print(f"Parsed: {parsed_solution}")
 
-final_answer = parsed_solution.final_answer
-print(f"Final Answer: {final_answer}")
+    steps = parsed_solution.steps
+    print(f"Steps: {steps}")
+
+    final_answer = parsed_solution.final_answer
+    print(f"Final Answer: {final_answer}")
