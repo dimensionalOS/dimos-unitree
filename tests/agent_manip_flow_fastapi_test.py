@@ -25,8 +25,9 @@ from reactivex.scheduler import ThreadPoolScheduler, CurrentThreadScheduler, Imm
 
 # Local application imports
 from dimos.agents.agent import OpenAI_Agent 
-from dimos.types.videostream import FrameProcessor, VideoOperators as vops
-from dimos.types.media_provider import VideoProviderExample
+from dimos.stream.frame_processor import FrameProcessor
+from dimos.stream.video_operators import VideoOperators as vops
+from dimos.stream.video_provider import VideoProvider
 from dimos.web.fastapi_server import FastAPIServer
 
 # Load environment variables
@@ -63,10 +64,10 @@ def main():
     VIDEO_SOURCE_INDEX = 3
     VIDEO_SOURCE_INDEX_2 = 2
 
-    my_video_provider = VideoProviderExample("Video File", video_source=VIDEO_SOURCES[VIDEO_SOURCE_INDEX])
-    my_video_provider_2 = VideoProviderExample("Video File 2", video_source=VIDEO_SOURCES[VIDEO_SOURCE_INDEX_2])
+    my_video_provider = VideoProvider("Video File", video_source=VIDEO_SOURCES[VIDEO_SOURCE_INDEX])
+    my_video_provider_2 = VideoProvider("Video File 2", video_source=VIDEO_SOURCES[VIDEO_SOURCE_INDEX_2])
 
-    video_stream_obs = my_video_provider.video_capture_to_observable(fps=120).pipe(
+    video_stream_obs = my_video_provider.capture_video_as_observable(fps=120).pipe(
         ops.subscribe_on(thread_pool_scheduler),
         # Move downstream operations to thread pool for parallel processing
         # Disabled: Evaluating performance impact
@@ -76,7 +77,7 @@ def main():
         vops.with_jpeg_export(processor, suffix="raw_slowed"),
     )
 
-    video_stream_obs_2 = my_video_provider_2.video_capture_to_observable(fps=120).pipe(
+    video_stream_obs_2 = my_video_provider_2.capture_video_as_observable(fps=120).pipe(
         ops.subscribe_on(thread_pool_scheduler),
         # Move downstream operations to thread pool for parallel processing
         # Disabled: Evaluating performance impact

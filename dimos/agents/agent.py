@@ -201,7 +201,7 @@ class OpenAI_Agent(Agent):
                 model=self.model_name,
                 messages=messages,
                 max_tokens=self.max_output_tokens_per_request,
-                response_format={"type": "json_object"}
+                # response_format={"type": "json_object"}
             )
             observer.on_next(response.choices[0].message.content)
             observer.on_completed()

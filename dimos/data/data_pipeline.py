@@ -2,7 +2,7 @@ from .depth import DepthProcessor
 from .labels import LabelProcessor
 from .pointcloud import PointCloudProcessor
 from .segment import SegmentProcessor
-from dimos.stream.videostream import VideoStream   # Lukas to implement
+from dimos.stream.video_operators import VideoStream   # Lukas to implement
 import warnings
 from concurrent.futures import ProcessPoolExecutor, as_completed
 from collections import deque

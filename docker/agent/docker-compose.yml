@@ -15,16 +15,16 @@ services:
     # command: [ "python", "-m", "tests.test_agent" ] 
     # ^^ Working Sanity Test Cases - Expand to Agent Class
     #
-    # command: [ "python", "-m", "tests.types.videostream" ] 
+    # command: [ "python", "-m", "tests.stream.video_operators" ] 
     # ^^ Working Skeleton - Needs Impl.
     #
-    # command: [ "python", "-m", "tests.types.video_provider" ] 
+    # command: [ "python", "-m", "tests.stream.video_provider" ] 
     # ^^ Working Instance - Needs Tests. 
     # 
     # command: [ "python", "-m", "tests.web.edge_io" ] 
     # ^^ Working Instance - Needs Tests. 
     # 
-    # command: [ "python", "-m", "tests.agent_manip_flow_flask_test" ]
+    command: [ "python", "-m", "tests.agent_manip_flow_flask_test" ]
     # ^^ Working Instance
 
     # command: [ "python", "-m", "tests.agent_manip_flow_fastapi_test" ]
@@ -48,7 +48,7 @@ services:
     # command: [ "python", "-m", "tests.test_standalone_openai_json_struct" ]
     # ^^ Working Instance
 
-    command: [ "python", "-m", "tests.test_standalone_openai_json_struct_func" ]
+    # command: [ "python", "-m", "tests.test_standalone_openai_json_struct_func" ]
     # ^^ WIP
 
     # command: [ "python", "-m", "tests.test_standalone_openai_json_struct_func_playground" ]
