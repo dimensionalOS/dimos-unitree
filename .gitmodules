@@ -5,3 +5,6 @@
 [submodule "dimos/external/vcpkg"]
 	path = dimos/external/vcpkg
 	url = https://github.com/microsoft/vcpkg.git
+[submodule "dimos/robot/unitree/external/go2_webrtc_connect"]
+	path = dimos/robot/unitree/external/go2_webrtc_connect
+	url = https://github.com/spomichter/go2_webrtc_connect
