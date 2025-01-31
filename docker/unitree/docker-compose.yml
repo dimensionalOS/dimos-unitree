@@ -1,0 +1,33 @@
+---
+services:
+  dimos-unitree:
+    image: dimos-unitree:latest
+    build: ./../../
+    env_file:
+      - ./../../.env
+    mem_limit: 8048m
+    volumes:
+      - ./../../assets:/app/assets
+    ports:
+      - "5555:5555"
+    environment:
+      - PYTHONUNBUFFERED=1
+    stdin_open: true
+    tty: true
+    command: [ "python", "-m", "dimos.robot.unitree.unitree_go2" ]
+    # command: ["tail", "-f", "/dev/null"]
+
+# ----
+# TO RUN:
+#   docker build -f ./Dockerfile -t dimos ../../ && docker compose up
+# GO TO:
+#   127.0.0.1:5555 (when flask server fixed)
+# ----
+
+#  video-service:
+#    build: ./video-service
+#    image: video-service:latest
+#    volumes:
+#      - ./../../assets:/app/dimos-env/assets
+#    ports:
+#      - "23001:23001"
