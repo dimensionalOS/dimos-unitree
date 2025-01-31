@@ -19,15 +19,5 @@ services:
 
 # ----
 # TO RUN:
-#   docker build -f ./Dockerfile -t dimos ../../ && docker compose up
-# GO TO:
-#   127.0.0.1:5555 (when flask server fixed)
+#   docker build -f ./Dockerfile -t dimos-unitree ../../ && docker compose up
 # ----
-
-#  video-service:
-#    build: ./video-service
-#    image: video-service:latest
-#    volumes:
-#      - ./../../assets:/app/dimos-env/assets
-#    ports:
-#      - "23001:23001"
