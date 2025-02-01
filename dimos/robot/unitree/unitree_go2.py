@@ -143,10 +143,21 @@ class UnitreeVideoStream(AbstractVideoProvider):
 class UnitreeGo2(Robot):
     def __init__(self, 
                  agent_config: AgentConfig = None, 
-                 ip: str="192.168.9.140",
+                 ip: str = "192.168.9.140",
+                 connection_method: WebRTCConnectionMethod = WebRTCConnectionMethod.LocalSTA,
+                 serial_number: str = None,
                  output_dir: str = os.getcwd(),
                  api_call_interval: int = 5):
+        """Initialize the UnitreeGo2 robot.
         
+        Args:
+            agent_config: Configuration for the agents
+            ip: IP address of the robot (for LocalSTA connection)
+            connection_method: WebRTC connection method (LocalSTA or LocalAP)
+            serial_number: Serial number of the robot (for LocalSTA with serial)
+            output_dir: Directory for output files
+            api_call_interval: Interval between API calls in seconds
+        """
         super().__init__(agent_config)
         self.output_dir = output_dir
         self.ip = ip
@@ -156,11 +167,12 @@ class UnitreeGo2(Robot):
         os.makedirs(self.output_dir, exist_ok=True)
         print(f"Agent outputs will be saved to: {os.path.join(self.output_dir, 'memory.txt')}")
 
-        # Initialize video stream with default LocalSTA connection
+        # Initialize video stream with specified connection method
         self.video_stream = UnitreeVideoStream(
             dev_name="UnitreeGo2",
-            connection_method=WebRTCConnectionMethod.LocalSTA,
-            ip=self.ip,
+            connection_method=connection_method,
+            serial_number=serial_number,
+            ip=self.ip if connection_method == WebRTCConnectionMethod.LocalSTA else None
         )
     
         print("Initializing Perception Agent...")
@@ -252,37 +264,5 @@ class UnitreeGo2(Robot):
             print("Waiting for first agent response...")
         except Exception as e:
             print(f"Error reading agent outputs: {e}")
-
-
-if __name__ == "__main__":
-    
-    # Initialize the robot with 5-second API call interval
-    print("Initializing UnitreeGo2...")
-    robot = UnitreeGo2(
-        ip="192.168.9.140", 
-        output_dir=os.path.join(os.getcwd(), "output"),  # Explicitly use current working directory
-        api_call_interval=5  # Specify the interval between API calls
-    )
-    
-    try:
-        # Start perception
-        print("\nStarting perception system...")
-        robot.start_perception()
-        
-        print("\nMonitoring agent outputs (Press Ctrl+C to stop)...")
-        # Monitor agent outputs every 5 seconds
-        while True:
-            time.sleep(5)
-            robot.read_agent_outputs()
-            
-    except KeyboardInterrupt:
-        print("\nStopping perception...")
-    except Exception as e:
-        print(f"Error in main loop: {e}")
-    finally:
-        # Cleanup
-        print("Cleaning up resources...")
-        del robot
-        print("Cleanup complete.")
 
     
