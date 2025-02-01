@@ -1,0 +1,27 @@
+---
+services:
+  dimos-unitree:
+    image: dimos-unitree:latest
+    build: 
+      context: ./../../
+      dockerfile: docker/unitree/Dockerfile
+    env_file:
+      - ./../../.env
+    mem_limit: 8048m
+    volumes:
+      - ./../../assets:/app/assets
+    ports:
+      - "5555:5555"
+    environment:
+      - PYTHONUNBUFFERED=1
+    stdin_open: true
+    tty: true
+    command: [ "python", "-m", "dimos.robot.unitree.unitree_go2" ]
+    # command: ["tail", "-f", "/dev/null"]
+
+# ----
+# TO RUN:
+#   docker build -f ./Dockerfile -t dimos-unitree ../../ && docker compose up
+# OR TO RUN WITH DOCKER COMPOSE:
+#   docker compose down && docker compose build && docker compose up -d
+# ----
