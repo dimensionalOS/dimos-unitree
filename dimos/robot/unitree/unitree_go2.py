@@ -13,7 +13,7 @@ import logging
 import threading
 import time
 from queue import Queue
-from external.go2_webrtc_connect.go2_webrtc_driver.webrtc_driver import Go2WebRTCConnection, WebRTCConnectionMethod
+from dimos.robot.unitree.external.go2_webrtc_connect.go2_webrtc_driver.webrtc_driver import Go2WebRTCConnection, WebRTCConnectionMethod
 from aiortc import MediaStreamTrack
 import os
 from datetime import timedelta
