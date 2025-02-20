@@ -185,6 +185,6 @@ COPY ./docker/simulation/entrypoint.sh /
 RUN chmod +x /entrypoint.sh
 
 ENTRYPOINT ["/entrypoint.sh"]
-#CMD [ "/isaac-sim/python.sh", "/app/tests/isaacsim/stream_camera.py" ] 
+CMD [ "/isaac-sim/python.sh", "/app/tests/isaacsim/stream_camera.py" ] 
 # For testing
-CMD ["tail", "-f", "/dev/null"]
+#CMD ["tail", "-f", "/dev/null"]
