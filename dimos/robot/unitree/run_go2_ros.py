@@ -44,12 +44,12 @@ if __name__ == "__main__":
     try:
         # Start perception
         print("\nStarting perception system...")
-        robot.start_perception()
+        #robot.start_perception()
         
         # Example movement sequence
         print("\nExecuting movement sequence...")
         print("Moving forward...")
-        robot.move(-0.1, 0.0, 0.0, duration=2.0)  # Move forward for 2 seconds
+        robot.move(-1, 0.0, 0.0, duration=2.0)  # Move forward for 2 seconds
         time.sleep(0.5)
         
         print("Moving left...")

@@ -184,7 +184,7 @@ class PromptBuilder():
         messages = [{"role": "system", "content": components["system_prompt"]["text"]}]
 
         if components["rag"]["text"]:
-            user_content = [{"type": "text", "text": f"{components["rag"]["text"]}\n\n{components["user_query"]["text"]}"}]
+            user_content = [{"type": "text", "text": f"{components['rag']['text']}\n\n{components['user_query']['text']}"}]
         else:
             user_content = [{"type": "text", "text": components["user_query"]["text"]}]
 

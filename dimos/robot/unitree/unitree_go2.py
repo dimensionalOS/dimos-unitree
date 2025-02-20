@@ -1,13 +1,17 @@
+import cv2
 from dimos.robot.robot import Robot
 from dimos.hardware.interface import HardwareInterface
 from dimos.agents.agent import Agent, OpenAI_Agent
 from dimos.agents.agent_config import AgentConfig
 from dimos.stream.frame_processor import FrameProcessor
+from dimos.stream.video_provider import VideoProvider
+from dimos.stream.video_providers.unitree import UnitreeVideoProvider
 from dimos.stream.videostream import VideoStream
 from dimos.stream.video_provider import AbstractVideoProvider
 from dimos.stream.video_operators import VideoOperators as vops
 from reactivex import Observable, create
 from reactivex import operators as ops
+from reactivex.disposable import CompositeDisposable
 import asyncio
 import logging
 import threading
@@ -18,132 +22,17 @@ from aiortc import MediaStreamTrack
 import os
 from datetime import timedelta
 from dotenv import load_dotenv, find_dotenv
+from dimos.robot.unitree.unitree_ros_control import UnitreeROSControl
 
 # Set up logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-
-class UnitreeVideoStream(AbstractVideoProvider):
-    def __init__(self, dev_name: str = "UnitreeGo2", connection_method: WebRTCConnectionMethod = WebRTCConnectionMethod.LocalSTA, serial_number: str = None, ip: str = None):
-        """Initialize the Unitree video stream with WebRTC connection.
-        
-        Args:
-            dev_name: Name of the device
-            connection_method: WebRTC connection method (LocalSTA, LocalAP, Remote)
-            serial_number: Serial number of the robot (required for LocalSTA with serial)
-            ip: IP address of the robot (required for LocalSTA with IP)
-        """
-        super().__init__(dev_name)
-        self.frame_queue = Queue()
-        self.loop = None
-        self.asyncio_thread = None
-        
-        # Initialize WebRTC connection based on method
-        if connection_method == WebRTCConnectionMethod.LocalSTA:
-            if serial_number:
-                self.conn = Go2WebRTCConnection(connection_method, serialNumber=serial_number)
-            elif ip:
-                self.conn = Go2WebRTCConnection(connection_method, ip=ip)
-            else:
-                raise ValueError("Either serial_number or ip must be provided for LocalSTA connection")
-        elif connection_method == WebRTCConnectionMethod.LocalAP:
-            self.conn = Go2WebRTCConnection(connection_method)
-        else:
-            raise ValueError("Unsupported connection method")
-
-    async def _recv_camera_stream(self, track: MediaStreamTrack):
-        """Receive video frames from WebRTC and put them in the queue."""
-        while True:
-            frame = await track.recv()
-            # Convert the frame to a NumPy array in BGR format
-            img = frame.to_ndarray(format="bgr24")
-            self.frame_queue.put(img)
-
-    def _run_asyncio_loop(self, loop):
-        """Run the asyncio event loop in a separate thread."""
-        asyncio.set_event_loop(loop)
-        
-        async def setup():
-            try:
-                await self.conn.connect()
-                self.conn.video.switchVideoChannel(True)
-                self.conn.video.add_track_callback(self._recv_camera_stream)
-            except Exception as e:
-                logging.error(f"Error in WebRTC connection: {e}")
-                raise
-
-        loop.run_until_complete(setup())
-        loop.run_forever()
-
-    def capture_video_as_observable(self, fps: int = 30) -> Observable:
-        """Create an observable that emits video frames at the specified FPS.
-        
-        Args:
-            fps: Frames per second to emit (default: 30)
-            
-        Returns:
-            Observable emitting video frames
-        """
-        frame_interval = 1.0 / fps
-
-        def emit_frames(observer, scheduler):
-            try:
-                # Start asyncio loop if not already running
-                if not self.loop:
-                    self.loop = asyncio.new_event_loop()
-                    self.asyncio_thread = threading.Thread(
-                        target=self._run_asyncio_loop,
-                        args=(self.loop,)
-                    )
-                    self.asyncio_thread.start()
-
-                frame_time = time.monotonic()
-                
-                while True:
-                    if not self.frame_queue.empty():
-                        frame = self.frame_queue.get()
-                        
-                        # Control frame rate
-                        now = time.monotonic()
-                        next_frame_time = frame_time + frame_interval
-                        sleep_time = next_frame_time - now
-                        
-                        if sleep_time > 0:
-                            time.sleep(sleep_time)
-                            
-                        observer.on_next(frame)
-                        frame_time = next_frame_time
-                    else:
-                        time.sleep(0.001)  # Small sleep to prevent CPU overuse
-
-            except Exception as e:
-                logging.error(f"Error during frame emission: {e}")
-                observer.on_error(e)
-            finally:
-                if self.loop:
-                    self.loop.call_soon_threadsafe(self.loop.stop)
-                if self.asyncio_thread:
-                    self.asyncio_thread.join()
-                observer.on_completed()
-
-        return create(emit_frames).pipe(
-            ops.share()  # Share the stream among multiple subscribers
-        )
-
-    def dispose_all(self):
-        """Clean up resources."""
-        if self.loop:
-            self.loop.call_soon_threadsafe(self.loop.stop)
-        if self.asyncio_thread:
-            self.asyncio_thread.join()
-        super().dispose_all()
-
-
 class UnitreeGo2(Robot):
     def __init__(self, 
-                 agent_config: AgentConfig = None, 
-                 ip: str = "192.168.9.140",
+                 agent_config: AgentConfig = None,
+                 ros_control: UnitreeROSControl = UnitreeROSControl(node_name="unitree_go2"),
+                 ip = None,
                  connection_method: WebRTCConnectionMethod = WebRTCConnectionMethod.LocalSTA,
                  serial_number: str = None,
                  output_dir: str = os.getcwd(),
@@ -152,47 +41,42 @@ class UnitreeGo2(Robot):
         
         Args:
             agent_config: Configuration for the agents
+            ros_control: ROS control interface, if None a new one will be created
             ip: IP address of the robot (for LocalSTA connection)
             connection_method: WebRTC connection method (LocalSTA or LocalAP)
             serial_number: Serial number of the robot (for LocalSTA with serial)
             output_dir: Directory for output files
             api_call_interval: Interval between API calls in seconds
         """
-        super().__init__(agent_config)
+        # Initialize parent class
+        super().__init__(agent_config=agent_config, ros_control=ros_control)
+        
+        # Initialize UnitreeGo2-specific attributes
         self.output_dir = output_dir
         self.ip = ip
         self.api_call_interval = api_call_interval
+        self.disposables = CompositeDisposable()
+        self.main_stream_obs = None
+
+        if (connection_method == WebRTCConnectionMethod.LocalSTA) and (ip is None):
+            raise ValueError("IP address is required for LocalSTA connection")
 
         # Create output directory if it doesn't exist
         os.makedirs(self.output_dir, exist_ok=True)
         print(f"Agent outputs will be saved to: {os.path.join(self.output_dir, 'memory.txt')}")
 
         # Initialize video stream with specified connection method
-        self.video_stream = UnitreeVideoStream(
+        self.video_stream = UnitreeVideoProvider(
             dev_name="UnitreeGo2",
             connection_method=connection_method,
             serial_number=serial_number,
             ip=self.ip if connection_method == WebRTCConnectionMethod.LocalSTA else None
         )
-    
-        print("Initializing Perception Agent...")
-        self.UnitreePerceptionAgent = OpenAI_Agent(
-            dev_name="PerceptionAgent", 
-            agent_type="Vision",
-            output_dir=self.output_dir,
-            query="What do you see in this image? Describe the scene and any notable objects or movements.",
-        )
+        # self.video_stream = VideoProvider(
+        #     dev_name="UnitreeGo2",
+        #     video_source="/app/assets/framecount.mp4"
+        # )
 
-        print("Initializing Execution Agent...")
-        self.UnitreeExecutionAgent = OpenAI_Agent(
-            dev_name="ExecutionAgent", 
-            agent_type="Execution", 
-            output_dir=self.output_dir,
-            query="Based on the image, what actions would you take? Describe potential movements or interactions.",
-        )
-
-        self.agent_config = AgentConfig(agents=[self.UnitreePerceptionAgent, self.UnitreeExecutionAgent])
-    
     def start_perception(self):
         print(f"Starting video stream with {self.api_call_interval} second intervals...")
         # Create video stream observable with desired FPS
@@ -215,30 +99,44 @@ class UnitreeGo2(Robot):
             output_dir=os.path.join(self.output_dir, "frames")
         )
 
+        # # Debugging ZMQ Socket Code
+        # import zmq
+        # context = zmq.Context()
+        # my_socket = context.socket(zmq.PUB)
+        # my_socket.bind("tcp://*:5555")
+
         # Add rate limiting to the video stream
         rate_limited_stream = video_stream_obs.pipe(
             # Add logging and count frames
-            ops.do_action(lambda _: print(f"Frame {frame_counter()} received")),
+            # ops.do_action(lambda _: print(f"Frame {frame_counter()} received")),
             # Sample the latest frame every api_call_interval seconds
-            vops.with_fps_sampling(sample_interval=timedelta(seconds=self.api_call_interval), use_latest=False),
+            vops.with_fps_sampling(fps=30, use_latest=False),
             # Output to jpgs on disk for debugging
             vops.with_jpeg_export(frame_processor, suffix="openai_frame_", save_limit=100),
             # Log when a frame is sampled
-            ops.do_action(lambda _: print(f"\n=== Processing frame at {time.strftime('%H:%M:%S')} ===")),
+            # ops.do_action(lambda _: print(f"=== Processing frame at {time.strftime('%H:%M:%S')} ===")),
             # Add error handling
             ops.catch(lambda e, _: print(f"Error in stream processing: {e}")),
             # Share the stream among multiple subscribers
-            ops.share()
+            ops.share(),
+            # Send to debugging socket
+            # vops.with_zmq_socket(my_socket)  
         )
-        
-        print("Subscribing agents to video stream...")
-        try:
-            # Subscribe perception agent to the rate-limited video stream
-            self.UnitreePerceptionAgent.subscribe_to_image_processing(rate_limited_stream)
-            self.UnitreeExecutionAgent.subscribe_to_image_processing(rate_limited_stream)
-            print("Agents subscribed successfully")
-        except Exception as e:
-            print(f"Error subscribing agents to video stream: {e}")
+
+        # print(f"{UNITREE_GO2_PRINT_COLOR}Initializing Wiggler Agent...{UNITREE_GO2_RESET_COLOR}")
+        # self.UnitreeWigglerAgent = OpenAI_Agent(
+        #     dev_name="WigglerAgent", 
+        #     agent_type="Wiggler", 
+        #     input_video_stream=rate_limited_stream,
+        #     output_dir=self.output_dir,
+        #     # query="Based on the image, if you see a peace sign pose from a boy in an orange shirt, wiggle the robot's hips but ONLY if its a boy in an orange shirt making a peace sign pose. Describe what you see in the image in detail, also specifically include the time seen in the image.",
+        #     # query="Denote the number you see in the image. Only provide the number, without any other text in your response.",
+        #     query="Based on the image, if you see a human with a peace sign pose, wiggle the robot's hips but ONLY if you see as described with a high level of confidence. Also describe what you see in the image in detail, also specifically include the time seen in the image.",
+        #     image_detail="high",
+        #     # query="Wiggle the robot's hips. Describe what you see in the image in detail.",
+        #     robot_video_provider=self.video_stream,
+        #     list_of_skills=[Skills.Wiggle]
+        # )
 
     def do(self, *args, **kwargs):
         pass
