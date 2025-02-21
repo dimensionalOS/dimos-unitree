@@ -76,7 +76,7 @@ class ROSControl(ABC):
         """Update robot mode based on state - to be implemented by child classes"""
         pass
     
-    @register_skill("move_robot")
+    #@register_skill("move_robot")
     def move(self, x: float, y: float, yaw: float, duration: float = 0.0) -> bool:
         """
         Send movement command to the robot

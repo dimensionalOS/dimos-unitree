@@ -43,13 +43,13 @@ if __name__ == "__main__":
     
     try:
         # Start perception
-        print("\nStarting perception system...")
-        #robot.start_perception()
+        #print("\nStarting perception system...")
+        #robot.start_perception()        
         
         # Example movement sequence
         print("\nExecuting movement sequence...")
         print("Moving forward...")
-        robot.move(-1, 0.0, 0.0, duration=2.0)  # Move forward for 2 seconds
+        robot.move(0.1, 0.0, 0.0, duration=5.0)  # Move forward for 2 seconds
         time.sleep(0.5)
         
         print("Moving left...")
@@ -57,7 +57,7 @@ if __name__ == "__main__":
         time.sleep(0.5)
         
         print("Rotating...")
-        robot.move(0.0, 0.0, 0.5, duration=1.0)  # Rotate for 1 second
+        robot.move(0.0, 0.0, 0.5, duration=5.0)  # Rotate for 1 second
         time.sleep(0.5)
         
         print("\nMonitoring agent outputs (Press Ctrl+C to stop)...")
