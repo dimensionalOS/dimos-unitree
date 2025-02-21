@@ -2,7 +2,9 @@
 services:
   dimos:
     image: dimos:latest
-    build: ./../../
+    build: 
+      context: ./../../
+      dockerfile: docker/agent/Dockerfile
     env_file:
       - ./../../.env
     mem_limit: 8048m
@@ -24,7 +26,7 @@ services:
     # command: [ "python", "-m", "tests.web.edge_io" ] 
     # ^^ Working Instance - Needs Tests. 
     # 
-    command: [ "python", "-m", "tests.agent_manip_flow_flask_test" ]
+    # command: [ "python", "-m", "tests.agent_manip_flow_flask_test" ]
     # ^^ Working Instance
 
     # command: [ "python", "-m", "tests.agent_manip_flow_fastapi_test" ]
@@ -56,6 +58,12 @@ services:
 
     # command: [ "python", "-m", "tests.test_skill_library" ]
     # ^^ Working Instance
+
+    # command: [ "python", "-m", "tests.test_video_rtsp" ]
+    # ^^ WIP
+
+    command: [ "python", "-m", "tests.test_video_agent_threading" ]
+    # ^^ WIP
 
     # command: ["tail", "-f", "/dev/null"]
     stdin_open: true
