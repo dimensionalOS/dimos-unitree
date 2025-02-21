@@ -1,7 +1,24 @@
 FROM python:3
 
+# General
+# RUN apt-get update && apt-get install -y \
+#     libgl1-mesa-glx
+
+# Unitree Specific
 RUN apt-get update && apt-get install -y \
-    libgl1-mesa-glx
+    libgl1-mesa-glx \
+    build-essential \
+    libavformat-dev \
+    libavcodec-dev \
+    libavdevice-dev \
+    libavutil-dev \
+    libswscale-dev \
+    libpostproc-dev \ 
+    gcc \
+    make \
+    portaudio19-dev \
+    python3-pyaudio \
+    python3-all-dev
 
 WORKDIR /app
 
