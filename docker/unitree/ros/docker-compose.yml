@@ -1,7 +1,7 @@
 version: '3.8'
 
 services:
-  unitree_ros_test:
+  unitree_ros:
     build:
       context: .
       dockerfile: Dockerfile
