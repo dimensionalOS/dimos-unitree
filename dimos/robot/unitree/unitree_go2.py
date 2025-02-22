@@ -36,7 +36,8 @@ class UnitreeGo2(Robot):
                  connection_method: WebRTCConnectionMethod = WebRTCConnectionMethod.LocalSTA,
                  serial_number: str = None,
                  output_dir: str = os.getcwd(),
-                 api_call_interval: int = 5):
+                 api_call_interval: int = 5,
+                 use_ros: bool = True):
         """Initialize the UnitreeGo2 robot.
         
         Args:
@@ -47,6 +48,7 @@ class UnitreeGo2(Robot):
             serial_number: Serial number of the robot (for LocalSTA with serial)
             output_dir: Directory for output files
             api_call_interval: Interval between API calls in seconds
+            use_ros_video: Whether to use ROS video provider
         """
         # Initialize parent class
         super().__init__(agent_config=agent_config, ros_control=ros_control)
@@ -65,13 +67,18 @@ class UnitreeGo2(Robot):
         os.makedirs(self.output_dir, exist_ok=True)
         print(f"Agent outputs will be saved to: {os.path.join(self.output_dir, 'memory.txt')}")
 
-        # Initialize video stream with specified connection method
-        self.video_stream = UnitreeVideoProvider(
-            dev_name="UnitreeGo2",
-            connection_method=connection_method,
-            serial_number=serial_number,
-            ip=self.ip if connection_method == WebRTCConnectionMethod.LocalSTA else None
-        )
+        # Choose data provider based on configuration
+        if use_ros:
+            # Use ROS data provider from ROSControl
+            self.data_stream = self.ros_control.data_provider
+        else:
+            # Use WebRTC video provider
+            self.video_stream = UnitreeVideoProvider(
+                dev_name="UnitreeGo2",
+                connection_method=connection_method,
+                serial_number=serial_number,
+                ip=self.ip if connection_method == WebRTCConnectionMethod.LocalSTA else None
+            )
         # self.video_stream = VideoProvider(
         #     dev_name="UnitreeGo2",
         #     video_source="/app/assets/framecount.mp4"
@@ -143,7 +150,11 @@ class UnitreeGo2(Robot):
 
     def __del__(self):
         """Cleanup resources when the robot is destroyed."""
-        self.video_stream.dispose_all()
+        try:
+            if hasattr(self, 'video_stream'):
+                self.video_stream.dispose_all()
+        except Exception as e:
+            print(f"Error during cleanup: {e}")
 
     def read_agent_outputs(self):
         """Read and print the latest agent outputs from the memory file."""
