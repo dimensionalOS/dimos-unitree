@@ -5,9 +5,12 @@ from dimos.robot.ros_control import ROSControl
 from dimos.stream.frame_processor import FrameProcessor
 from dimos.stream.video_operators import VideoOperators as vops
 from reactivex import operators as ops
+from reactivex.scheduler import ThreadPoolScheduler
 import os
 import time
 import logging
+
+import multiprocessing
 
 '''
 Base class for all dimos robots, both physical and simulated.
@@ -38,9 +41,11 @@ class Robot(ABC):
             raise RuntimeError("No ROS data provider available")
             
         print(f"Starting ROS data stream at {fps} FPS...")
+
+        pool_scheduler = ThreadPoolScheduler(multiprocessing.cpu_count())
         
         # Create data stream observable with desired FPS
-        data_stream_obs = self.ros_control.data_provider.capture_data_as_observable(fps=fps)
+        data_stream_obs = self.ros_control.video_provider.capture_video_as_observable(fps=fps)
         
         # Create frame counter
         def create_frame_counter():
@@ -69,6 +74,8 @@ class Robot(ABC):
             *([vops.with_jpeg_export(frame_processor, suffix="ros_frame_", save_limit=100)] if save_frames else []),
             # Add error handling
             ops.catch(lambda e, _: print(f"Error in stream processing: {e}")),
+            # ops.sample(1.0/fps, scheduler=pool_scheduler),
+            # ops.observe_on(pool_scheduler),
             # Share the stream among multiple subscribers
             ops.share()
         )

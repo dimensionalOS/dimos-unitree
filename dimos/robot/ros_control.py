@@ -12,6 +12,7 @@ from typing import Optional, Tuple, Dict, Any
 from abc import ABC, abstractmethod
 from rclpy.qos import QoSProfile, QoSReliabilityPolicy, QoSHistoryPolicy, QoSDurabilityPolicy
 from dimos.stream.data_provider import ROSDataProvider
+from dimos.stream.ros_video_provider import ROSVideoProvider
 
 from dimos.robot.ros_skill_library import register_skill
 
@@ -71,10 +72,15 @@ class ROSControl(ABC):
         
         # Initialize data handling
         self._data_provider = None
+
+        self._video_provider = None
+
         self._bridge = None
         if camera_topics:
             self._bridge = CvBridge()
             self._data_provider = ROSDataProvider(dev_name=f"{node_name}_data")
+            self._video_provider = ROSVideoProvider(dev_name=f"{node_name}_video")
+
             
             # Create subscribers for each topic with sensor QoS
             msg_type = CompressedImage if use_compressed_video else Image
@@ -122,7 +128,8 @@ class ROSControl(ABC):
                     frame = self._bridge.imgmsg_to_cv2(msg, "bgr8")
                 print(f"Converted frame shape: {frame.shape}")
                 
-                self._data_provider.push_data(frame)
+                # self._data_provider.push_data(frame)
+                self._video_provider.push_data(frame)
                 print("Successfully pushed frame to data provider")
             except Exception as e:
                 self._logger.error(f"Error converting image: {e}")
@@ -132,6 +139,11 @@ class ROSControl(ABC):
     def data_provider(self) -> Optional[ROSDataProvider]:
         """Data provider property for streaming data"""
         return self._data_provider
+    
+    @property
+    def video_provider(self) -> Optional[ROSVideoProvider]:
+        """Data provider property for streaming data"""
+        return self._video_provider
     
     #@register_skill("move_robot")
     def move(self, x: float, y: float, yaw: float, duration: float = 0.0) -> bool:

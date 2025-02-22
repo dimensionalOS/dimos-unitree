@@ -104,15 +104,15 @@ if __name__ == "__main__":
         time.sleep(30)
         print("\nExecuting movement sequence...")
         print("Moving forward...")
-        robot.move(-0.1, 0.0, 0.0, duration=5.0)
+        #robot.move(-0.1, 0.0, 0.0, duration=5.0)
         time.sleep(0.5)
         
         print("Moving left...")
-        robot.move(0.0, 0.3, 0.0, duration=1.0)
+       # robot.move(0.0, 0.3, 0.0, duration=1.0)
         time.sleep(0.5)
         
         print("Rotating...")
-        robot.move(0.0, 0.0, 0.5, duration=5.0)
+        #robot.move(0.0, 0.0, 0.5, duration=5.0)
         time.sleep(0.5)
         
         print("\nMonitoring agent outputs (Press Ctrl+C to stop)...")
