@@ -23,7 +23,7 @@ from reactivex.disposable import CompositeDisposable
 from reactivex.scheduler import ThreadPoolScheduler, CurrentThreadScheduler, ImmediateScheduler
 
 # Local application imports
-from dimos.agents.agent import PromptBuilder, OpenAI_Agent 
+from dimos.agents.agent import PromptBuilder, OpenAIAgent 
 from dimos.stream.frame_processor import FrameProcessor
 from dimos.stream.video_operators import VideoOperators as vops
 from dimos.stream.video_provider import VideoProvider
@@ -102,7 +102,7 @@ def main():
     )
 
     # Agent 1
-    my_agent = OpenAI_Agent(
+    my_agent = OpenAIAgent(
         "Agent 1", 
         query="You are a robot. What do you see? Put a JSON with objects of what you see in the format {object, description}.",
         json_mode=False
@@ -126,7 +126,7 @@ def main():
     disposables.add(my_agent.disposables)
 
     # Agent 2
-    my_agent_two = OpenAI_Agent(
+    my_agent_two = OpenAIAgent(
         "Agent 2", 
         query="This is a visualization of dense optical flow. What movement(s) have occured? Put a JSON with mapped directions you see in the format {direction, probability, english_description}.",
         max_input_tokens_per_request=1000,
@@ -172,8 +172,8 @@ def main():
         # video_one=video_stream_obs,
         # edge_detection=edge_detection_stream_obs,
         # optical_flow=optical_flow_stream_obs,
-        OpenAI_Agent_1=ai_1_secondly_repeating_obs,
-        OpenAI_Agent_2=ai_2_secondly_repeating_obs,
+        OpenAIAgent_1=ai_1_secondly_repeating_obs,
+        OpenAIAgent_2=ai_2_secondly_repeating_obs,
     )
     
     flask_server.run(threaded=True)

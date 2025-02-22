@@ -18,7 +18,7 @@ if __name__ == "__main__":
     robot_ip = get_env_var("ROBOT_IP", "192.168.9.140")
     connection_method = get_env_var("CONNECTION_METHOD", "LocalSTA")
     serial_number = get_env_var("SERIAL_NUMBER", None)
-    output_dir = get_env_var("OUTPUT_DIR", os.path.join(os.getcwd(), "output"))
+    output_dir = "/dimos/assets/output"
     api_call_interval = int(get_env_var("API_CALL_INTERVAL", "5"))
 
     # Convert connection method string to enum
@@ -42,26 +42,32 @@ if __name__ == "__main__":
     )
     
     try:
-        # Start perception
-        #print("\nStarting perception system...")
-        #robot.start_perception()        
+        def start_perception():
+            # Start perception
+            print("\nStarting perception system...")
+            robot.start_perception()        
         
-        # Example movement sequence
-        print("\nExecuting movement sequence...")
-        print("Moving forward...")
-        robot.move(0.1, 0.0, 0.0, duration=5.0)  # Move forward for 2 seconds
-        time.sleep(0.5)
+        def example_movement_sequence():
+            # Example movement sequence
+            print("\nExecuting movement sequence...")
+            print("Moving forward...")
+            robot.move(0.1, 0.0, 0.0, duration=5.0)  # Move forward for 5 seconds
+            time.sleep(0.5)
+            
+            print("Moving left...")
+            robot.move(0.0, 0.3, 0.0, duration=1.0)  # Move left for 1 second
+            time.sleep(0.5)
+            
+            print("Rotating...")
+            robot.move(0.0, 0.0, 0.5, duration=5.0)  # Rotate for 5 second
+            time.sleep(0.5)
+            
+            print("\nMonitoring agent outputs (Press Ctrl+C to stop)...")
+            # Monitor agent outputs every 5 seconds
         
-        print("Moving left...")
-        robot.move(0.0, 0.3, 0.0, duration=1.0)  # Move left for 1 second
-        time.sleep(0.5)
+        # example_movement_sequence()
+        start_perception()
         
-        print("Rotating...")
-        robot.move(0.0, 0.0, 0.5, duration=5.0)  # Rotate for 1 second
-        time.sleep(0.5)
-        
-        print("\nMonitoring agent outputs (Press Ctrl+C to stop)...")
-        # Monitor agent outputs every 5 seconds
         while True:
             time.sleep(5)
             # robot.read_agent_outputs()

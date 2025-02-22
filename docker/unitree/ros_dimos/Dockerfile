@@ -94,8 +94,6 @@ RUN cd src && pip install -r requirements.txt
 RUN mkdir -p /dimos/dimos /dimos/docker
 
 # Copy only the necessary directories
-COPY dimos /dimos/dimos/
-COPY docker /dimos/docker/
 COPY requirements.txt /dimos/
 
 WORKDIR /dimos
@@ -127,12 +125,21 @@ ENV CONN_TYPE="webrtc"
 ENV WEBRTC_SERVER_HOST="0.0.0.0"
 ENV WEBRTC_SERVER_PORT="9991"
 
+# Copy the docker directory
+COPY docker /dimos/docker/
+
 # Setup supervisor configuration
 COPY docker/unitree/ros_dimos/supervisord.conf /etc/supervisor/conf.d/supervisord.conf
 
 # Copy entrypoint script
 COPY docker/unitree/ros_dimos/entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
+
+# Copy the main dimos directory
+COPY dimos /dimos/dimos/
+
+# Create output directory for supervisord
+RUN mkdir -p /dimos/assets/output
 
 ENTRYPOINT ["/entrypoint.sh"]
 CMD ["/usr/bin/supervisord", "-n", "-c", "/etc/supervisor/conf.d/supervisord.conf"]

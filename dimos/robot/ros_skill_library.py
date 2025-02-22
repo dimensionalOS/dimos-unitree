@@ -3,9 +3,9 @@ from typing import Callable, Dict, Type
 
 from pydantic import BaseModel, create_model
 
-from dimos.robot.skills import Skills
+from dimos.robot.skills import AbstractSkill
 
-class ROSSkillLibrary(Skills):
+class ROSSkillLibrary(AbstractSkill):
     _instance = None
 
     def __new__(cls):

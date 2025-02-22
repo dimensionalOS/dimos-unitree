@@ -1,8 +1,10 @@
+import multiprocessing
 import cv2
-from dimos.robot.robot import Robot
+from dimos.robot.robot import MyUnitreeSkills, Robot
 from dimos.hardware.interface import HardwareInterface
-from dimos.agents.agent import Agent, OpenAI_Agent
+from dimos.agents.agent import Agent, OpenAIAgent, OpenAIAgent
 from dimos.agents.agent_config import AgentConfig
+from dimos.robot.skills import AbstractSkill, SkillsHelper
 from dimos.stream.frame_processor import FrameProcessor
 from dimos.stream.video_provider import VideoProvider
 from dimos.stream.video_providers.unitree import UnitreeVideoProvider
@@ -23,10 +25,15 @@ import os
 from datetime import timedelta
 from dotenv import load_dotenv, find_dotenv
 from dimos.robot.unitree.unitree_ros_control import UnitreeROSControl
+from reactivex.scheduler import ThreadPoolScheduler
 
 # Set up logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
+# UnitreeGo2 Print Colors (Magenta)
+UNITREE_GO2_PRINT_COLOR = "\033[35m"
+UNITREE_GO2_RESET_COLOR = "\033[0m"
 
 class UnitreeGo2(Robot):
     def __init__(self, 
@@ -35,7 +42,7 @@ class UnitreeGo2(Robot):
                  ip = None,
                  connection_method: WebRTCConnectionMethod = WebRTCConnectionMethod.LocalSTA,
                  serial_number: str = None,
-                 output_dir: str = os.getcwd(),
+                 output_dir: str = "/app/assets/output",
                  api_call_interval: int = 5):
         """Initialize the UnitreeGo2 robot.
         
@@ -58,6 +65,10 @@ class UnitreeGo2(Robot):
         self.disposables = CompositeDisposable()
         self.main_stream_obs = None
 
+        # Initialize thread pool scheduler
+        self.optimal_thread_count = multiprocessing.cpu_count()
+        self.thread_pool_scheduler = ThreadPoolScheduler(self.optimal_thread_count // 2)
+
         if (connection_method == WebRTCConnectionMethod.LocalSTA) and (ip is None):
             raise ValueError("IP address is required for LocalSTA connection")
 
@@ -66,16 +77,16 @@ class UnitreeGo2(Robot):
         print(f"Agent outputs will be saved to: {os.path.join(self.output_dir, 'memory.txt')}")
 
         # Initialize video stream with specified connection method
-        self.video_stream = UnitreeVideoProvider(
-            dev_name="UnitreeGo2",
-            connection_method=connection_method,
-            serial_number=serial_number,
-            ip=self.ip if connection_method == WebRTCConnectionMethod.LocalSTA else None
-        )
-        # self.video_stream = VideoProvider(
+        # self.video_stream = UnitreeVideoProvider(
         #     dev_name="UnitreeGo2",
-        #     video_source="/app/assets/framecount.mp4"
+        #     connection_method=connection_method,
+        #     serial_number=serial_number,
+        #     ip=self.ip if connection_method == WebRTCConnectionMethod.LocalSTA else None
         # )
+        self.video_stream = VideoProvider(
+            dev_name="UnitreeGo2",
+            video_source="/dimos/assets/framecount.mp4"
+        )
 
     def start_perception(self):
         print(f"Starting video stream with {self.api_call_interval} second intervals...")
@@ -112,19 +123,19 @@ class UnitreeGo2(Robot):
             # Sample the latest frame every api_call_interval seconds
             vops.with_fps_sampling(fps=30, use_latest=False),
             # Output to jpgs on disk for debugging
-            vops.with_jpeg_export(frame_processor, suffix="openai_frame_", save_limit=100),
+            # vops.with_jpeg_export(frame_processor, suffix="openai_frame_", save_limit=100),
             # Log when a frame is sampled
             # ops.do_action(lambda _: print(f"=== Processing frame at {time.strftime('%H:%M:%S')} ===")),
             # Add error handling
             ops.catch(lambda e, _: print(f"Error in stream processing: {e}")),
             # Share the stream among multiple subscribers
-            ops.share(),
+            # ops.share(),
             # Send to debugging socket
             # vops.with_zmq_socket(my_socket)  
         )
 
         # print(f"{UNITREE_GO2_PRINT_COLOR}Initializing Wiggler Agent...{UNITREE_GO2_RESET_COLOR}")
-        # self.UnitreeWigglerAgent = OpenAI_Agent(
+        # self.UnitreeWigglerAgent = OpenAIAgent(
         #     dev_name="WigglerAgent", 
         #     agent_type="Wiggler", 
         #     input_video_stream=rate_limited_stream,
@@ -137,6 +148,39 @@ class UnitreeGo2(Robot):
         #     robot_video_provider=self.video_stream,
         #     list_of_skills=[Skills.Wiggle]
         # )
+
+        # Skills Library
+        skills_instance = MyUnitreeSkills(robot=self)
+        list_of_skills: list[AbstractSkill] = [skills_instance.Move]
+        list_of_skills_json = SkillsHelper.get_list_of_skills_as_json(list_of_skills)
+        skills_instance.create_instance("Move", {"robot": self})
+        print(f"skills_instance: {skills_instance}")
+        print(f"list_of_skills_json: {list_of_skills_json}")
+        skills_instance.set_tools(list_of_skills_json)
+
+
+
+        # Skills Library
+        # skills_instance = Skills(robot_video_provider=self.video_stream)
+        #list_of_skills: list[AbstractSkill] = [skills_instance.Wiggle]
+        #list_of_skills_json = SkillsHelper.get_list_of_skills_as_json(list_of_skills)
+        # skills_instance.create_instance("Wiggle", {"robot_video_provider": self.video_stream})
+        # skills_instance.set_tools(list_of_skills_json)
+
+
+        print(f"{UNITREE_GO2_PRINT_COLOR}Initializing Move Agent...{UNITREE_GO2_RESET_COLOR}")
+        self.UnitreeMoveAgent = OpenAIAgent(
+            dev_name="MoveAgent", 
+            agent_type="Move", 
+            input_video_stream=rate_limited_stream,
+            output_dir=self.output_dir,
+            # query="Based on the image, if you see a human, rotate the robot at 0.5 rad/s for 1 second.",
+            query="Denote the number you see in the image. Only provide the number, without any other text in your response. If the number is above 500, but lower than 1000, then rotate the robot at 0.5 rad/s for 1 second.",
+            image_detail="high",
+            skills=skills_instance,
+            pool_scheduler=self.thread_pool_scheduler,
+            frame_processor=frame_processor,
+        )
 
     def do(self, *args, **kwargs):
         pass
