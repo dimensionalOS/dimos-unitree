@@ -158,16 +158,6 @@ class UnitreeGo2(Robot):
         print(f"list_of_skills_json: {list_of_skills_json}")
         skills_instance.set_tools(list_of_skills_json)
 
-
-
-        # Skills Library
-        # skills_instance = Skills(robot_video_provider=self.video_stream)
-        #list_of_skills: list[AbstractSkill] = [skills_instance.Wiggle]
-        #list_of_skills_json = SkillsHelper.get_list_of_skills_as_json(list_of_skills)
-        # skills_instance.create_instance("Wiggle", {"robot_video_provider": self.video_stream})
-        # skills_instance.set_tools(list_of_skills_json)
-
-
         print(f"{UNITREE_GO2_PRINT_COLOR}Initializing Move Agent...{UNITREE_GO2_RESET_COLOR}")
         self.UnitreeMoveAgent = OpenAIAgent(
             dev_name="MoveAgent", 
