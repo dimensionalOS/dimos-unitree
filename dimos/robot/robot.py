@@ -31,53 +31,26 @@ class Robot(ABC):
         os.makedirs(self.output_dir, exist_ok=True)
 
     def start_ros_perception(self, fps: int = 30, save_frames: bool = True):
-        """Start ROS-based perception system with rate limiting and frame processing.
-        
-        Args:
-            fps: Frames per second to process
-            save_frames: Whether to save frames to disk
-        """
-        if not self.ros_control or not self.ros_control.data_provider:
-            raise RuntimeError("No ROS data provider available")
+        """Start ROS-based perception system with rate limiting and frame processing."""
+        if not self.ros_control or not self.ros_control.video_provider:
+            raise RuntimeError("No ROS video provider available")
             
-        print(f"Starting ROS data stream at {fps} FPS...")
-
-        pool_scheduler = ThreadPoolScheduler(multiprocessing.cpu_count())
+        print(f"Starting ROS video stream at {fps} FPS...")
         
-        # Create data stream observable with desired FPS
-        data_stream_obs = self.ros_control.video_provider.capture_video_as_observable(fps=fps)
+        # Get base stream from video provider
+        video_stream = self.ros_control.video_provider.capture_video_as_observable(fps=fps)
         
-        # Create frame counter
-        def create_frame_counter():
-            count = 0
-            def increment():
-                nonlocal count
-                count += 1
-                return count
-            return increment
-        
-        frame_counter = create_frame_counter()
-        
-        # Initialize frame processor if saving frames
-        frame_processor = None
-        if save_frames:
-            frame_processor = FrameProcessor(
-                delete_on_init=True,
-                output_dir=os.path.join(self.output_dir, "frames")
-            )
-        
-        # Process the data stream
-        processed_stream = data_stream_obs.pipe(
-            # Add frame counting
-            ops.do_action(lambda _: print(f"Frame {frame_counter()} received")),
-            # Save frames if requested
-            *([vops.with_jpeg_export(frame_processor, suffix="ros_frame_", save_limit=100)] if save_frames else []),
-            # Add error handling
-            ops.catch(lambda e, _: print(f"Error in stream processing: {e}")),
-            # ops.sample(1.0/fps, scheduler=pool_scheduler),
-            # ops.observe_on(pool_scheduler),
-            # Share the stream among multiple subscribers
+        # Add minimal processing pipeline
+        processed_stream = video_stream.pipe(
+            ops.do_action(lambda x: print(f"ROBOT: Received frame of type {type(x)}")),
+            ops.catch(lambda e: print(f"ROBOT: Error in stream: {e}")),
             ops.share()
+        )
+        
+        # Add debug subscription
+        processed_stream.subscribe(
+            on_next=lambda x: print("ROBOT: Frame ready for final subscriber"),
+            on_error=lambda e: print(f"ROBOT: Pipeline error: {e}")
         )
         
         return processed_stream

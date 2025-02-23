@@ -56,7 +56,7 @@ if __name__ == "__main__":
         print("\nStarting perception system...")
         
         # Get the processed stream
-        processed_stream = robot.start_ros_perception()
+        processed_stream = robot.start_ros_perception(fps=1)
         
         # Create frame counter for unique filenames
         frame_count = 0
@@ -100,24 +100,24 @@ if __name__ == "__main__":
         except Exception as e:
             print(f"Error creating subscription: {e}")
 
-        # Keep the original movement sequence and timing
-        time.sleep(30)
-        print("\nExecuting movement sequence...")
-        print("Moving forward...")
-        #robot.move(-0.1, 0.0, 0.0, duration=5.0)
-        time.sleep(0.5)
+    #     # Keep the original movement sequence and timing
+    #     time.sleep(30)
+    #     print("\nExecuting movement sequence...")
+    #     print("Moving forward...")
+    #     #robot.move(-0.1, 0.0, 0.0, duration=5.0)
+    #     time.sleep(0.5)
         
-        print("Moving left...")
-       # robot.move(0.0, 0.3, 0.0, duration=1.0)
-        time.sleep(0.5)
+    #     print("Moving left...")
+    #    # robot.move(0.0, 0.3, 0.0, duration=1.0)
+    #     time.sleep(0.5)
         
-        print("Rotating...")
-        #robot.move(0.0, 0.0, 0.5, duration=5.0)
-        time.sleep(0.5)
+    #     print("Rotating...")
+    #     #robot.move(0.0, 0.0, 0.5, duration=5.0)
+    #     time.sleep(0.5)
         
-        print("\nMonitoring agent outputs (Press Ctrl+C to stop)...")
+    #     print("\nMonitoring agent outputs (Press Ctrl+C to stop)...")
         while True:
-            time.sleep(5)
+            time.sleep(0.1)
             # robot.read_agent_outputs()
             
     except KeyboardInterrupt:

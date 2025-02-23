@@ -1,5 +1,6 @@
 import rclpy
 from rclpy.node import Node
+from rclpy.executors import MultiThreadedExecutor
 from geometry_msgs.msg import Twist
 from go2_interfaces.msg import Go2State, IMU
 from sensor_msgs.msg import Image, CompressedImage
@@ -10,7 +11,12 @@ import threading
 import time
 from typing import Optional, Tuple, Dict, Any
 from abc import ABC, abstractmethod
-from rclpy.qos import QoSProfile, QoSReliabilityPolicy, QoSHistoryPolicy, QoSDurabilityPolicy
+from rclpy.qos import (
+    QoSProfile,
+    QoSReliabilityPolicy,
+    QoSHistoryPolicy,
+    QoSDurabilityPolicy
+)
 from dimos.stream.data_provider import ROSDataProvider
 from dimos.stream.ros_video_provider import ROSVideoProvider
 
@@ -46,12 +52,15 @@ class ROSControl(ABC):
             max_linear_velocity: Maximum linear velocity (m/s)
             max_angular_velocity: Maximum angular velocity (rad/s)
         """
-        # Initialize ROS node
+        # Initialize rclpy and ROS node if not already running
         if not rclpy.ok():
             rclpy.init()
         
         self._node = Node(node_name)
         self._logger = self._node.get_logger()
+        
+        # Prepare a multi-threaded executor
+        self._executor = MultiThreadedExecutor()
         
         # Movement constraints
         self.MAX_LINEAR_VELOCITY = max_linear_velocity
@@ -72,15 +81,12 @@ class ROSControl(ABC):
         
         # Initialize data handling
         self._data_provider = None
-
         self._video_provider = None
-
         self._bridge = None
         if camera_topics:
             self._bridge = CvBridge()
             self._data_provider = ROSDataProvider(dev_name=f"{node_name}_data")
             self._video_provider = ROSVideoProvider(dev_name=f"{node_name}_video")
-
             
             # Create subscribers for each topic with sensor QoS
             msg_type = CompressedImage if use_compressed_video else Image
@@ -97,16 +103,19 @@ class ROSControl(ABC):
         self._cmd_vel_pub = self._node.create_publisher(
             Twist, cmd_vel_topic, 10)
             
-        # Start ROS spin thread
+        # Start ROS spin in a background thread via the executor
         self._spin_thread = threading.Thread(target=self._ros_spin, daemon=True)
         self._spin_thread.start()
         
-        self._logger.info(f"{node_name} initialized")
+        self._logger.info(f"{node_name} initialized with multi-threaded executor")
     
     def _ros_spin(self):
-        """Background thread for ROS spinning"""
-        while rclpy.ok():
-            rclpy.spin_once(self._node, timeout_sec=0.1)
+        """Background thread for spinning the multi-threaded executor."""
+        self._executor.add_node(self._node)
+        try:
+            self._executor.spin()
+        finally:
+            self._executor.shutdown()
     
     def _clamp_velocity(self, velocity: float, max_velocity: float) -> float:
         """Clamp velocity within safe limits"""
@@ -209,9 +218,14 @@ class ROSControl(ABC):
         pass
     
     def cleanup(self):
-        """Cleanup ROS node and stop robot"""
+        """Cleanup the executor, ROS node, and stop robot."""
         self.stop()
         if self._data_provider:
             self._data_provider.dispose()
+
+        # Shut down the executor to stop spin loop cleanly
+        self._executor.shutdown()
+
+        # Destroy node and shutdown rclpy
         self._node.destroy_node()
         rclpy.shutdown()
