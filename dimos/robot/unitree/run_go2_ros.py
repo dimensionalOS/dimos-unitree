@@ -38,8 +38,6 @@ if __name__ == "__main__":
             node_name="unitree_go2",
             use_raw=True
         )
-    else:
-        ros_control = UnitreeROSControl()
 
     robot = UnitreeGo2(
         ip=robot_ip,
@@ -56,7 +54,7 @@ if __name__ == "__main__":
         print("\nStarting perception system...")
         
         # Get the processed stream
-        processed_stream = robot.start_ros_perception(fps=1)
+        processed_stream = robot.start_ros_perception(fps=30)
         
         # Create frame counter for unique filenames
         frame_count = 0
@@ -73,9 +71,7 @@ if __name__ == "__main__":
                 success = cv2.imwrite(frame_path, frame)
                 print(f"Frame #{frame_count} {'saved successfully' if success else 'failed to save'} to {frame_path}")
                 
-                # Display the frame using cv2
-                cv2.imshow("ROS Camera Feed", frame)
-                cv2.waitKey(1)
+
             except Exception as e:
                 print(f"Error in handle_frame: {e}")
                 import traceback
@@ -100,12 +96,12 @@ if __name__ == "__main__":
         except Exception as e:
             print(f"Error creating subscription: {e}")
 
-    #     # Keep the original movement sequence and timing
-    #     time.sleep(30)
-    #     print("\nExecuting movement sequence...")
-    #     print("Moving forward...")
-    #     #robot.move(-0.1, 0.0, 0.0, duration=5.0)
-    #     time.sleep(0.5)
+        # Keep the original movement sequence and timing
+        time.sleep(30)
+        print("\nExecuting movement sequence...")
+        print("Moving forward...")
+        robot.move(0.1, 0.0, 0.0, duration=5.0)
+        time.sleep(0.5)
         
     #     print("Moving left...")
     #    # robot.move(0.0, 0.3, 0.0, duration=1.0)

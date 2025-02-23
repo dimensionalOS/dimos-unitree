@@ -6,6 +6,7 @@ from dimos.stream.frame_processor import FrameProcessor
 from dimos.stream.video_operators import VideoOperators as vops
 from reactivex import operators as ops
 from reactivex.scheduler import ThreadPoolScheduler
+from dimos.stream.ros_video_provider import pool_scheduler
 import os
 import time
 import logging
@@ -40,17 +41,11 @@ class Robot(ABC):
         # Get base stream from video provider
         video_stream = self.ros_control.video_provider.capture_video_as_observable(fps=fps)
         
-        # Add minimal processing pipeline
+        # Add minimal processing pipeline with proper thread handling
         processed_stream = video_stream.pipe(
-            ops.do_action(lambda x: print(f"ROBOT: Received frame of type {type(x)}")),
-            ops.catch(lambda e: print(f"ROBOT: Error in stream: {e}")),
-            ops.share()
-        )
-        
-        # Add debug subscription
-        processed_stream.subscribe(
-            on_next=lambda x: print("ROBOT: Frame ready for final subscriber"),
-            on_error=lambda e: print(f"ROBOT: Pipeline error: {e}")
+            ops.observe_on(pool_scheduler),  # Ensure thread safety
+            ops.do_action(lambda x: print(f"ROBOT: Processing frame of type {type(x)}")),
+            ops.share()  # Share the stream
         )
         
         return processed_stream

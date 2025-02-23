@@ -17,7 +17,7 @@ from rclpy.qos import (
     QoSHistoryPolicy,
     QoSDurabilityPolicy
 )
-from dimos.stream.data_provider import ROSDataProvider
+#from dimos.stream.data_provider import ROSDataProvider
 from dimos.stream.ros_video_provider import ROSVideoProvider
 
 from dimos.robot.ros_skill_library import register_skill
@@ -70,7 +70,9 @@ class ROSControl(ABC):
         self._mode = RobotMode.UNKNOWN
         self._is_moving = False
         self._current_velocity = {"x": 0.0, "y": 0.0, "z": 0.0}
-        
+        self._subscriptions = []
+
+
         # Create sensor data QoS profile
         sensor_qos = QoSProfile(
             reliability=QoSReliabilityPolicy.BEST_EFFORT,
@@ -80,24 +82,23 @@ class ROSControl(ABC):
         )
         
         # Initialize data handling
-        self._data_provider = None
         self._video_provider = None
         self._bridge = None
         if camera_topics:
             self._bridge = CvBridge()
-            self._data_provider = ROSDataProvider(dev_name=f"{node_name}_data")
             self._video_provider = ROSVideoProvider(dev_name=f"{node_name}_video")
             
             # Create subscribers for each topic with sensor QoS
             msg_type = CompressedImage if use_compressed_video else Image
             for topic in camera_topics.values():
                 self._logger.info(f"Subscribing to {topic} with BEST_EFFORT QoS")
-                self._node.create_subscription(
+                subscription = self._node.create_subscription(
                     msg_type,
                     topic,
                     self._image_callback,
                     sensor_qos
                 )
+                self._subscriptions.append(subscription)
         
         # Publishers
         self._cmd_vel_pub = self._node.create_publisher(
@@ -129,25 +130,20 @@ class ROSControl(ABC):
     def _image_callback(self, msg):
         """Convert ROS image to numpy array and push to data stream"""
         print("Running image callback")
-        if self._data_provider and self._bridge:
+        if self._video_provider and self._bridge:
             try:
                 if isinstance(msg, CompressedImage):
                     frame = self._bridge.compressed_imgmsg_to_cv2(msg)
+                    print(f"Compressed image")
                 else:
                     frame = self._bridge.imgmsg_to_cv2(msg, "bgr8")
                 print(f"Converted frame shape: {frame.shape}")
                 
-                # self._data_provider.push_data(frame)
                 self._video_provider.push_data(frame)
                 print("Successfully pushed frame to data provider")
             except Exception as e:
                 self._logger.error(f"Error converting image: {e}")
                 print(f"Full conversion error: {str(e)}")
-
-    @property
-    def data_provider(self) -> Optional[ROSDataProvider]:
-        """Data provider property for streaming data"""
-        return self._data_provider
     
     @property
     def video_provider(self) -> Optional[ROSVideoProvider]:
@@ -220,8 +216,6 @@ class ROSControl(ABC):
     def cleanup(self):
         """Cleanup the executor, ROS node, and stop robot."""
         self.stop()
-        if self._data_provider:
-            self._data_provider.dispose()
 
         # Shut down the executor to stop spin loop cleanly
         self._executor.shutdown()

@@ -31,7 +31,7 @@ logger = logging.getLogger(__name__)
 class UnitreeGo2(Robot):
     def __init__(self, 
                  agent_config: AgentConfig = None,
-                 ros_control: UnitreeROSControl = UnitreeROSControl(node_name="unitree_go2"),
+                 ros_control: UnitreeROSControl = None,
                  ip = None,
                  connection_method: WebRTCConnectionMethod = WebRTCConnectionMethod.LocalSTA,
                  serial_number: str = None,
@@ -50,7 +50,9 @@ class UnitreeGo2(Robot):
             api_call_interval: Interval between API calls in seconds
             use_ros_video: Whether to use ROS video provider
         """
-        # Initialize parent class
+        # Initialize ros_control if it is not provided and use_ros is True
+        if ros_control is None and use_ros == True:
+            ros_control = UnitreeROSControl(node_name="unitree_go2")
         super().__init__(agent_config=agent_config, ros_control=ros_control)
         
         # Initialize UnitreeGo2-specific attributes
@@ -70,7 +72,8 @@ class UnitreeGo2(Robot):
         # Choose data provider based on configuration
         if use_ros:
             # Use ROS data provider from ROSControl
-            self.data_stream = self.ros_control.data_provider
+           #  self.data_stream = self.ros_control.data_provider
+           pass
         else:
             # Use WebRTC video provider
             self.video_stream = UnitreeVideoProvider(
