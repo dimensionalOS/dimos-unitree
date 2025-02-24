@@ -18,8 +18,12 @@ if __name__ == "__main__":
     robot_ip = get_env_var("ROBOT_IP", "192.168.9.140")
     connection_method = get_env_var("CONNECTION_METHOD", "LocalSTA")
     serial_number = get_env_var("SERIAL_NUMBER", None)
-    output_dir = get_env_var("OUTPUT_DIR", os.path.join(os.getcwd(), "assets/ros_output"))
+    output_dir = get_env_var("ROS_OUTPUT_DIR", os.path.join(os.getcwd(), "assets/output/ros"))
     api_call_interval = int(get_env_var("API_CALL_INTERVAL", "5"))
+    
+    # Ensure output directory exists
+    os.makedirs(output_dir, exist_ok=True)
+    print(f"Ensuring output directory exists: {output_dir}")
     
     use_ros = True
     # Convert connection method string to enum
