@@ -2,6 +2,7 @@
 set -e
 
 # Create supervisor log directory
+
 mkdir -p /app/assets/output
 
 # Delete old logs

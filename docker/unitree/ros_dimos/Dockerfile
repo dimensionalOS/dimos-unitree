@@ -135,8 +135,10 @@ RUN chmod +x /entrypoint.sh
 
 COPY dimos /app/dimos/
 
+# Create output directories for supervisord and ROS
 RUN mkdir -p /app/assets/output/
 RUN mkdir -p /app/assets/output/ros
+
 
 ENTRYPOINT ["/entrypoint.sh"]
 CMD ["/usr/bin/supervisord", "-n", "-c", "/etc/supervisor/conf.d/supervisord.conf"]

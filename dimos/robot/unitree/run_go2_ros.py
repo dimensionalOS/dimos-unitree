@@ -58,6 +58,7 @@ if __name__ == "__main__":
     )
     
     try:
+
         # Start perception
         print("\nStarting perception system...")
         
