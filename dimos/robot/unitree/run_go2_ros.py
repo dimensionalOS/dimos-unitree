@@ -26,6 +26,7 @@ if __name__ == "__main__":
     print(f"Ensuring output directory exists: {output_dir}")
     
     use_ros = True
+    use_webrtc = False
     # Convert connection method string to enum
     connection_method = getattr(WebRTCConnectionMethod, connection_method)
 
@@ -42,6 +43,8 @@ if __name__ == "__main__":
             node_name="unitree_go2",
             use_raw=True
         )
+    else:
+        ros_control = None
 
     robot = UnitreeGo2(
         ip=robot_ip,
@@ -50,7 +53,8 @@ if __name__ == "__main__":
         output_dir=output_dir,
         api_call_interval=api_call_interval,
         ros_control=ros_control,
-        use_ros=use_ros
+        use_ros=use_ros,
+        use_webrtc=use_webrtc
     )
     
     try:

@@ -37,7 +37,8 @@ class UnitreeGo2(Robot):
                  serial_number: str = None,
                  output_dir: str = os.getcwd(),
                  api_call_interval: int = 5,
-                 use_ros: bool = True):
+                 use_ros: bool = True,
+                 use_webrtc: bool = False):
         """Initialize the UnitreeGo2 robot.
         
         Args:
@@ -48,10 +49,14 @@ class UnitreeGo2(Robot):
             serial_number: Serial number of the robot (for LocalSTA with serial)
             output_dir: Directory for output files
             api_call_interval: Interval between API calls in seconds
-            use_ros_video: Whether to use ROS video provider
+            use_ros: Whether to use ROSControl and ROS video provider
+            use_webrtc: Whether to use WebRTC video provider ONLY
         """
+        if not (use_ros ^ use_webrtc):  # XOR operator ensures exactly one is True
+            raise ValueError("Exactly one video/control provider (ROS or WebRTC) must be enabled")
+
         # Initialize ros_control if it is not provided and use_ros is True
-        if ros_control is None and use_ros == True:
+        if ros_control is None and use_ros:
             ros_control = UnitreeROSControl(node_name="unitree_go2")
         super().__init__(agent_config=agent_config, ros_control=ros_control)
         
@@ -71,11 +76,10 @@ class UnitreeGo2(Robot):
 
         # Choose data provider based on configuration
         if use_ros:
-            # Use ROS data provider from ROSControl
-           #  self.data_stream = self.ros_control.data_provider
-           pass
-        else:
-            # Use WebRTC video provider
+            # Use ROS video provider from ROSControl
+           self.video_stream = self.ros_control.video_provider
+        elif use_webrtc:
+            # Use WebRTC ONLY video provider
             self.video_stream = UnitreeVideoProvider(
                 dev_name="UnitreeGo2",
                 connection_method=connection_method,
