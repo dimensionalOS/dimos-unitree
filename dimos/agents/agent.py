@@ -145,7 +145,7 @@ class OpenAIAgent(LLMAgent):
                  response_model: BaseModel = None,
                  frame_processor: FrameProcessor = None,
                  image_detail: str = "low",
-                 pool_scheduler: ThreadPoolScheduler = ThreadPoolScheduler(2), 
+                 pool_scheduler: ThreadPoolScheduler = None, 
                  # Pool scheduler must be set to 2 or more for threading to work.
                  # This should a shared resource across all your consumers / agents 
                  # and should be set to the number of cores available on the machine 
@@ -187,11 +187,13 @@ class OpenAIAgent(LLMAgent):
         os.makedirs(self.output_dir, exist_ok=True)
 
         # Scheduler for thread pool
-        self.pool_scheduler = pool_scheduler or ThreadPoolScheduler(1)
+        import multiprocessing
+        self.pool_scheduler = pool_scheduler or ThreadPoolScheduler(multiprocessing.cpu_count())
 
         # Skills Library
         self.skills = skills
         if self.skills is None:
+            self.skills = AbstractSkill()
             self.skills.set_tools(NOT_GIVEN)
         
         # Response Model

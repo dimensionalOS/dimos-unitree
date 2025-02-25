@@ -49,9 +49,7 @@ class UnitreeAgentDemo:
             connection_method=self.connection_method,
             serial_number=self.serial_number,
             output_dir=self.output_dir,
-            api_call_interval=self.api_call_interval,
-            use_ros=self.use_ros,
-            use_webrtc=self.use_webrtc
+            api_call_interval=self.api_call_interval
         )
         
 
@@ -59,23 +57,25 @@ class UnitreeAgentDemo:
         print("Starting Unitree Perception Stream")
         self.ros_perception_stream = self.robot.start_ros_perception()
 
+        # TODO: Cleanup Skills
         def get_skills_instance():
-            skills_instance = MyUnitreeSkills(robot=self)
+            skills_instance = MyUnitreeSkills(robot=self.robot)
             list_of_skills: list[AbstractSkill] = [skills_instance.Move]
             list_of_skills_json = SkillsHelper.get_list_of_skills_as_json(list_of_skills)
-            skills_instance.create_instance("Move", {"robot": self})
+            skills_instance.create_instance("Move", {"robot": self.robot})
             print(f"skills_instance: {skills_instance}")
             print(f"list_of_skills_json: {list_of_skills_json}")
             skills_instance.set_tools(list_of_skills_json)
-
+            return skills_instance
+        
         print("Starting Unitree Perception Agent")
         self.UnitreePerceptionAgent = OpenAIAgent(
             dev_name="UnitreePerceptionAgent", 
             agent_type="Perception", 
             input_video_stream=self.ros_perception_stream,
             output_dir=self.output_dir,
-            # query="Based on the image, if you see a human, rotate the robot at 0.5 rad/s for 1 second.",
-            query="Denote the number you see in the image. Only provide the number, without any other text in your response. If the number is above 500, but lower than 1000, then rotate the robot at 0.5 rad/s for 1 second.",
+            query="Based on the image, if you do not see a human, rotate the robot at 0.5 rad/s for 1.5 second. If you do see a human, rotate the robot at -1.0 rad/s for 3 seconds.",
+            # query="Denote the number you see in the image. Only provide the number, without any other text in your response. If the number is above 500, but lower than 1000, then rotate the robot at 0.5 rad/s for 1 second.",
             image_detail="high",
             skills=get_skills_instance(),
             # pool_scheduler=self.thread_pool_scheduler,

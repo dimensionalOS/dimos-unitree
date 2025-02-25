@@ -125,7 +125,10 @@ COPY docker/unitree/ros_agents/supervisord.conf /etc/supervisor/conf.d/superviso
 COPY docker/unitree/ros_agents/entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
 
+# Copy dimos and tests
 COPY dimos /app/dimos/
+COPY tests /app/tests
+COPY dimos/__init__.py /app/__init__.py
 
 # Create output directories for supervisord and ROS
 RUN mkdir -p /app/assets/output/
