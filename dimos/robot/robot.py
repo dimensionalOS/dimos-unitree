@@ -7,7 +7,7 @@ from dimos.agents.agent_config import AgentConfig
 from dimos.robot.ros_control import ROSControl
 from dimos.stream.frame_processor import FrameProcessor
 from dimos.stream.video_operators import VideoOperators as vops
-from reactivex import operators as ops
+from reactivex import Observable, operators as ops
 from reactivex.scheduler import ThreadPoolScheduler
 from dimos.stream.ros_video_provider import pool_scheduler
 import os
@@ -16,7 +16,7 @@ import logging
 
 import multiprocessing
 from dimos.robot.skills import AbstractSkill
-
+from reactivex.disposable import CompositeDisposable
 
 '''
 Base class for all dimos robots, both physical and simulated.
@@ -32,11 +32,12 @@ class Robot(ABC):
         self.hardware_interface = hardware_interface
         self.ros_control = ros_control
         self.output_dir = output_dir
+        self.disposables = CompositeDisposable()
         
         # Create output directory if it doesn't exist
         os.makedirs(self.output_dir, exist_ok=True)
 
-    def start_ros_perception(self, fps: int = 30, save_frames: bool = True):
+    def start_ros_perception(self, fps: int = 30, save_frames: bool = True) -> Observable:
         """Start ROS-based perception system with rate limiting and frame processing."""
         if not self.ros_control or not self.ros_control.video_provider:
             raise RuntimeError("No ROS video provider available")
@@ -92,6 +93,7 @@ class Robot(ABC):
         """Cleanup resources."""
         if self.ros_control:
             self.ros_control.cleanup()
+        self.disposables.dispose()
 
 class MyUnitreeSkills(AbstractSkill):
     """My Unitree Skills."""

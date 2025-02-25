@@ -65,7 +65,7 @@ class UnitreeGo2(Robot):
 
         # Initialize ros_control if it is not provided and use_ros is True
         if ros_control is None and use_ros:
-            ros_control = UnitreeROSControl(node_name="unitree_go2")
+            ros_control = UnitreeROSControl(node_name="unitree_go2", use_raw=True)
         super().__init__(agent_config=agent_config, ros_control=ros_control)
         
         # Initialize UnitreeGo2-specific attributes
@@ -199,14 +199,6 @@ class UnitreeGo2(Robot):
 
     def do(self, *args, **kwargs):
         pass
-
-    def __del__(self):
-        """Cleanup resources when the robot is destroyed."""
-        try:
-            if hasattr(self, 'video_stream'):
-                self.video_stream.dispose_all()
-        except Exception as e:
-            print(f"Error during cleanup: {e}")
 
     def read_agent_outputs(self):
         """Read and print the latest agent outputs from the memory file."""
