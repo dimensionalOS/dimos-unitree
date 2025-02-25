@@ -55,7 +55,8 @@ class Robot(ABC):
         )
         
         return processed_stream
-
+        
+    @abstractmethod
     def move(self, x: float, y: float, yaw: float, duration: float = 0.0) -> bool:
         """Move the robot using velocity commands.
         
