@@ -532,29 +532,29 @@ class OpenAIAgent(LLMAgent):
         # Frame Processor
         if self.frame_processor is None:
             self.frame_processor = FrameProcessor(
-                output_dir="/app/assets/frames", 
+                output_dir="/app/assets/output/frames", 
                 delete_on_init=True
             )
 
         disposable = frame_observable.pipe(
-            ops.do_action(on_next=lambda _: print_emission_count('A')),
+            # ops.do_action(on_next=lambda _: print_emission_count('A')),
             ops.filter(lambda _: not processing_lock.locked()),  # Check the lock
-            ops.do_action(on_next=lambda _: print_emission_count('B')),
+            # ops.do_action(on_next=lambda _: print_emission_count('B')),
             ops.do_action(on_next=lambda _: processing_lock.acquire(blocking=False)),  # Acquire the lock
-            ops.do_action(on_next=lambda _: print_emission_count('C')),
+            # ops.do_action(on_next=lambda _: print_emission_count('C')),
             ops.observe_on(self.pool_scheduler),
-            ops.do_action(on_next=lambda _: print_emission_count('D')),
+            # ops.do_action(on_next=lambda _: print_emission_count('D')),
             # Process the item:
             # ==========================
             VideoOperators.with_jpeg_export(self.frame_processor, suffix=f"{self.dev_name}_frame_", save_limit=100),
-            ops.do_action(on_next=lambda _: print_emission_count('E')),
+            # ops.do_action(on_next=lambda _: print_emission_count('E')),
             Operators.encode_image(),
-            ops.do_action(on_next=lambda _: print_emission_count('F')),
+            # ops.do_action(on_next=lambda _: print_emission_count('F')),
             ops.flat_map(lambda base64_and_dims: self._query_openai_with_image(*base64_and_dims)),
             # ==========================
-            ops.do_action(on_next=lambda _: print_emission_count('G')),
+            # ops.do_action(on_next=lambda _: print_emission_count('G')),
             ops.do_action(on_next=lambda _: processing_lock.release()),  # Release the lock
-            ops.do_action(on_next=lambda _: print_emission_count('H')),
+            # ops.do_action(on_next=lambda _: print_emission_count('H')),
             ops.subscribe_on(self.pool_scheduler) # Allows the lock to be released on the main thread.
         ).subscribe(
             on_next=lambda response: self._log_response_to_file(response, self.output_dir),

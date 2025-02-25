@@ -37,8 +37,8 @@ class Robot(ABC):
         # Create output directory if it doesn't exist
         os.makedirs(self.output_dir, exist_ok=True)
 
-    def start_ros_perception(self, fps: int = 30, save_frames: bool = True) -> Observable:
-        """Start ROS-based perception system with rate limiting and frame processing."""
+    def get_ros_video_stream(self, fps: int = 30, save_frames: bool = True) -> Observable:
+        """Get the ROS video stream with rate limiting and frame processing."""
         if not self.ros_control or not self.ros_control.video_provider:
             raise RuntimeError("No ROS video provider available")
             
@@ -130,3 +130,21 @@ class MyUnitreeSkills(AbstractSkill):
                 raise RuntimeError("No ROS control interface available for movement")
             else:
                 return self._robot.ros_control.move(self.x, self.y, self.yaw, self.duration)
+
+    class Wave(AbstractSkill):
+        """Wave the hand of therobot."""
+
+        _robot: Robot = None
+        _WAVE_PRINT_COLOR: str = "\033[32m"
+        _WAVE_RESET_COLOR: str = "\033[0m"
+
+        duration: float = Field(..., description="How long to wave (seconds). If 0, command is continuous")
+
+        def __init__(self, robot: Optional[Robot] = None, **data):
+            super().__init__(**data)
+            print(f"{self._WAVE_PRINT_COLOR}Initializing Wave Skill{self._WAVE_RESET_COLOR}")
+            self._robot = robot
+            print(f"{self._WAVE_PRINT_COLOR}Wave Skill Initialized with Robot: {self._robot}{self._WAVE_RESET_COLOR}")
+
+        def __call__(self):
+            return "Wave was successful."

@@ -51,31 +51,39 @@ class UnitreeAgentDemo:
             output_dir=self.output_dir,
             api_call_interval=self.api_call_interval
         )
-        
-
+    
     def run(self):
-        print("Starting Unitree Perception Stream")
-        self.ros_perception_stream = self.robot.start_ros_perception()
+        # Whether to use the ros or test video stream
+        def get_stream(use_ros: bool = True):
+            print("Starting Unitree Perception Stream")
+            if use_ros:
+                return self.robot.get_ros_video_stream()
+            else:
+                from dimos.stream.video_provider import VideoProvider
+                return VideoProvider(
+                    dev_name="UnitreeGo2",
+                    video_source="/app/assets/framecount.mp4"
+                ).capture_video_as_observable()
+
+        # Initialize video stream
+        self.video_stream = get_stream(use_ros=False)
 
         # TODO: Cleanup Skills
         def get_skills_instance():
             skills_instance = MyUnitreeSkills(robot=self.robot)
-            list_of_skills: list[AbstractSkill] = [skills_instance.Move]
-            list_of_skills_json = SkillsHelper.get_list_of_skills_as_json(list_of_skills)
+            skills_instance.set_list_of_skills([skills_instance.Move, skills_instance.Wave])
             skills_instance.create_instance("Move", {"robot": self.robot})
-            print(f"skills_instance: {skills_instance}")
-            print(f"list_of_skills_json: {list_of_skills_json}")
-            skills_instance.set_tools(list_of_skills_json)
+            skills_instance.create_instance("Wave", {"robot": self.robot})
             return skills_instance
         
         print("Starting Unitree Perception Agent")
         self.UnitreePerceptionAgent = OpenAIAgent(
             dev_name="UnitreePerceptionAgent", 
             agent_type="Perception", 
-            input_video_stream=self.ros_perception_stream,
+            input_video_stream=self.video_stream,
             output_dir=self.output_dir,
-            query="Based on the image, if you do not see a human, rotate the robot at 0.5 rad/s for 1.5 second. If you do see a human, rotate the robot at -1.0 rad/s for 3 seconds.",
-            # query="Denote the number you see in the image. Only provide the number, without any other text in your response. If the number is above 500, but lower than 1000, then rotate the robot at 0.5 rad/s for 1 second.",
+            # query="Based on the image, if you do not see a human, rotate the robot at 0.5 rad/s for 1.5 second. If you do see a human, rotate the robot at -1.0 rad/s for 3 seconds.",
+            query="Denote the number you see in the image. Only provide the number, without any other text in your response. If the number is above 500, but lower than 1000, then rotate the robot at 0.5 rad/s for 1 second. Is the number above 1000, then wave the robot's hand for a random duration between 1 and 3 seconds.",
             image_detail="high",
             skills=get_skills_instance(),
             # pool_scheduler=self.thread_pool_scheduler,

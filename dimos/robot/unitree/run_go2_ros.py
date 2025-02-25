@@ -63,7 +63,7 @@ if __name__ == "__main__":
         print("\nStarting perception system...")
         
         # Get the processed stream
-        processed_stream = robot.start_ros_perception(fps=30)
+        processed_stream = robot.get_ros_video_stream(fps=30)
         
         # Create frame counter for unique filenames
         frame_count = 0
