@@ -3,6 +3,7 @@ from rclpy.node import Node
 from rclpy.executors import MultiThreadedExecutor
 from geometry_msgs.msg import Twist
 from go2_interfaces.msg import Go2State, IMU
+from unitree_go.msg import WebRtcReq
 from sensor_msgs.msg import Image, CompressedImage
 from cv_bridge import CvBridge
 from dimos.stream.video_provider import VideoProvider
@@ -38,6 +39,7 @@ class ROSControl(ABC):
     def __init__(self, 
                  node_name: str,
                  cmd_vel_topic: str = 'cmd_vel',
+                 webrtc_topic: str = 'webrtc_req',
                  camera_topics: Dict[str, str] = None,
                  use_compressed_video: bool = True,
                  max_linear_velocity: float = 1.0,
@@ -47,6 +49,7 @@ class ROSControl(ABC):
         Args:
             node_name: Name for the ROS node
             cmd_vel_topic: Topic for velocity commands
+            webrtc_topic: Topic for WebRTC commands
             camera_topics: Dictionary of camera topics
             use_compressed_video: Whether to use compressed video
             max_linear_velocity: Maximum linear velocity (m/s)
@@ -103,6 +106,8 @@ class ROSControl(ABC):
         # Publishers
         self._cmd_vel_pub = self._node.create_publisher(
             Twist, cmd_vel_topic, 10)
+        self._webrtc_pub = self._node.create_publisher(
+            WebRtcReq, webrtc_topic, 10)
             
         # Start ROS spin in a background thread via the executor
         self._spin_thread = threading.Thread(target=self._ros_spin, daemon=True)
@@ -150,7 +155,6 @@ class ROSControl(ABC):
         """Data provider property for streaming data"""
         return self._video_provider
     
-    #@register_skill("move_robot")
     def move(self, x: float, y: float, yaw: float, duration: float = 0.0) -> bool:
         """
         Send movement command to the robot
@@ -223,3 +227,32 @@ class ROSControl(ABC):
         # Destroy node and shutdown rclpy
         self._node.destroy_node()
         rclpy.shutdown()
+
+    def webrtc_req(self, api_id: int, topic: str = 'rt/api/sport/request', parameter: str = '', priority: int = 0) -> bool:
+        """
+        Send a WebRTC request command to the robot
+        
+        Args:
+            api_id: The API ID for the command
+            topic: The topic to publish to (e.g. 'rt/api/sport/request')
+            parameter: Optional parameter string
+            priority: Priority level (0 or 1)
+            
+        Returns:
+            bool: True if command was sent successfully
+        """
+        try:
+            # Create and send command
+            cmd = WebRtcReq()
+            cmd.api_id = api_id
+            cmd.topic = topic
+            cmd.parameter = parameter
+            cmd.priority = priority
+            
+            self._webrtc_pub.publish(cmd)
+            self._logger.info(f"Sent WebRTC request: api_id={api_id}, topic={topic}")
+            return True
+            
+        except Exception as e:
+            self._logger.error(f"Failed to send WebRTC request: {e}")
+            return False

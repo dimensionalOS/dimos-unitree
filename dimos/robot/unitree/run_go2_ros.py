@@ -105,6 +105,10 @@ if __name__ == "__main__":
         except Exception as e:
             print(f"Error creating subscription: {e}")
 
+        robot.webrtc_req(
+        api_id=1016,  # Handshake command
+    )
+
         # Keep the original movement sequence and timing
         time.sleep(30)
         print("\nExecuting movement sequence...")
@@ -112,13 +116,13 @@ if __name__ == "__main__":
         robot.move(0.1, 0.0, 0.0, duration=5.0)
         time.sleep(0.5)
         
-    #     print("Moving left...")
-    #    # robot.move(0.0, 0.3, 0.0, duration=1.0)
-    #     time.sleep(0.5)
+        print("Moving left...")
+        robot.move(0.0, 0.3, 0.0, duration=1.0)
+        time.sleep(0.5)
         
-    #     print("Rotating...")
-    #     #robot.move(0.0, 0.0, 0.5, duration=5.0)
-    #     time.sleep(0.5)
+        print("Rotating...")
+        robot.move(0.0, 0.0, 0.5, duration=5.0)
+        time.sleep(0.5)
         
     #     print("\nMonitoring agent outputs (Press Ctrl+C to stop)...")
         while True:
