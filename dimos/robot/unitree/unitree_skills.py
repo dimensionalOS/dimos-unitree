@@ -154,7 +154,9 @@ class MyUnitreeSkills(AbstractSkill):
             if self._robot is None:
                 raise RuntimeError("No Robot instance provided to Damp Skill")
             else:
+                self._robot.webrtc_req(api_id=self._app_id)
                 return f"Damp was successful: id={self._app_id}"
+
 
     class BalanceStand(AbstractSkill):
         """Activates a mode that maintains the robot in a balanced standing position, adjusting dynamically to slight movements or slopes."""
@@ -169,7 +171,9 @@ class MyUnitreeSkills(AbstractSkill):
             if self._robot is None:
                 raise RuntimeError("No Robot instance provided to BalanceStand Skill")
             else:
+                self._robot.webrtc_req(api_id=self._app_id)
                 return f"BalanceStand was successful: id={self._app_id}"
+
 
     class StopMove(AbstractSkill):
         """Immediately stops all ongoing movement commands to the robot, bringing it to a stationary position."""
@@ -184,7 +188,9 @@ class MyUnitreeSkills(AbstractSkill):
             if self._robot is None:
                 raise RuntimeError("No Robot instance provided to StopMove Skill")
             else:
+                self._robot.webrtc_req(api_id=self._app_id)
                 return f"StopMove was successful: id={self._app_id}"
+
 
     class StandUp(AbstractSkill):
         """Commands the robot to transition from a sitting or prone position to a standing posture."""
@@ -199,7 +205,9 @@ class MyUnitreeSkills(AbstractSkill):
             if self._robot is None:
                 raise RuntimeError("No Robot instance provided to StandUp Skill")
             else:
+                self._robot.webrtc_req(api_id=self._app_id)
                 return f"StandUp was successful: id={self._app_id}"
+
 
     class StandDown(AbstractSkill):
         """Instructs the robot to move from a standing position to a sitting or prone posture."""
@@ -214,7 +222,9 @@ class MyUnitreeSkills(AbstractSkill):
             if self._robot is None:
                 raise RuntimeError("No Robot instance provided to StandDown Skill")
             else:
+                self._robot.webrtc_req(api_id=self._app_id)
                 return f"StandDown was successful: id={self._app_id}"
+
 
     class RecoveryStand(AbstractSkill):
         """Engages a sequence to recover the robot to a standing position if it has fallen or been displaced."""
@@ -229,7 +239,9 @@ class MyUnitreeSkills(AbstractSkill):
             if self._robot is None:
                 raise RuntimeError("No Robot instance provided to RecoveryStand Skill")
             else:
+                self._robot.webrtc_req(api_id=self._app_id)
                 return f"RecoveryStand was successful: id={self._app_id}"
+
 
     class Euler(AbstractSkill):
         """Adjusts the robot’s orientation using Euler angles, providing precise control over its rotation."""
@@ -244,7 +256,9 @@ class MyUnitreeSkills(AbstractSkill):
             if self._robot is None:
                 raise RuntimeError("No Robot instance provided to Euler Skill")
             else:
+                self._robot.webrtc_req(api_id=self._app_id)
                 return f"Euler was successful: id={self._app_id}"
+
 
     class Sit(AbstractSkill):
         """Commands the robot to sit down from a standing or moving stance."""
@@ -259,7 +273,9 @@ class MyUnitreeSkills(AbstractSkill):
             if self._robot is None:
                 raise RuntimeError("No Robot instance provided to Sit Skill")
             else:
+                self._robot.webrtc_req(api_id=self._app_id)
                 return f"Sit was successful: id={self._app_id}"
+
 
     class RiseSit(AbstractSkill):
         """Commands the robot to rise back to a standing position from a sitting posture."""
@@ -274,7 +290,9 @@ class MyUnitreeSkills(AbstractSkill):
             if self._robot is None:
                 raise RuntimeError("No Robot instance provided to RiseSit Skill")
             else:
+                self._robot.webrtc_req(api_id=self._app_id)
                 return f"RiseSit was successful: id={self._app_id}"
+
 
     class SwitchGait(AbstractSkill):
         """Switches the robot's walking pattern or style dynamically, suitable for different terrains or speeds."""
@@ -289,7 +307,9 @@ class MyUnitreeSkills(AbstractSkill):
             if self._robot is None:
                 raise RuntimeError("No Robot instance provided to SwitchGait Skill")
             else:
+                self._robot.webrtc_req(api_id=self._app_id)
                 return f"SwitchGait was successful: id={self._app_id}"
+
 
     class Trigger(AbstractSkill):
         """Triggers a specific action or custom routine programmed into the robot."""
@@ -304,7 +324,9 @@ class MyUnitreeSkills(AbstractSkill):
             if self._robot is None:
                 raise RuntimeError("No Robot instance provided to Trigger Skill")
             else:
+                self._robot.webrtc_req(api_id=self._app_id)
                 return f"Trigger was successful: id={self._app_id}"
+
 
     class BodyHeight(AbstractSkill):
         """Adjusts the height of the robot’s body from the ground, useful for navigating various obstacles."""
@@ -319,7 +341,9 @@ class MyUnitreeSkills(AbstractSkill):
             if self._robot is None:
                 raise RuntimeError("No Robot instance provided to BodyHeight Skill")
             else:
+                self._robot.webrtc_req(api_id=self._app_id)
                 return f"BodyHeight was successful: id={self._app_id}"
+
 
     class FootRaiseHeight(AbstractSkill):
         """Controls how high the robot lifts its feet during movement, which can be adjusted for different surfaces."""
@@ -334,7 +358,9 @@ class MyUnitreeSkills(AbstractSkill):
             if self._robot is None:
                 raise RuntimeError("No Robot instance provided to FootRaiseHeight Skill")
             else:
+                self._robot.webrtc_req(api_id=self._app_id)
                 return f"FootRaiseHeight was successful: id={self._app_id}"
+
 
     class SpeedLevel(AbstractSkill):
         """Sets or adjusts the speed at which the robot moves, with various levels available for different operational needs."""
@@ -349,7 +375,9 @@ class MyUnitreeSkills(AbstractSkill):
             if self._robot is None:
                 raise RuntimeError("No Robot instance provided to SpeedLevel Skill")
             else:
+                self._robot.webrtc_req(api_id=self._app_id)
                 return f"SpeedLevel was successful: id={self._app_id}"
+
 
     class Hello(AbstractSkill):
         """Performs a greeting action, which could involve a wave or other friendly gesture."""
@@ -364,7 +392,9 @@ class MyUnitreeSkills(AbstractSkill):
             if self._robot is None:
                 raise RuntimeError("No Robot instance provided to Hello Skill")
             else:
+                self._robot.webrtc_req(api_id=self._app_id)
                 return f"Hello was successful: id={self._app_id}"
+
 
     class Stretch(AbstractSkill):
         """Engages the robot in a stretching routine to maintain or enhance mechanical flexibility."""
@@ -379,7 +409,9 @@ class MyUnitreeSkills(AbstractSkill):
             if self._robot is None:
                 raise RuntimeError("No Robot instance provided to Stretch Skill")
             else:
+                self._robot.webrtc_req(api_id=self._app_id)
                 return f"Stretch was successful: id={self._app_id}"
+
 
     class TrajectoryFollow(AbstractSkill):
         """Directs the robot to follow a predefined trajectory, which could involve complex paths or maneuvers."""
@@ -394,7 +426,9 @@ class MyUnitreeSkills(AbstractSkill):
             if self._robot is None:
                 raise RuntimeError("No Robot instance provided to TrajectoryFollow Skill")
             else:
+                self._robot.webrtc_req(api_id=self._app_id)
                 return f"TrajectoryFollow was successful: id={self._app_id}"
+
 
     class ContinuousGait(AbstractSkill):
         """Enables a mode for continuous walking or running, ideal for long-distance travel."""
@@ -409,7 +443,9 @@ class MyUnitreeSkills(AbstractSkill):
             if self._robot is None:
                 raise RuntimeError("No Robot instance provided to ContinuousGait Skill")
             else:
+                self._robot.webrtc_req(api_id=self._app_id)
                 return f"ContinuousGait was successful: id={self._app_id}"
+
 
     class Content(AbstractSkill):
         """Displays or triggers content, which could involve audio-visual outputs or interactions."""
@@ -424,7 +460,9 @@ class MyUnitreeSkills(AbstractSkill):
             if self._robot is None:
                 raise RuntimeError("No Robot instance provided to Content Skill")
             else:
+                self._robot.webrtc_req(api_id=self._app_id)
                 return f"Content was successful: id={self._app_id}"
+
 
     class Wallow(AbstractSkill):
         """Engages a playful or restful activity, possibly mimicking animal-like wallowing."""
@@ -439,7 +477,9 @@ class MyUnitreeSkills(AbstractSkill):
             if self._robot is None:
                 raise RuntimeError("No Robot instance provided to Wallow Skill")
             else:
+                self._robot.webrtc_req(api_id=self._app_id)
                 return f"Wallow was successful: id={self._app_id}"
+
 
     class Dance1(AbstractSkill):
         """Performs a predefined dance routine 1, programmed for entertainment or demonstration."""
@@ -454,7 +494,9 @@ class MyUnitreeSkills(AbstractSkill):
             if self._robot is None:
                 raise RuntimeError("No Robot instance provided to Dance1 Skill")
             else:
+                self._robot.webrtc_req(api_id=self._app_id)
                 return f"Dance1 was successful: id={self._app_id}"
+
 
     class Dance2(AbstractSkill):
         """Performs another variant of a predefined dance routine 2."""
@@ -469,7 +511,9 @@ class MyUnitreeSkills(AbstractSkill):
             if self._robot is None:
                 raise RuntimeError("No Robot instance provided to Dance2 Skill")
             else:
+                self._robot.webrtc_req(api_id=self._app_id)
                 return f"Dance2 was successful: id={self._app_id}"
+
 
     class GetBodyHeight(AbstractSkill):
         """Retrieves the current height of the robot's body from the ground."""
@@ -484,7 +528,9 @@ class MyUnitreeSkills(AbstractSkill):
             if self._robot is None:
                 raise RuntimeError("No Robot instance provided to GetBodyHeight Skill")
             else:
+                self._robot.webrtc_req(api_id=self._app_id)
                 return f"GetBodyHeight was successful: id={self._app_id}"
+
 
     class GetFootRaiseHeight(AbstractSkill):
         """Retrieves the current height at which the robot’s feet are being raised during movement."""
@@ -499,7 +545,9 @@ class MyUnitreeSkills(AbstractSkill):
             if self._robot is None:
                 raise RuntimeError("No Robot instance provided to GetFootRaiseHeight Skill")
             else:
+                self._robot.webrtc_req(api_id=self._app_id)
                 return f"GetFootRaiseHeight was successful: id={self._app_id}"
+
 
     class GetSpeedLevel(AbstractSkill):
         """Returns the current speed level at which the robot is operating."""
@@ -514,7 +562,9 @@ class MyUnitreeSkills(AbstractSkill):
             if self._robot is None:
                 raise RuntimeError("No Robot instance provided to GetSpeedLevel Skill")
             else:
+                self._robot.webrtc_req(api_id=self._app_id)
                 return f"GetSpeedLevel was successful: id={self._app_id}"
+
 
     class SwitchJoystick(AbstractSkill):
         """Toggles the control mode to joystick input, allowing for manual direction of the robot’s movements."""
@@ -529,7 +579,9 @@ class MyUnitreeSkills(AbstractSkill):
             if self._robot is None:
                 raise RuntimeError("No Robot instance provided to SwitchJoystick Skill")
             else:
+                self._robot.webrtc_req(api_id=self._app_id)
                 return f"SwitchJoystick was successful: id={self._app_id}"
+
 
     class Pose(AbstractSkill):
         """Directs the robot to take a specific pose or stance, which could be used for tasks or performances."""
@@ -544,7 +596,9 @@ class MyUnitreeSkills(AbstractSkill):
             if self._robot is None:
                 raise RuntimeError("No Robot instance provided to Pose Skill")
             else:
+                self._robot.webrtc_req(api_id=self._app_id)
                 return f"Pose was successful: id={self._app_id}"
+
 
     class Scrape(AbstractSkill):
         """Engages a scraping motion, possibly for clearing debris or interacting with the environment."""
@@ -559,7 +613,9 @@ class MyUnitreeSkills(AbstractSkill):
             if self._robot is None:
                 raise RuntimeError("No Robot instance provided to Scrape Skill")
             else:
+                self._robot.webrtc_req(api_id=self._app_id)
                 return f"Scrape was successful: id={self._app_id}"
+
 
     class FrontFlip(AbstractSkill):
         """Executes a front flip, a complex acrobatic maneuver for demonstration or obstacle navigation."""
@@ -574,7 +630,9 @@ class MyUnitreeSkills(AbstractSkill):
             if self._robot is None:
                 raise RuntimeError("No Robot instance provided to FrontFlip Skill")
             else:
+                self._robot.webrtc_req(api_id=self._app_id)
                 return f"FrontFlip was successful: id={self._app_id}"
+
 
     class FrontJump(AbstractSkill):
         """Commands the robot to perform a forward jump, useful for clearing obstacles or for show."""
@@ -589,7 +647,9 @@ class MyUnitreeSkills(AbstractSkill):
             if self._robot is None:
                 raise RuntimeError("No Robot instance provided to FrontJump Skill")
             else:
+                self._robot.webrtc_req(api_id=self._app_id)
                 return f"FrontJump was successful: id={self._app_id}"
+
 
     class FrontPounce(AbstractSkill):
         """Initiates a pouncing movement forward, mimicking animal-like pouncing behavior."""
@@ -604,7 +664,9 @@ class MyUnitreeSkills(AbstractSkill):
             if self._robot is None:
                 raise RuntimeError("No Robot instance provided to FrontPounce Skill")
             else:
+                self._robot.webrtc_req(api_id=self._app_id)
                 return f"FrontPounce was successful: id={self._app_id}"
+
 
     class WiggleHips(AbstractSkill):
         """Causes the robot to wiggle its hips, likely for a playful effect or to demonstrate agility."""
@@ -619,7 +681,9 @@ class MyUnitreeSkills(AbstractSkill):
             if self._robot is None:
                 raise RuntimeError("No Robot instance provided to WiggleHips Skill")
             else:
+                self._robot.webrtc_req(api_id=self._app_id)
                 return f"WiggleHips was successful: id={self._app_id}"
+
 
     class GetState(AbstractSkill):
         """Retrieves the current operational state of the robot, including status reports or diagnostic information."""
@@ -634,7 +698,9 @@ class MyUnitreeSkills(AbstractSkill):
             if self._robot is None:
                 raise RuntimeError("No Robot instance provided to GetState Skill")
             else:
+                self._robot.webrtc_req(api_id=self._app_id)
                 return f"GetState was successful: id={self._app_id}"
+
 
     class EconomicGait(AbstractSkill):
         """Engages a more energy-efficient walking or running mode to conserve battery life."""
@@ -649,7 +715,9 @@ class MyUnitreeSkills(AbstractSkill):
             if self._robot is None:
                 raise RuntimeError("No Robot instance provided to EconomicGait Skill")
             else:
+                self._robot.webrtc_req(api_id=self._app_id)
                 return f"EconomicGait was successful: id={self._app_id}"
+
 
     class FingerHeart(AbstractSkill):
         """Performs a finger heart gesture, popular in some cultures as a friendly or loving gesture."""
@@ -664,7 +732,9 @@ class MyUnitreeSkills(AbstractSkill):
             if self._robot is None:
                 raise RuntimeError("No Robot instance provided to FingerHeart Skill")
             else:
+                self._robot.webrtc_req(api_id=self._app_id)
                 return f"FingerHeart was successful: id={self._app_id}"
+
 
     class Handstand(AbstractSkill):
         """Commands the robot to perform a handstand, demonstrating balance and control."""
@@ -679,7 +749,9 @@ class MyUnitreeSkills(AbstractSkill):
             if self._robot is None:
                 raise RuntimeError("No Robot instance provided to Handstand Skill")
             else:
+                self._robot.webrtc_req(api_id=self._app_id)
                 return f"Handstand was successful: id={self._app_id}"
+
 
     class CrossStep(AbstractSkill):
         """Engages the robot in a cross-stepping routine, useful for complex locomotion or dance moves."""
@@ -694,7 +766,9 @@ class MyUnitreeSkills(AbstractSkill):
             if self._robot is None:
                 raise RuntimeError("No Robot instance provided to CrossStep Skill")
             else:
+                self._robot.webrtc_req(api_id=self._app_id)
                 return f"CrossStep was successful: id={self._app_id}"
+
 
     class OnesidedStep(AbstractSkill):
         """Commands the robot to perform a stepping motion that predominantly uses one side."""
@@ -709,7 +783,9 @@ class MyUnitreeSkills(AbstractSkill):
             if self._robot is None:
                 raise RuntimeError("No Robot instance provided to OnesidedStep Skill")
             else:
+                self._robot.webrtc_req(api_id=self._app_id)
                 return f"OnesidedStep was successful: id={self._app_id}"
+
 
     class Bound(AbstractSkill):
         """Initiates a bounding motion, similar to a light, repetitive hopping or leaping."""
@@ -724,7 +800,9 @@ class MyUnitreeSkills(AbstractSkill):
             if self._robot is None:
                 raise RuntimeError("No Robot instance provided to Bound Skill")
             else:
+                self._robot.webrtc_req(api_id=self._app_id)
                 return f"Bound was successful: id={self._app_id}"
+
 
     class LeadFollow(AbstractSkill):
         """Engages follow-the-leader behavior, where the robot follows a designated leader or follows a signal."""
@@ -739,7 +817,9 @@ class MyUnitreeSkills(AbstractSkill):
             if self._robot is None:
                 raise RuntimeError("No Robot instance provided to LeadFollow Skill")
             else:
+                self._robot.webrtc_req(api_id=self._app_id)
                 return f"LeadFollow was successful: id={self._app_id}"
+
 
     class LeftFlip(AbstractSkill):
         """Executes a flip towards the left side, combining acrobatics with directional control."""
@@ -754,7 +834,9 @@ class MyUnitreeSkills(AbstractSkill):
             if self._robot is None:
                 raise RuntimeError("No Robot instance provided to LeftFlip Skill")
             else:
+                self._robot.webrtc_req(api_id=self._app_id)
                 return f"LeftFlip was successful: id={self._app_id}"
+
 
     class RightFlip(AbstractSkill):
         """Performs a flip towards the right side, adding an acrobatic element to its repertoire."""
@@ -769,7 +851,9 @@ class MyUnitreeSkills(AbstractSkill):
             if self._robot is None:
                 raise RuntimeError("No Robot instance provided to RightFlip Skill")
             else:
+                self._robot.webrtc_req(api_id=self._app_id)
                 return f"RightFlip was successful: id={self._app_id}"
+
 
     class Backflip(AbstractSkill):
         """Executes a backflip, a highly skilled maneuver for showing agility and control."""
@@ -784,4 +868,6 @@ class MyUnitreeSkills(AbstractSkill):
             if self._robot is None:
                 raise RuntimeError("No Robot instance provided to Backflip Skill")
             else:
+                self._robot.webrtc_req(api_id=self._app_id)
                 return f"Backflip was successful: id={self._app_id}"
+
