@@ -69,6 +69,22 @@ class Robot(ABC):
             raise RuntimeError("No ROS control interface available for movement")
         return self.ros_control.move(x, y, yaw, duration)
 
+    def webrtc_req(self, api_id: int, topic: str = 'rt/api/sport/request', parameter: str = '', priority: int = 0) -> bool:
+        """Send a WebRTC request command to the robot.
+        
+        Args:
+            api_id: The API ID for the command
+            topic: The topic to publish to (e.g. 'rt/api/sport/request')
+            parameter: Optional parameter string
+            priority: Priority level (0 or 1)
+            
+        Returns:
+            bool: True if command was sent successfully
+        """
+        if self.ros_control is None:
+            raise RuntimeError("No ROS control interface available for WebRTC commands")
+        return self.ros_control.webrtc_req(api_id, topic, parameter, priority)
+
     @abstractmethod
     def do(self, *args, **kwargs):
      """Executes motion."""
