@@ -20,8 +20,6 @@ from rclpy.qos import (
 #from dimos.stream.data_provider import ROSDataProvider
 from dimos.stream.ros_video_provider import ROSVideoProvider
 
-from dimos.robot.ros_skill_library import register_skill
-
 __all__ = ['ROSControl', 'RobotMode']
 
 class RobotMode(Enum):

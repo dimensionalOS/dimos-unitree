@@ -11,15 +11,18 @@ logger.setLevel(logging.INFO)
 
 class SkillRegistry:
     def __init__(self):
-        self.skills = {}
+        self.skills = [AbstractSkill]
 
-    def register_skill(self, name, skill):
-        self.skills[name] = skill
+    def register_skill(self, skill: "AbstractSkill"):
+        self.skills.append(skill)
+
+    def get_skills(self) -> list["AbstractSkill"]:
+        return self.skills
 
 
 class AbstractSkill(BaseModel):
 
-    _instances: dict[str, dict] = {}
+    _instances: dict[str, dict] = {} 
 
     def __init__(self, *args, **kwargs):
         print("Initializing AbstractSkill Class")
@@ -54,7 +57,8 @@ class AbstractSkill(BaseModel):
             # Initialize the instance with the merged arguments
             instance = skill_class(**complete_args)
             print(f"Instance created and function called for: {name} with args: {complete_args}")
-            # Assuming the instance can be called directly
+            
+            # Call the instance directly
             return instance()
         except Exception as e:
             print(f"Error running function {name}: {e}")
@@ -80,7 +84,13 @@ class SkillsHelper:
     def get_nested_skills(skill: AbstractSkill) -> list[AbstractSkill]:
         nested_skills = []
         for attr_name in dir(skill):
-            attr = getattr(skill, attr_name)
+            # Skip dunder attributes that cause issues
+            if attr_name.startswith("__"):
+                continue
+            try:
+                attr = getattr(skill, attr_name)
+            except AttributeError:
+                continue
             if isinstance(attr, type) and issubclass(attr, AbstractSkill) and attr is not AbstractSkill:
                 nested_skills.append(attr)
         return nested_skills

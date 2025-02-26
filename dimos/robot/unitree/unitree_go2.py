@@ -1,6 +1,7 @@
 import multiprocessing
 import cv2
-from dimos.robot.robot import MyUnitreeSkills, Robot
+from dimos.robot.robot import Robot
+from dimos.robot.unitree.unitree_skills import MyUnitreeSkills
 from dimos.hardware.interface import HardwareInterface
 from dimos.agents.agent import Agent, OpenAIAgent, OpenAIAgent
 from dimos.agents.agent_config import AgentConfig

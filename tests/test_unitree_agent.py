@@ -2,6 +2,8 @@ import sys
 import os
 import time
 
+from dimos.robot.skills import SkillRegistry, SkillsHelper
+
 # Add the parent directory of 'tests' to the Python path
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
@@ -13,8 +15,7 @@ from dimos.agents.agent import OpenAIAgent
 from dimos.robot.unitree.unitree_go2 import UnitreeGo2
 
 # TODO: Cleanup Skills
-from dimos.robot.robot import MyUnitreeSkills
-from dimos.robot.skills import AbstractSkill, SkillsHelper
+from dimos.robot.unitree.unitree_skills import MyUnitreeSkills
 
 class UnitreeAgentDemo:
     def __init__(self):
@@ -66,14 +67,46 @@ class UnitreeAgentDemo:
                 ).capture_video_as_observable()
 
         # Initialize video stream
-        self.video_stream = get_stream(use_ros=False)
+        self.video_stream = get_stream(use_ros=True)
 
         # TODO: Cleanup Skills
+        # def get_skills_instance():
+        #     skills_instance = MyUnitreeSkills(robot=self.robot)
+
+        #     # skill_registry = SkillRegistry() 
+        #     # skill_registry.register_skill(skills_instance.Move)
+        #     # skill_registry.register_skill(skills_instance.Wave)
+        #     # skill_registry.register_skill(skills_instance.get_nested_skills())
+
+        #     skills_instance.set_list_of_skills(SkillsHelper.get_nested_skills(skills_instance))
+        #     #skills_instance.set_list_of_skills([skills_instance.Move, skills_instance.Wave])
+        #     #skills_instance.create_instance("Move", {"robot": self.robot})
+        #     #skills_instance.create_instance("Wave", {"robot": self.robot})
+        #     #skills_instance.create_instance("Damp", {"robot": self.robot})
+        #     skills_instance.create_instance("BalanceStand", {"robot": self.robot})
+        #     #skills_instance.create_instance("StopMove", {"robot": self.robot})
+            
+        #     return skills_instance
         def get_skills_instance():
             skills_instance = MyUnitreeSkills(robot=self.robot)
-            skills_instance.set_list_of_skills([skills_instance.Move, skills_instance.Wave])
-            skills_instance.create_instance("Move", {"robot": self.robot})
-            skills_instance.create_instance("Wave", {"robot": self.robot})
+            
+            # Retrieve the nested skill classes from the skills_instance.
+            nested_skills = SkillsHelper.get_nested_skills(skills_instance)
+            skills_instance.set_list_of_skills(nested_skills)
+            
+            # Create the dynamic skill registry.
+            # skill_registry = SkillRegistry()
+            # for skill in skills_instance.create_skills_live():
+            #     skill_registry.register_skill(skill)
+            # nested_skills = skill_registry.get_skills()
+
+            # Set the list of skills for the skills_instance.
+            # skills_instance.set_list_of_skills(nested_skills)
+
+            # Automatically call create_instance for every nested skill with the robot parameter.
+            for skill_class in nested_skills:
+                skills_instance.create_instance(skill_class.__name__, {"robot": self.robot})
+            
             return skills_instance
         
         print("Starting Unitree Perception Agent")
@@ -83,7 +116,7 @@ class UnitreeAgentDemo:
             input_video_stream=self.video_stream,
             output_dir=self.output_dir,
             # query="Based on the image, if you do not see a human, rotate the robot at 0.5 rad/s for 1.5 second. If you do see a human, rotate the robot at -1.0 rad/s for 3 seconds.",
-            query="Denote the number you see in the image. Only provide the number, without any other text in your response. If the number is above 500, but lower than 1000, then rotate the robot at 0.5 rad/s for 1 second. Is the number above 1000, then wave the robot's hand for a random duration between 1 and 3 seconds.",
+            query="Denote the number you see in the image. Only provide the number, without any other text in your response. If the number is above 500, but lower than 1000, then rotate the robot at 0.5 rad/s for 1 second. Is the number above 1000, but lower than 2000, then wave the robot's hand for a random duration between 1 and 3 seconds. If the number is above 2000, then maintain the robot in a balanced standing position.",
             image_detail="high",
             skills=get_skills_instance(),
             # pool_scheduler=self.thread_pool_scheduler,
