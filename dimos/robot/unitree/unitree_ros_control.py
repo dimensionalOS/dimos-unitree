@@ -28,7 +28,6 @@ class UnitreeROSControl(ROSControl):
         
         super().__init__(
             node_name=node_name,
-            cmd_vel_topic='cmd_vel_out',
             camera_topics=active_camera_topics,
             use_compressed_video=use_compressed
         )

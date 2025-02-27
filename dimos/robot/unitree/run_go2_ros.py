@@ -74,6 +74,7 @@ if __name__ == "__main__":
             frame_count += 1
             
             try:
+                # TODO: add debug frame logging mode for reactiveX debugging
                 # Save frame to output directory
                 #frame_path = os.path.join(output_dir, f"frame_{frame_count:04d}.jpg")
                 #success = cv2.imwrite(frame_path, frame)
@@ -104,26 +105,26 @@ if __name__ == "__main__":
         except Exception as e:
             print(f"Error creating subscription: {e}")
 
-    #     robot.webrtc_req(
-    #     api_id=1016,  # Handshake command
-    # )
+        # Handshake command
+        print("Sending handshake command...")
+        robot.webrtc_req(
+        api_id=1016,  # Handshake command
+        )
 
         # Keep the original movement sequence and timing
         time.sleep(5)
         print("\nExecuting movement sequence...")
         print("Moving forward...")
-        robot.curve(radius=1.0, angle=math.pi/2, speed=0.5)
+        robot.move(distance=1.0, speed=0.5)
 
-        #robot.move(-1.0, 0.0, 0.0, duration=4.2)
         time.sleep(3)
-        
-        # print("Moving left...")
-        # robot.move(0.5, 0.0, 0.5, duration=1.0)
-        # time.sleep(0.5)
-        
-        # print("Rotating...")
-        # robot.move(0.0, 0.0, 0.5, duration=5.0)
-        # time.sleep(0.5)
+        robot.reverse(distance=2.0, speed=0.5)
+
+        time.sleep(3)
+        robot.spin(degrees=-90.0, speed=45.0)
+
+        time.sleep(3)
+        robot.spin(degrees=90.0, speed=45.0)
         
     #     print("\nMonitoring agent outputs (Press Ctrl+C to stop)...")
         while True:

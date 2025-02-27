@@ -44,17 +44,15 @@ class ROSControl(ABC):
     
     def __init__(self, 
                  node_name: str,
-                 cmd_vel_topic: str = 'cmd_vel',
                  webrtc_topic: str = 'webrtc_req',
                  camera_topics: Dict[str, str] = None,
-                 use_compressed_video: bool = True,
+                 use_compressed_video: bool = False,
                  max_linear_velocity: float = 1.0,
                  max_angular_velocity: float = 2.0):
         """
         Initialize base ROS control interface
         Args:
             node_name: Name for the ROS node
-            cmd_vel_topic: Topic for velocity commands
             webrtc_topic: Topic for WebRTC commands
             camera_topics: Dictionary of camera topics
             use_compressed_video: Whether to use compressed video
@@ -170,122 +168,156 @@ class ROSControl(ABC):
         """Data provider property for streaming data"""
         return self._video_provider
     
-    def move(self, x: float, y: float, yaw: float, duration: float = 0.0, time_allowance: float = 20.0) -> bool:
+
+    def move(self, distance: float, speed: float = 0.5 ,time_allowance: float = 20) -> bool:
         """
-        Simple movement function using direct behavior actions
+        Move the robot forward by a specified distance
         
         Args:
-            x: Forward velocity (m/s), negative for backwards
-            y: Not used
-            yaw: Angular velocity (rad/s)
-            duration: Time to execute movement (seconds)
-            time_allowance: Time to allow for movement (seconds)
+            distance: Distance to move forward in meters (must be positive)
+            speed: Speed to move at in m/s (default 0.5)
         Returns:
             bool: True if movement succeeded
         """
         try:
-            self._logger.info(f"Moving with x={x}, yaw={yaw}, duration={duration}")
+            if distance <= 0:
+                self._logger.error("Distance must be positive")
+                return False
+                
+            speed = min(abs(speed), self.MAX_LINEAR_VELOCITY)
             
-            # Clamp velocities
-            x = self._clamp_velocity(x, self.MAX_LINEAR_VELOCITY)
-            yaw = self._clamp_velocity(yaw, self.MAX_ANGULAR_VELOCITY)
+            # Create DriveOnHeading goal
+            goal = DriveOnHeading.Goal()
+            goal.target.x = distance
+            goal.target.y = 0.0
+            goal.target.z = 0.0
+            goal.speed = speed
+            goal.time_allowance = Duration(sec=time_allowance)
             
-            if x < 0:  # Backward motion using BackUp
-                # Calculate distance and speed for backup
-                distance = (x * duration) 
-                speed = abs(x)  # BackUp expects positive speed
-                
-                # Create BackUp goal
-                goal = BackUp.Goal()
-                goal.target = Point()
-                goal.target.x = distance  
-                goal.target.y = 0.0
-                goal.target.z = 0.0
-                goal.speed = speed
-                goal.time_allowance = Duration(sec=int(time_allowance))
-                
-                self._logger.info(f"Sending BackUp: distance={distance}m, speed={speed}m/s")
-                
-                # Send goal
-                goal_future = self._backup_client.send_goal_async(goal)
-                goal_future.add_done_callback(self._goal_response_callback)
-                
-                # Wait for completion
-                rclpy.spin_until_future_complete(self._node, goal_future)
-                goal_handle = goal_future.result()
-                
-                if not goal_handle.accepted:
-                    self._logger.error('BackUp goal rejected')
-                    return False
-                    
-                # Get result
-                result_future = goal_handle.get_result_async()
-                rclpy.spin_until_future_complete(self._node, result_future)
-                
-            elif x > 0:  # Forward motion using DriveOnHeading
-                # Calculate distance based on velocity and duration
-                distance = abs(x * duration) if duration > 0 else 0.5
-                speed = abs(x)
-                
-                # Create DriveOnHeading goal
-                goal = DriveOnHeading.Goal()
-                goal.target.x = distance
-                goal.target.y = 0.0      # No lateral movement
-                goal.target.z = 0.0      # No vertical movement
-                goal.speed = speed
-                goal.time_allowance = Duration(sec=int(time_allowance))
-                
-                self._logger.info(f"Sending DriveOnHeading: distance={distance}m, speed={speed}m/s")
-                
-                # Send goal
-                goal_future = self._drive_client.send_goal_async(goal)
-                goal_future.add_done_callback(self._goal_response_callback)
-                
-                # Wait for completion
-                rclpy.spin_until_future_complete(self._node, goal_future)
-                goal_handle = goal_future.result()
-                
-                if not goal_handle.accepted:
-                    self._logger.error('DriveOnHeading goal rejected')
-                    return False
-                    
-                # Get result
-                result_future = goal_handle.get_result_async()
-                rclpy.spin_until_future_complete(self._node, result_future)
-                
-            elif abs(yaw) > 0:  # Rotation using Spin
-                # Calculate angle based on velocity and duration
-                angle = abs(yaw * duration) if duration > 0 else math.pi/2  # Default to 90 degrees if no duration
-                
-                # Create Spin goal
-                goal = Spin.Goal()
-                goal.target_yaw = angle if yaw > 0 else -angle
-                goal.time_allowance = Duration(sec=int(time_allowance))
-                
-                self._logger.info(f"Sending Spin: angle={goal.target_yaw}rad")
-                
-                # Send goal
-                goal_future = self._spin_client.send_goal_async(goal)
-                goal_future.add_done_callback(self._goal_response_callback)
-                
-                # Wait for completion
-                rclpy.spin_until_future_complete(self._node, goal_future)
-                goal_handle = goal_future.result()
-                
-                if not goal_handle.accepted:
-                    self._logger.error('Spin goal rejected')
-                    return False
-                    
-                # Get result
-                result_future = goal_handle.get_result_async()
-                rclpy.spin_until_future_complete(self._node, result_future)
+            self._logger.info(f"Moving forward: distance={distance}m, speed={speed}m/s")
             
-            self._current_velocity = {"x": x, "y": 0.0, "z": yaw}
-            self._is_moving = any(abs(v) > 0.01 for v in [x, yaw])
+            # Send goal
+            goal_future = self._drive_client.send_goal_async(goal)
+            goal_future.add_done_callback(self._goal_response_callback)
+            
+            # Wait for completion
+            rclpy.spin_until_future_complete(self._node, goal_future)
+            goal_handle = goal_future.result()
+            
+            if not goal_handle.accepted:
+                self._logger.error('DriveOnHeading goal rejected')
+                return False
+                
+            # Get result
+            result_future = goal_handle.get_result_async()
+            rclpy.spin_until_future_complete(self._node, result_future)
+            
             return True
                 
         except Exception as e:
-            self._logger.error(f"Movement failed with error: {e}")
+            self._logger.error(f"Forward movement failed: {e}")
+            import traceback
+            self._logger.error(traceback.format_exc())
+            return False
+            
+    def reverse(self, distance: float, speed: float = 0.5, time_allowance: float = 20) -> bool:
+        """
+        Move the robot backward by a specified distance
+        
+        Args:
+            distance: Distance to move backward in meters (must be positive)
+            speed: Speed to move at in m/s (default 0.5)
+        Returns:
+            bool: True if movement succeeded
+        """
+        try:
+            if distance <= 0:
+                self._logger.error("Distance must be positive")
+                return False
+                
+            speed = min(abs(speed), self.MAX_LINEAR_VELOCITY)
+            
+            # Create BackUp goal
+            goal = BackUp.Goal()
+            goal.target = Point()
+            goal.target.x = -distance  # Negative for backward motion
+            goal.target.y = 0.0
+            goal.target.z = 0.0
+            goal.speed = speed  # BackUp expects positive speed
+            goal.time_allowance = Duration(sec=time_allowance)
+            
+            self._logger.info(f"Moving backward: distance={distance}m, speed={speed}m/s")
+            
+            # Send goal
+            goal_future = self._backup_client.send_goal_async(goal)
+            goal_future.add_done_callback(self._goal_response_callback)
+            
+            # Wait for completion
+            rclpy.spin_until_future_complete(self._node, goal_future)
+            goal_handle = goal_future.result()
+            
+            if not goal_handle.accepted:
+                self._logger.error('BackUp goal rejected')
+                return False
+                
+            # Get result
+            result_future = goal_handle.get_result_async()
+            rclpy.spin_until_future_complete(self._node, result_future)
+            
+            return True
+                
+        except Exception as e:
+            self._logger.error(f"Backward movement failed: {e}")
+            import traceback
+            self._logger.error(traceback.format_exc())
+            return False
+            
+    def spin(self, degrees: float, speed: float = 45.0, time_allowance: float = 20) -> bool:
+        """
+        Rotate the robot by a specified angle
+        
+        Args:
+            degrees: Angle to rotate in degrees (positive for counter-clockwise, negative for clockwise)
+            speed: Angular speed in degrees/second (default 45.0)
+        Returns:
+            bool: True if movement succeeded
+        """
+        try:
+            # Convert degrees to radians
+            angle = math.radians(degrees)
+            angular_speed = math.radians(abs(speed))
+            
+            # Clamp angular speed
+            angular_speed = min(angular_speed, self.MAX_ANGULAR_VELOCITY)
+            time_allowance = max(int(abs(angle) / angular_speed * 2), 20)  # At least 20 seconds or double the expected time
+            
+            # Create Spin goal
+            goal = Spin.Goal()
+            goal.target_yaw = angle  # Nav2 Spin action expects radians
+            goal.time_allowance = Duration(sec=time_allowance)
+            
+            self._logger.info(f"Spinning: angle={degrees}deg ({angle:.2f}rad)")
+            
+            # Send goal
+            goal_future = self._spin_client.send_goal_async(goal)
+            goal_future.add_done_callback(self._goal_response_callback)
+            
+            # Wait for completion
+            rclpy.spin_until_future_complete(self._node, goal_future)
+            goal_handle = goal_future.result()
+            
+            if not goal_handle.accepted:
+                self._logger.error('Spin goal rejected')
+                return False
+                
+            # Get result
+            result_future = goal_handle.get_result_async()
+            rclpy.spin_until_future_complete(self._node, result_future)
+            
+            return True
+                
+        except Exception as e:
+            self._logger.error(f"Spin movement failed: {e}")
             import traceback
             self._logger.error(traceback.format_exc())
             return False
