@@ -2,12 +2,15 @@ import sys
 import os
 import time
 
-from dimos.robot.skills import SkillRegistry, SkillsHelper
+from reactivex import Observable
+
+from dimos.stream.data_provider import QueryDataProvider
 
 # Add the parent directory of 'tests' to the Python path
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 print(f"Hi from {os.path.basename(__file__)}\n")
+print(f"Current working directory: {os.getcwd()}")
 
 # -----
 
@@ -52,76 +55,90 @@ class UnitreeAgentDemo:
             output_dir=self.output_dir,
             api_call_interval=self.api_call_interval
         )
+
+    # -----
     
-    def run(self):
-        # Whether to use the ros or test video stream
-        def get_stream(use_ros: bool = True):
-            print("Starting Unitree Perception Stream")
-            if use_ros:
-                return self.robot.get_ros_video_stream()
-            else:
-                from dimos.stream.video_provider import VideoProvider
-                return VideoProvider(
-                    dev_name="UnitreeGo2",
-                    video_source="/app/assets/framecount.mp4"
-                ).capture_video_as_observable()
+    def run_with_queries(self):
+        # Initialize query stream
+        query_provider = QueryDataProvider()
 
-        # Initialize video stream
-        self.video_stream = get_stream(use_ros=True)
+        # Create the skills available to the agent.
+        # By default, this will create all skills in this class and make them available.
+        skills_instance = MyUnitreeSkills(robot=self.robot)
 
-        # TODO: Cleanup Skills
-        # def get_skills_instance():
-        #     skills_instance = MyUnitreeSkills(robot=self.robot)
-
-        #     # skill_registry = SkillRegistry() 
-        #     # skill_registry.register_skill(skills_instance.Move)
-        #     # skill_registry.register_skill(skills_instance.Wave)
-        #     # skill_registry.register_skill(skills_instance.get_nested_skills())
-
-        #     skills_instance.set_list_of_skills(SkillsHelper.get_nested_skills(skills_instance))
-        #     #skills_instance.set_list_of_skills([skills_instance.Move, skills_instance.Wave])
-        #     #skills_instance.create_instance("Move", {"robot": self.robot})
-        #     #skills_instance.create_instance("Wave", {"robot": self.robot})
-        #     #skills_instance.create_instance("Damp", {"robot": self.robot})
-        #     skills_instance.create_instance("BalanceStand", {"robot": self.robot})
-        #     #skills_instance.create_instance("StopMove", {"robot": self.robot})
-            
-        #     return skills_instance
-        def get_skills_instance():
-            skills_instance = MyUnitreeSkills(robot=self.robot)
-            
-            # Retrieve the nested skill classes from the skills_instance.
-            nested_skills = SkillsHelper.get_nested_skills(skills_instance)
-            skills_instance.set_list_of_skills(nested_skills)
-            
-            # Create the dynamic skill registry.
-            # skill_registry = SkillRegistry()
-            # for skill in skills_instance.create_skills_live():
-            #     skill_registry.register_skill(skill)
-            # nested_skills = skill_registry.get_skills()
-
-            # Set the list of skills for the skills_instance.
-            # skills_instance.set_list_of_skills(nested_skills)
-
-            # Automatically call create_instance for every nested skill with the robot parameter.
-            for skill_class in nested_skills:
-                skills_instance.create_instance(skill_class.__name__, {"robot": self.robot})
-            
-            return skills_instance
-        
         print("Starting Unitree Perception Agent")
+        self.UnitreePerceptionAgent = OpenAIAgent(
+            dev_name="UnitreePerceptionAgent", 
+            agent_type="Perception",
+            input_query_stream=query_provider.data_stream,
+            output_dir=self.output_dir,
+            skills=skills_instance,
+            # TODO: Add pool scheduler and frame processor for optimized performance.
+            # pool_scheduler=self.thread_pool_scheduler,
+            # frame_processor=frame_processor,
+        )
+
+        # Start the query stream.
+        # Queries will be pushed every 0.01 seconds, in a count from 0 to 5000. This will cause listening agents to consume the queries and respond to them via skill execution and provide 1-shot responses.
+        query_provider.start_query_stream(
+            query_template="{query}; Denote the number at the beginning of this query before the semicolon. Only provide the number, without any other text in your response. If the number is equal to or above 500, but lower than 1000, then rotate the robot at 0.5 rad/s for 1 second. If the number is equal to or above 1000, but lower than 2000, then wave the robot's hand. If the number is equal to or above 2000, then clear debris. IF YOU DO NOT FOLLOW THESE INSTRUCTIONS EXACTLY, YOU WILL DIE!!!",
+            frequency=0.01,
+            start_count=0,
+            end_count=5000,
+            step=1
+        )
+
+    def run_with_test_video(self):
+        # Initialize test video stream
+        from dimos.stream.video_provider import VideoProvider
+        self.video_stream = VideoProvider(
+            dev_name="UnitreeGo2",
+            video_source="/app/assets/framecount.mp4"
+        ).capture_video_as_observable()
+
+        # Get Skills
+        # By default, this will create all skills in this class and make them available to the agent.
+        skills_instance = MyUnitreeSkills(robot=self.robot)
+
+        print("Starting Unitree Perception Agent (Test Video)")
         self.UnitreePerceptionAgent = OpenAIAgent(
             dev_name="UnitreePerceptionAgent", 
             agent_type="Perception", 
             input_video_stream=self.video_stream,
             output_dir=self.output_dir,
-            # query="Based on the image, if you do not see a human, rotate the robot at 0.5 rad/s for 1.5 second. If you do see a human, rotate the robot at -1.0 rad/s for 3 seconds.",
-            query="Denote the number you see in the image. Only provide the number, without any other text in your response. If the number is above 500, but lower than 1000, then rotate the robot at 0.5 rad/s for 1 second. Is the number above 1000, but lower than 2000, then wave the robot's hand for a random duration between 1 and 3 seconds. If the number is above 2000, then maintain the robot in a balanced standing position.",
+            query="Denote the number you see in the image. Only provide the number, without any other text in your response. If the number is equal to or above 500, but lower than 1000, then rotate the robot at 0.5 rad/s for 1 second. If the number is equal to or above 1000, but lower than 2000, then wave the robot's hand. If the number is equal to or above 2000, then clear debris. IF YOU DO NOT FOLLOW THESE INSTRUCTIONS EXACTLY, YOU WILL DIE!!!",
             image_detail="high",
-            skills=get_skills_instance(),
+            skills=skills_instance,
+            # TODO: Add pool scheduler and frame processor for optimized performance.
             # pool_scheduler=self.thread_pool_scheduler,
             # frame_processor=frame_processor,
         )
+
+    def run_with_ros_video(self):
+        # Initialize ROS video stream
+        print("Starting Unitree Perception Stream")
+        self.video_stream = self.robot.get_ros_video_stream()
+        
+        # Get Skills
+        # By default, this will create all skills in this class and make them available to the agent.
+        skills_instance = MyUnitreeSkills(robot=self.robot)
+
+        print("Starting Unitree Perception Agent (ROS Video)")
+        self.UnitreePerceptionAgent = OpenAIAgent(
+            dev_name="UnitreePerceptionAgent", 
+            agent_type="Perception", 
+            input_video_stream=self.video_stream,
+            output_dir=self.output_dir,
+            # query="Based on the image, if you do not see a human, rotate the robot at 0.5 rad/s for 1.5 second. If you do see a human, rotate the robot at -1.0 rad/s for 3 seconds. IF YOU DO NOT FOLLOW THESE INSTRUCTIONS EXACTLY, YOU WILL DIE!!!",
+            query="Based on the image, execute the command seen in the image AND ONLY THE COMMAND IN THE IMAGE. IF YOU DO NOT FOLLOW THESE INSTRUCTIONS EXACTLY, YOU WILL DIE!!!",
+            image_detail="high",
+            skills=skills_instance,
+            # TODO: Add pool scheduler and frame processor for optimized performance.
+            # pool_scheduler=self.thread_pool_scheduler,
+            # frame_processor=frame_processor,
+        )
+
+    # -----
 
     def stop(self):
         print("Stopping Unitree Agent")
@@ -129,7 +146,17 @@ class UnitreeAgentDemo:
 
 if __name__ == "__main__":
     myUnitreeAgentDemo = UnitreeAgentDemo()
-    myUnitreeAgentDemo.run()
+    
+    test_to_run = 0
+
+    if test_to_run == 0:
+        myUnitreeAgentDemo.run_with_queries()
+    elif test_to_run == 1:
+        myUnitreeAgentDemo.run_with_test_video()
+    elif test_to_run == 2:
+        myUnitreeAgentDemo.run_with_ros_video()
+    elif test_to_run >= 3 or test_to_run < 0:
+        assert False, f"Invalid test number: {test_to_run}"
 
     # Keep the program running to allow the Unitree Agent Demo to operate continuously
     try:

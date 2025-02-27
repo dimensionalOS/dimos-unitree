@@ -83,7 +83,6 @@ class PromptBuilder():
         budgets=None,
         policies=None,
         override_token_limit=False,
-        json_mode=False
     ):
         """
         Builds a dynamic prompt tailored to token limits, respecting budgets and policies.
@@ -100,7 +99,6 @@ class PromptBuilder():
             budgets (dict, optional): Token budgets for each input type. Defaults to equal allocation.
             policies (dict, optional): Truncation policies for each input type.
             override_token_limit (bool, optional): Whether to override the token limit. Defaults to False.
-            json_mode (bool, optional): Whether to use JSON mode. Defaults to False.
 
         Returns:
             dict: Messages array ready to send to the OpenAI API.

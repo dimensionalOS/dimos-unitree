@@ -5,7 +5,7 @@ from dimos.robot.unitree.unitree_skills import MyUnitreeSkills
 from dimos.hardware.interface import HardwareInterface
 from dimos.agents.agent import Agent, OpenAIAgent, OpenAIAgent
 from dimos.agents.agent_config import AgentConfig
-from dimos.robot.skills import AbstractSkill, SkillsHelper
+from dimos.robot.skills import AbstractSkill
 from dimos.stream.frame_processor import FrameProcessor
 from dimos.stream.video_provider import VideoProvider
 from dimos.stream.video_providers.unitree import UnitreeVideoProvider
@@ -194,7 +194,7 @@ class UnitreeGo2(Robot):
         # Skills Library
         skills_instance = MyUnitreeSkills(robot=self)
         list_of_skills: list[AbstractSkill] = [skills_instance.Move]
-        list_of_skills_json = SkillsHelper.get_list_of_skills_as_json(list_of_skills)
+        list_of_skills_json = skills_instance.get_list_of_skills_as_json(list_of_skills)
         skills_instance.create_instance("Move", {"robot": self})
         print(f"skills_instance: {skills_instance}")
         print(f"list_of_skills_json: {list_of_skills_json}")

@@ -126,6 +126,7 @@ class OpenAIAgent(LLMAgent):
                  dev_name: str, 
                  agent_type: str = "Vision",
                  query: str = "What do you see?", 
+                 input_query_stream: Observable = None,
                  input_video_stream: Observable = None,
                  output_dir: str = '/app/assets/agent', 
                  agent_memory: AbstractAgentSemanticMemory = None,
@@ -155,6 +156,7 @@ class OpenAIAgent(LLMAgent):
             dev_name (str): The device name of the agent.
             agent_type (str): The type of the agent, defaulting to 'Vision'. Currently unused.
             query (str): The default query to send along with images to OpenAI.
+            input_query_stream (Observable): The input query stream to use for the agent. When provided, the agent will automatically subscribe to the stream and process queries.
             input_video_stream (Observable): The input video stream to use for the agent. When provided, the agent will automatically subscribe to the stream and process frames.
             output_dir (str): Directory where output files are stored.
             agent_memory (AbstractAgentSemanticMemory): The memory system for the agent.
@@ -188,6 +190,7 @@ class OpenAIAgent(LLMAgent):
         self.pool_scheduler = pool_scheduler or ThreadPoolScheduler(multiprocessing.cpu_count())
 
         # Skills Library
+        # TODO: Cleanup this skills segment (var setting when none provided)
         self.skills = skills
         if self.skills is None:
             self.skills = AbstractSkill()
@@ -229,16 +232,31 @@ class OpenAIAgent(LLMAgent):
         # Frame Processor
         self.frame_processor = frame_processor
 
-        # Input Video Stream
+        # Streams
         self.input_video_stream = input_video_stream
+        self.input_query_stream = input_query_stream
+
+        # Error if more than one input stream is provided.
+        if (self.input_video_stream is not None) and (self.input_query_stream is not None):
+            raise ValueError("More than one input stream provided. Please provide only one input stream.")
+
+        # Input Video Stream
         if self.input_video_stream is not None:
             print(f"{AGENT_PRINT_COLOR}Subscribing to input video stream...{AGENT_RESET_COLOR}")
             self.disposables.add(
                 self.subscribe_to_image_processing(self.input_video_stream) 
             )
+        
+        # Input Query Stream
+        if self.input_query_stream is not None:
+            print(f"{AGENT_PRINT_COLOR}Subscribing to input query stream...{AGENT_RESET_COLOR}")
+            self.disposables.add(
+                self.subscribe_to_query_processing(self.input_query_stream)
+            )
+        
         print(f"{AGENT_PRINT_COLOR}OpenAI Agent Initialized.{AGENT_RESET_COLOR}")
 
-    def _observable_query(self, observer: Observer, base64_image=None, dimensions=None, override_token_limit=False, full_image=None):
+    def _observable_query(self, observer: Observer, base64_image=None, dimensions=None, override_token_limit=False, full_image=None, incoming_query: str = None):
         """
         Helper method to query OpenAI with an optional encoded image and emit to an observer.
 
@@ -250,6 +268,11 @@ class OpenAIAgent(LLMAgent):
             Exception: If the query to OpenAI fails.
         """
         try:
+            # region Query
+            if incoming_query is not None:
+                self.query = incoming_query
+            # endregion Query
+
             # region RAG Context
             # Get the RAG Context
             results = self.agent_memory.query(
@@ -293,8 +316,8 @@ class OpenAIAgent(LLMAgent):
                 user_query=self.query, 
                 override_token_limit=override_token_limit,
                 base64_image=base64_image, 
-                image_width=dimensions[0],
-                image_height=dimensions[1],
+                image_width=dimensions[0] if dimensions is not None else None,
+                image_height=dimensions[1] if dimensions is not None else None,
                 image_detail=self.image_detail,
                 rag_context=condensed_results, 
                 fallback_system_prompt=self.system_query_without_documents,
@@ -463,6 +486,18 @@ class OpenAIAgent(LLMAgent):
         """
         return create(lambda observer, _: self._observable_query(observer, base64_image, dimensions))
 
+    def _query_openai_with_query(self, incoming_query: str) -> Observable:
+        """
+        Sends an encoded image to OpenAI and gets a response.
+
+        Args:
+            incoming_query (str): The query to send to OpenAI.
+
+        Returns:
+            Observable: An Observable that emits the response from OpenAI.
+        """
+        return create(lambda observer, _: self._observable_query(observer, incoming_query=incoming_query))
+
     def subscribe_to_image_processing(
         self, 
         frame_observable: Observable
@@ -560,6 +595,79 @@ class OpenAIAgent(LLMAgent):
         )
         self.disposables.add(disposable)
         return disposable
+    
+    def subscribe_to_query_processing(
+        self, 
+        query_observable: Observable
+    ) -> Disposable:
+        """Subscribes to and processes a stream of queries.
+
+        Args:
+            query_observable: An Observable emitting queries.
+
+        Returns:
+            A Disposable representing the subscription. Can be used for external
+            resource management while still being tracked internally.
+        """
+        emission_counts = {}  # Dictionary to store counts for each id
+
+        def print_emission_count(id, color="red"):
+            color_options = {
+                "red": "\033[31m",
+                "green": "\033[32m",
+                "blue": "\033[34m",
+                "yellow": "\033[33m",
+                "magenta": "\033[35m",
+                "cyan": "\033[36m",
+                "white": "\033[37m",
+                "reset": "\033[0m"
+            }
+            THIS_PRINT_COLOR = color_options.get(color, "\033[31m")  # Default to red if color not found
+            THIS_RESET_COLOR = color_options["reset"]
+
+            # Initialize the count for this id if it doesn't exist
+            if id not in emission_counts:
+                emission_counts[id] = 0
+
+            # Increment the count
+            emission_counts[id] += 1
+
+            # Print the current count for this id
+            print(f"{THIS_PRINT_COLOR}({self.dev_name} - {id}) Emission Count - {emission_counts[id]} {datetime.now()}{THIS_RESET_COLOR}")
+
+        processing_lock = threading.Lock()
+
+        # Frame Processor
+        if self.frame_processor is None:
+            self.frame_processor = FrameProcessor(
+                output_dir="/app/assets/output/frames", 
+                delete_on_init=True
+            )
+
+        disposable = query_observable.pipe(
+            # ops.do_action(on_next=lambda _: print_emission_count('A')),
+            ops.filter(lambda _: not processing_lock.locked()),  # Check the lock
+            # ops.do_action(on_next=lambda _: print_emission_count('B')),
+            ops.do_action(on_next=lambda _: processing_lock.acquire(blocking=False)),  # Acquire the lock
+            # ops.do_action(on_next=lambda _: print_emission_count('C')),
+            ops.observe_on(self.pool_scheduler),
+            # ops.do_action(on_next=lambda _: print_emission_count('D')),
+            # Process the item:
+            # ==========================
+            ops.flat_map(lambda incoming_query: self._query_openai_with_query(incoming_query)),
+            # ==========================
+            # ops.do_action(on_next=lambda _: print_emission_count('E')),
+            ops.do_action(on_next=lambda _: processing_lock.release()),  # Release the lock
+            # ops.do_action(on_next=lambda _: print_emission_count('F')),
+            ops.subscribe_on(self.pool_scheduler) # Allows the lock to be released on the main thread.
+        ).subscribe(
+            on_next=lambda response: self._log_response_to_file(response, self.output_dir),
+            on_error=lambda e: print(f"{AGENT_PRINT_COLOR}Error in {self.dev_name}: {e}{AGENT_RESET_COLOR}"),
+            on_completed=lambda: print(f"{AGENT_PRINT_COLOR}Stream processing completed for {self.dev_name}{AGENT_RESET_COLOR}")
+        )
+        self.disposables.add(disposable)
+        return disposable
+
     # endregion Image Encoding / Decoding / Processing
 
 

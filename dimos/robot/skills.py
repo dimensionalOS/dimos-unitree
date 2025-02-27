@@ -11,7 +11,7 @@ logger.setLevel(logging.INFO)
 
 class SkillRegistry:
     def __init__(self):
-        self.skills = [AbstractSkill]
+        self.skills: list["AbstractSkill"] = []
 
     def register_skill(self, skill: "AbstractSkill"):
         self.skills.append(skill)
@@ -24,22 +24,24 @@ class AbstractSkill(BaseModel):
 
     _instances: dict[str, dict] = {} 
 
+    _skill_registry: SkillRegistry = SkillRegistry()
+
     def __init__(self, *args, **kwargs):
         print("Initializing AbstractSkill Class")
         super().__init__(*args, **kwargs)
         self._instances = {}
         print(f"Instances: {self._instances}")
     
-    def create_instance(self, name, args):
+    def create_instance(self, name, **kwargs):
         # Key based only on the name
         key = name
         
-        print(f"Preparing to create instance with name: {name} and args: {args}")
+        print(f"Preparing to create instance with name: {name} and args: {kwargs}")
 
         if key not in self._instances:
             # Instead of creating an instance, store the args for later use
-            self._instances[key] = args
-            print(f"Stored args for later instance creation: {name} with args: {args}")
+            self._instances[key] = kwargs
+            print(f"Stored args for later instance creation: {name} with args: {kwargs}")
 
     def call_function(self, name, **args):
         # Get the stored args if available; otherwise, use an empty dict
@@ -52,7 +54,12 @@ class AbstractSkill(BaseModel):
             # Dynamically get the class from the module or current script
             skill_class = getattr(self, name, None)
             if skill_class is None:
-                raise ValueError(f"Skill class not found: {name}")
+                for skill in self._skill_registry.get_skills():
+                    if name == skill.__name__:
+                        skill_class = skill
+                        break
+                if skill_class is None:
+                    raise ValueError(f"Skill class not found: {name}")
 
             # Initialize the instance with the merged arguments
             instance = skill_class(**complete_args)
@@ -72,36 +79,34 @@ class AbstractSkill(BaseModel):
         self._list_of_skills = list_of_skills
 
     def get_tools(self) -> Any:
-        return SkillsHelper.get_list_of_skills_as_json(list_of_skills=self._list_of_skills)
+        tools_json = self.get_list_of_skills_as_json(list_of_skills=self._list_of_skills)
+        # print(f"Tools JSON: {tools_json}")
+        return tools_json
 
-
-class SkillsHelper:
-    @staticmethod
-    def get_skill_as_json(skill: AbstractSkill) -> str:
-        return pydantic_function_tool(skill)
-
-    @staticmethod
-    def get_nested_skills(skill: AbstractSkill) -> list[AbstractSkill]:
+    def get_nested_skills(self) -> list["AbstractSkill"]:
         nested_skills = []
-        for attr_name in dir(skill):
+        for attr_name in dir(self):
             # Skip dunder attributes that cause issues
             if attr_name.startswith("__"):
                 continue
             try:
-                attr = getattr(skill, attr_name)
+                attr = getattr(self, attr_name)
             except AttributeError:
                 continue
             if isinstance(attr, type) and issubclass(attr, AbstractSkill) and attr is not AbstractSkill:
                 nested_skills.append(attr)
+
+        for skill in self._skill_registry.get_skills():
+            nested_skills.append(skill)
+        
         return nested_skills
-
-    @staticmethod
-    def get_nested_skills_as_json(skill: AbstractSkill) -> list[str]:
-        nested_skills = SkillsHelper.get_nested_skills(skill)
-        nested_skills_json = list(map(pydantic_function_tool, nested_skills))
-        return nested_skills_json
     
-    @staticmethod
-    def get_list_of_skills_as_json(list_of_skills: list[AbstractSkill]) -> list[str]:
-        return list(map(pydantic_function_tool, list_of_skills))
+    def add_skill(self, skill: "AbstractSkill"):
+        self._skill_registry.register_skill(skill)
 
+    def add_skills(self, skills: list["AbstractSkill"]):
+        for skill in skills:
+            self._skill_registry.register_skill(skill)
+
+    def get_list_of_skills_as_json(self, list_of_skills: list["AbstractSkill"]) -> list[str]:
+        return list(map(pydantic_function_tool, list_of_skills))
