@@ -28,12 +28,12 @@ class ROSVideoProvider(AbstractVideoProvider):
             current_time = time.time()
             if self._last_frame_time:
                 frame_interval = current_time - self._last_frame_time
-                print(f"Frame interval: {frame_interval:.3f}s ({1/frame_interval:.1f} FPS)")
+                #print(f"Frame interval: {frame_interval:.3f}s ({1/frame_interval:.1f} FPS)")
             self._last_frame_time = current_time
             
-            print(f"Pushing frame type: {type(frame)}")
+            #print(f"Pushing frame type: {type(frame)}")
             self._subject.on_next(frame)
-            print("Frame pushed")
+            #print("Frame pushed")
         except Exception as e:
             print(f"Push error: {e}")
 

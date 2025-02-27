@@ -46,7 +46,7 @@ class Robot(ABC):
         # Add minimal processing pipeline with proper thread handling
         processed_stream = video_stream.pipe(
             ops.observe_on(pool_scheduler),  # Ensure thread safety
-            ops.do_action(lambda x: print(f"ROBOT: Processing frame of type {type(x)}")),
+            #ops.do_action(lambda x: print(f"ROBOT: Processing frame of type {type(x)}")),
             ops.share()  # Share the stream
         )
         
@@ -69,6 +69,24 @@ class Robot(ABC):
             raise RuntimeError("No ROS control interface available for movement")
         return self.ros_control.move(x, y, yaw, duration)
 
+
+    def curve(self, radius: float, angle: float, speed: float, time_allowance: float = 20.0) -> bool:
+        """Send a curve command to the robot.
+        
+        Args:
+            radius: The radius of the curve (m)
+            angle: The angle of the curve (rad)
+            speed: The speed of the curve (m/s)
+            time_allowance: The time allowance for the curve (seconds)
+            
+        Returns:
+            bool: True if command was sent successfully
+        """
+        if self.ros_control is None:
+            raise RuntimeError("No ROS control interface available for curve commands")
+        return self.ros_control.curve(radius, angle, speed, time_allowance)
+    
+    
     def webrtc_req(self, api_id: int, topic: str = 'rt/api/sport/request', parameter: str = '', priority: int = 0) -> bool:
         """Send a WebRTC request command to the robot.
         
