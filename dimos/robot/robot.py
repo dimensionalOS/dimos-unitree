@@ -1,6 +1,5 @@
 from abc import ABC, abstractmethod
 from typing import Optional
-
 from pydantic import Field
 from dimos.hardware.interface import HardwareInterface
 from dimos.agents.agent_config import AgentConfig
@@ -11,7 +10,6 @@ from reactivex import Observable, operators as ops
 from reactivex.scheduler import ThreadPoolScheduler
 from dimos.stream.ros_video_provider import pool_scheduler
 import os
-
 from reactivex.disposable import CompositeDisposable
 
 '''
@@ -46,29 +44,50 @@ class Robot(ABC):
         # Add minimal processing pipeline with proper thread handling
         processed_stream = video_stream.pipe(
             ops.observe_on(pool_scheduler),  # Ensure thread safety
-            ops.do_action(lambda x: print(f"ROBOT: Processing frame of type {type(x)}")),
             ops.share()  # Share the stream
         )
         
         return processed_stream
         
-    @abstractmethod
-    def move(self, x: float, y: float, yaw: float, duration: float = 0.0) -> bool:
+    def move(self, distance: float, speed: float = 0.5) -> bool:
         """Move the robot using velocity commands.
         
         Args:
-            x: Forward/backward velocity (m/s)
-            y: Left/right velocity (m/s)
-            yaw: Rotational velocity (rad/s)
-            duration: How long to move (seconds). If 0, command is continuous
-            
+            distance: Distance to move forward in meters (must be positive)
+            speed: Speed to move at in m/s (default 0.5)
         Returns:
-            bool: True if command was sent successfully
+            bool: True if movement succeeded
         """
         if self.ros_control is None:
             raise RuntimeError("No ROS control interface available for movement")
-        return self.ros_control.move(x, y, yaw, duration)
+        return self.ros_control.move(distance, speed)
+    
+    def reverse(self, distance: float, speed: float = 0.5) -> bool:
+        """Move the robot backward by a specified distance.
+        
+        Args:
+            distance: Distance to move backward in meters (must be positive)
+            speed: Speed to move at in m/s (default 0.5)
+        Returns:
+            bool: True if movement succeeded
+        """
+        if self.ros_control is None:
+            raise RuntimeError("No ROS control interface available for movement")
+        return self.ros_control.reverse(distance, speed)
+    
+    def spin(self, degrees: float, speed: float = 45.0) -> bool:
+        """Rotate the robot by a specified angle.
 
+        Args:
+            degrees: Angle to rotate in degrees (positive for counter-clockwise, negative for clockwise)
+            speed: Angular speed in degrees/second (default 45.0)
+        Returns:
+            bool: True if rotation succeeded
+        """
+        if self.ros_control is None:
+            raise RuntimeError("No ROS control interface available for rotation")
+        return self.ros_control.spin(degrees, speed)
+    
     def webrtc_req(self, api_id: int, topic: str = 'rt/api/sport/request', parameter: str = '', priority: int = 0) -> bool:
         """Send a WebRTC request command to the robot.
         

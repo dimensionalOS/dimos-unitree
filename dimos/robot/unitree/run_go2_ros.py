@@ -5,7 +5,7 @@ from dimos.robot.unitree.unitree_go2 import UnitreeGo2, WebRTCConnectionMethod
 import os
 import time
 from dimos.robot.unitree.unitree_ros_control import UnitreeROSControl
-
+import math
 def get_env_var(var_name, default=None, required=False):
     """Get environment variable with validation."""
     value = os.getenv(var_name, default)
@@ -71,15 +71,15 @@ if __name__ == "__main__":
         # Create a subscriber to handle the frames
         def handle_frame(frame):
             global frame_count
-            print(f"handle_frame called with frame type: {type(frame)}")
             frame_count += 1
             
             try:
+                # TODO: add debug frame logging mode for reactiveX debugging
                 # Save frame to output directory
-                frame_path = os.path.join(output_dir, f"frame_{frame_count:04d}.jpg")
-                success = cv2.imwrite(frame_path, frame)
-                print(f"Frame #{frame_count} {'saved successfully' if success else 'failed to save'} to {frame_path}")
-                
+                #frame_path = os.path.join(output_dir, f"frame_{frame_count:04d}.jpg")
+                #success = cv2.imwrite(frame_path, frame)
+                #print(f"Frame #{frame_count} {'saved successfully' if success else 'failed to save'} to {frame_path}")
+                pass
 
             except Exception as e:
                 print(f"Error in handle_frame: {e}")
@@ -105,24 +105,26 @@ if __name__ == "__main__":
         except Exception as e:
             print(f"Error creating subscription: {e}")
 
+        # Handshake command
+        print("Sending handshake command...")
         robot.webrtc_req(
         api_id=1016,  # Handshake command
-    )
+        )
 
         # Keep the original movement sequence and timing
-        time.sleep(30)
+        time.sleep(5)
         print("\nExecuting movement sequence...")
         print("Moving forward...")
-        robot.move(0.1, 0.0, 0.0, duration=5.0)
-        time.sleep(0.5)
-        
-        print("Moving left...")
-        robot.move(0.0, 0.3, 0.0, duration=1.0)
-        time.sleep(0.5)
-        
-        print("Rotating...")
-        robot.move(0.0, 0.0, 0.5, duration=5.0)
-        time.sleep(0.5)
+        robot.move(distance=1.0, speed=0.5)
+
+        time.sleep(3)
+        robot.reverse(distance=2.0, speed=0.5)
+
+        time.sleep(3)
+        robot.spin(degrees=-90.0, speed=45.0)
+
+        time.sleep(3)
+        robot.spin(degrees=90.0, speed=45.0)
         
     #     print("\nMonitoring agent outputs (Press Ctrl+C to stop)...")
         while True:
