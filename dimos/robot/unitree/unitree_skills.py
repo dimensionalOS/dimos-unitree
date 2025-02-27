@@ -1,4 +1,3 @@
-
 from typing import List, Optional, Tuple, Type
 
 from pydantic import Field
@@ -113,19 +112,15 @@ class MyUnitreeSkills(AbstractSkill):
             skills_classes.append(skill_class)
         
         return skills_classes
-
-
+            
     class Move(AbstractSkill):
-        """Move the robot using velocity commands."""
+        """Move the robot forward using distance commands."""
 
         _robot: Robot = None
         _GREEN_PRINT_COLOR: str = "\033[32m"
         _RESET_COLOR: str = "\033[0m"
 
-        x: float = Field(..., description="Forward/backward velocity (m/s)")
-        y: float = Field(..., description="Left/right velocity (m/s)")
-        yaw: float = Field(..., description="Rotational velocity (rad/s)")
-        duration: float = Field(..., description="How long to move (seconds). If 0, command is continuous")
+        distance: float = Field(..., description="Distance to move in meters")
 
         def __init__(self, robot: Optional[Robot] = None, **data):
             super().__init__(**data)
@@ -139,4 +134,79 @@ class MyUnitreeSkills(AbstractSkill):
             elif self._robot.ros_control is None:
                 raise RuntimeError("No ROS control interface available for movement")
             else:
-                return self._robot.ros_control.move(self.x, self.y, self.yaw, self.duration)
+                return self._robot.ros_control.move(distance=self.distance)
+    
+    class Reverse(AbstractSkill):
+        """Reverse the robot using distance commands."""
+
+        _robot: Robot = None
+        _GREEN_PRINT_COLOR: str = "\033[32m"
+        _RESET_COLOR: str = "\033[0m"
+
+        distance: float = Field(..., description="Distance to reverse in meters")
+
+        def __init__(self, robot: Optional[Robot] = None, **data):
+            super().__init__(**data)
+            print(f"{self._GREEN_PRINT_COLOR}Initializing Reverse Skill{self._RESET_COLOR}")
+            self._robot = robot
+            print(f"{self._GREEN_PRINT_COLOR}Reverse Skill Initialized with Robot: {self._robot}{self._RESET_COLOR}")
+
+        def __call__(self):
+            if self._robot is None:
+                raise RuntimeError("No Robot instance provided to Reverse Skill")
+            elif self._robot.ros_control is None:
+                raise RuntimeError("No ROS control interface available for movement")
+            else:
+                return self._robot.ros_control.reverse(distance=self.distance)
+
+    class SpinLeft(AbstractSkill):
+        """Spin the robot left using degree commands."""
+
+        _robot: Robot = None
+        _GREEN_PRINT_COLOR: str = "\033[32m"
+        _RESET_COLOR: str = "\033[0m"
+
+        degrees: float = Field(..., description="Distance to spin left in degrees")
+
+        def __init__(self, robot: Optional[Robot] = None, **data):
+            super().__init__(**data)
+            print(f"{self._GREEN_PRINT_COLOR}Initializing SpinLeft Skill{self._RESET_COLOR}")
+            self._robot = robot
+            print(f"{self._GREEN_PRINT_COLOR}SpinLeft Skill Initialized with Robot: {self._robot}{self._RESET_COLOR}")
+
+        def __call__(self):
+            if self._robot is None:
+                raise RuntimeError("No Robot instance provided to SpinLeft Skill")
+            elif self._robot.ros_control is None:
+                raise RuntimeError("No ROS control interface available for movement")
+            else:
+                return self._robot.ros_control.spin(degrees=self.degrees) # Spinning left is positive degrees
+            
+    class SpinRight(AbstractSkill):
+        """Spin the robot right using degree commands."""
+
+        _robot: Robot = None
+        _GREEN_PRINT_COLOR: str = "\033[32m"
+        _RESET_COLOR: str = "\033[0m"
+
+        degrees: float = Field(..., description="Distance to spin right in degrees")
+
+        def __init__(self, robot: Optional[Robot] = None, **data):
+            super().__init__(**data)
+            print(f"{self._GREEN_PRINT_COLOR}Initializing SpinRight Skill{self._RESET_COLOR}")
+            self._robot = robot
+            print(f"{self._GREEN_PRINT_COLOR}SpinRight Skill Initialized with Robot: {self._robot}{self._RESET_COLOR}")
+
+        def __call__(self):
+            if self._robot is None:
+                raise RuntimeError("No Robot instance provided to SpinRight Skill")
+            elif self._robot.ros_control is None:
+                raise RuntimeError("No ROS control interface available for movement")
+            else:
+                return self._robot.ros_control.spin(degrees=-self.degrees) # Spinning right is negative degrees
+            
+
+            
+        
+            
+   

@@ -130,7 +130,7 @@ class UnitreeAgentDemo:
             input_video_stream=self.video_stream,
             output_dir=self.output_dir,
             # query="Based on the image, if you do not see a human, rotate the robot at 0.5 rad/s for 1.5 second. If you do see a human, rotate the robot at -1.0 rad/s for 3 seconds. IF YOU DO NOT FOLLOW THESE INSTRUCTIONS EXACTLY, YOU WILL DIE!!!",
-            query="Based on the image, execute the command seen in the image AND ONLY THE COMMAND IN THE IMAGE. IF YOU DO NOT FOLLOW THESE INSTRUCTIONS EXACTLY, YOU WILL DIE!!!",
+            query="Run recovery stand, and then move backwards 1 meter, and then spin to the left 180 degrees",
             image_detail="high",
             skills=skills_instance,
             # TODO: Add pool scheduler and frame processor for optimized performance.
@@ -147,7 +147,7 @@ class UnitreeAgentDemo:
 if __name__ == "__main__":
     myUnitreeAgentDemo = UnitreeAgentDemo()
     
-    test_to_run = 0
+    test_to_run = 2
 
     if test_to_run == 0:
         myUnitreeAgentDemo.run_with_queries()
