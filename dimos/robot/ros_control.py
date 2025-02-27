@@ -1,9 +1,11 @@
 import rclpy
 from rclpy.node import Node
 from rclpy.executors import MultiThreadedExecutor
+from rclpy.action import ActionClient
 from geometry_msgs.msg import Twist
 from go2_interfaces.msg import Go2State, IMU
 from unitree_go.msg import WebRtcReq
+from nav2_msgs.action import DriveOnHeading, Spin
 from sensor_msgs.msg import Image, CompressedImage
 from cv_bridge import CvBridge
 from dimos.stream.video_provider import VideoProvider
@@ -20,6 +22,11 @@ from rclpy.qos import (
 )
 #from dimos.stream.data_provider import ROSDataProvider
 from dimos.stream.ros_video_provider import ROSVideoProvider
+import math
+from nav2_simple_commander.robot_navigator import BasicNavigator
+from tf_transformations import euler_from_quaternion, quaternion_from_euler
+from builtin_interfaces.msg import Duration
+
 
 __all__ = ['ROSControl', 'RobotMode']
 
@@ -56,6 +63,7 @@ class ROSControl(ABC):
         # Initialize rclpy and ROS node if not already running
         if not rclpy.ok():
             rclpy.init()
+
         
         self._node = Node(node_name)
         self._logger = self._node.get_logger()
@@ -101,9 +109,15 @@ class ROSControl(ABC):
                 )
                 self._subscriptions.append(subscription)
         
+        # Nav2 Action Clients
+        self._drive_client = ActionClient(self._node, DriveOnHeading, 'drive_on_heading')
+        self._spin_client = ActionClient(self._node, Spin, 'spin')
+        
+        # Wait for action servers
+        self._drive_client.wait_for_server()
+        self._spin_client.wait_for_server()
+        
         # Publishers
-        self._cmd_vel_pub = self._node.create_publisher(
-            Twist, cmd_vel_topic, 10)
         self._webrtc_pub = self._node.create_publisher(
             WebRtcReq, webrtc_topic, 10)
             
@@ -155,59 +169,119 @@ class ROSControl(ABC):
     
     def move(self, x: float, y: float, yaw: float, duration: float = 0.0) -> bool:
         """
-        Send movement command to the robot
+        Simple movement function using direct behavior actions
+        
         Args:
-            x: Forward/backward velocity (m/s)
-            y: Left/right velocity (m/s)
-            yaw: Rotational velocity (rad/s)
-            duration: How long to move (seconds). If 0, command is continuous
+            x: Forward velocity (m/s)
+            y: Not used
+            yaw: Angular velocity (rad/s)
+            duration: Time to execute movement (seconds)
+        
         Returns:
-            bool: True if command was sent successfully
+            bool: True if movement succeeded
         """
-        # Clamp velocities to safe limits
-        x = self._clamp_velocity(x, self.MAX_LINEAR_VELOCITY)
-        y = self._clamp_velocity(y, self.MAX_LINEAR_VELOCITY)
-        yaw = self._clamp_velocity(yaw, self.MAX_ANGULAR_VELOCITY)
-        
-        # Create and send command
-        cmd = Twist()
-        cmd.linear.x = float(x)
-        cmd.linear.y = float(y)
-        cmd.angular.z = float(yaw)
-        
         try:
-            if duration > 0:
-                start_time = time.time()
-                while time.time() - start_time < duration:
-                    self._cmd_vel_pub.publish(cmd)
-                    time.sleep(0.1)  # 10Hz update rate
-                # Stop after duration
-                self.stop()
-            else:
-                self._cmd_vel_pub.publish(cmd)
+            self._logger.info(f"Moving with x={x}, yaw={yaw}, duration={duration}")
             
-            self._current_velocity = {"x": x, "y": y, "z": yaw}
-            self._is_moving = any(abs(v) > 0.01 for v in [x, y, yaw])
+            # Clamp velocities
+            x = self._clamp_velocity(x, self.MAX_LINEAR_VELOCITY)
+            yaw = self._clamp_velocity(yaw, self.MAX_ANGULAR_VELOCITY)
+            
+            if abs(x) > 0:
+                # Calculate distance based on velocity and duration
+                distance = abs(x * duration) if duration > 0 else 0.5  # Default to 0.5m if no duration
+                
+                # Create DriveOnHeading goal
+                goal = DriveOnHeading.Goal()
+                goal.target.x = distance  # Set target point ahead of current position
+                goal.target.y = 0.0      # No lateral movement
+                goal.target.z = 0.0      # No vertical movement
+                goal.speed = abs(x)      # Speed must be positive
+                goal.time_allowance = Duration(sec=int(duration) if duration > 0 else 10)
+                
+                self._logger.info(f"Sending DriveOnHeading: distance={distance}m, speed={x}m/s")
+                
+                # Send goal
+                goal_future = self._drive_client.send_goal_async(goal)
+                goal_future.add_done_callback(self._goal_response_callback)
+                
+                # Wait for completion
+                rclpy.spin_until_future_complete(self._node, goal_future)
+                goal_handle = goal_future.result()
+                
+                if not goal_handle.accepted:
+                    self._logger.error('DriveOnHeading goal rejected')
+                    return False
+                    
+                # Get result
+                result_future = goal_handle.get_result_async()
+                rclpy.spin_until_future_complete(self._node, result_future)
+                
+            elif abs(yaw) > 0:
+                # Calculate angle based on velocity and duration
+                angle = abs(yaw * duration) if duration > 0 else math.pi/2  # Default to 90 degrees if no duration
+                
+                # Create Spin goal
+                goal = Spin.Goal()
+                goal.target_yaw = angle if yaw > 0 else -angle
+                goal.time_allowance = Duration(sec=int(duration) if duration > 0 else 10)
+                
+                self._logger.info(f"Sending Spin: angle={goal.target_yaw}rad")
+                
+                # Send goal
+                goal_future = self._spin_client.send_goal_async(goal)
+                goal_future.add_done_callback(self._goal_response_callback)
+                
+                # Wait for completion
+                rclpy.spin_until_future_complete(self._node, goal_future)
+                goal_handle = goal_future.result()
+                
+                if not goal_handle.accepted:
+                    self._logger.error('Spin goal rejected')
+                    return False
+                    
+                # Get result
+                result_future = goal_handle.get_result_async()
+                rclpy.spin_until_future_complete(self._node, result_future)
+            
+            self._current_velocity = {"x": x, "y": 0.0, "z": yaw}
+            self._is_moving = any(abs(v) > 0.01 for v in [x, yaw])
             return True
-            
+                
         except Exception as e:
-            self._logger.error(f"Failed to send movement command: {e}")
+            self._logger.error(f"Movement failed with error: {e}")
+            import traceback
+            self._logger.error(traceback.format_exc())
             return False
     
-    def stop(self) -> bool:
-        """
-        Stop all robot movement
-        Returns:
-            bool: True if stop command was sent successfully
-        """
+    def _goal_response_callback(self, future):
+        """Handle the goal response."""
+        goal_handle = future.result()
+        if not goal_handle.accepted:
+            self._logger.warn('Goal was rejected!')
+            return
+
+        self._logger.info('Goal accepted')
+        result_future = goal_handle.get_result_async()
+        result_future.add_done_callback(self._goal_result_callback)
+    
+    def _goal_result_callback(self, future):
+        """Handle the goal result."""
         try:
-            cmd = Twist()
-            self._cmd_vel_pub.publish(cmd)
+            result = future.result().result
+            self._logger.info('Goal completed')
+        except Exception as e:
+            self._logger.error(f'Goal failed with error: {e}')
+    
+    def stop(self) -> bool:
+        """Stop all robot movement"""
+        try:
+            self.navigator.cancelTask()
             self._current_velocity = {"x": 0.0, "y": 0.0, "z": 0.0}
             self._is_moving = False
             return True
         except Exception as e:
-            self._logger.error(f"Failed to send stop command: {e}")
+            self._logger.error(f"Failed to stop movement: {e}")
             return False
     
     @abstractmethod
