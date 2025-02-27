@@ -5,7 +5,7 @@ from rclpy.action import ActionClient
 from geometry_msgs.msg import Twist
 from go2_interfaces.msg import Go2State, IMU
 from unitree_go.msg import WebRtcReq
-from nav2_msgs.action import DriveOnHeading, Spin
+from nav2_msgs.action import DriveOnHeading, Spin, BackUp
 from sensor_msgs.msg import Image, CompressedImage
 from cv_bridge import CvBridge
 from dimos.stream.video_provider import VideoProvider
@@ -26,6 +26,7 @@ import math
 from nav2_simple_commander.robot_navigator import BasicNavigator
 from tf_transformations import euler_from_quaternion, quaternion_from_euler
 from builtin_interfaces.msg import Duration
+from geometry_msgs.msg import Point
 
 
 __all__ = ['ROSControl', 'RobotMode']
@@ -112,11 +113,13 @@ class ROSControl(ABC):
         # Nav2 Action Clients
         self._drive_client = ActionClient(self._node, DriveOnHeading, 'drive_on_heading')
         self._spin_client = ActionClient(self._node, Spin, 'spin')
+        self._backup_client = ActionClient(self._node, BackUp, 'backup')
         
         # Wait for action servers
         self._drive_client.wait_for_server()
         self._spin_client.wait_for_server()
-        
+        self._backup_client.wait_for_server()
+
         # Publishers
         self._webrtc_pub = self._node.create_publisher(
             WebRtcReq, webrtc_topic, 10)
@@ -167,16 +170,16 @@ class ROSControl(ABC):
         """Data provider property for streaming data"""
         return self._video_provider
     
-    def move(self, x: float, y: float, yaw: float, duration: float = 0.0) -> bool:
+    def move(self, x: float, y: float, yaw: float, duration: float = 0.0, time_allowance: float = 20.0) -> bool:
         """
         Simple movement function using direct behavior actions
         
         Args:
-            x: Forward velocity (m/s)
+            x: Forward velocity (m/s), negative for backwards
             y: Not used
             yaw: Angular velocity (rad/s)
             duration: Time to execute movement (seconds)
-        
+            time_allowance: Time to allow for movement (seconds)
         Returns:
             bool: True if movement succeeded
         """
@@ -187,19 +190,52 @@ class ROSControl(ABC):
             x = self._clamp_velocity(x, self.MAX_LINEAR_VELOCITY)
             yaw = self._clamp_velocity(yaw, self.MAX_ANGULAR_VELOCITY)
             
-            if abs(x) > 0:
+            if x < 0:  # Backward motion using BackUp
+                # Calculate distance and speed for backup
+                distance = (x * duration) 
+                speed = abs(x)  # BackUp expects positive speed
+                
+                # Create BackUp goal
+                goal = BackUp.Goal()
+                goal.target = Point()
+                goal.target.x = distance  
+                goal.target.y = 0.0
+                goal.target.z = 0.0
+                goal.speed = speed
+                goal.time_allowance = Duration(sec=int(time_allowance))
+                
+                self._logger.info(f"Sending BackUp: distance={distance}m, speed={speed}m/s")
+                
+                # Send goal
+                goal_future = self._backup_client.send_goal_async(goal)
+                goal_future.add_done_callback(self._goal_response_callback)
+                
+                # Wait for completion
+                rclpy.spin_until_future_complete(self._node, goal_future)
+                goal_handle = goal_future.result()
+                
+                if not goal_handle.accepted:
+                    self._logger.error('BackUp goal rejected')
+                    return False
+                    
+                # Get result
+                result_future = goal_handle.get_result_async()
+                rclpy.spin_until_future_complete(self._node, result_future)
+                
+            elif x > 0:  # Forward motion using DriveOnHeading
                 # Calculate distance based on velocity and duration
-                distance = abs(x * duration) if duration > 0 else 0.5  # Default to 0.5m if no duration
+                distance = abs(x * duration) if duration > 0 else 0.5
+                speed = abs(x)
                 
                 # Create DriveOnHeading goal
                 goal = DriveOnHeading.Goal()
-                goal.target.x = distance  # Set target point ahead of current position
+                goal.target.x = distance
                 goal.target.y = 0.0      # No lateral movement
                 goal.target.z = 0.0      # No vertical movement
-                goal.speed = abs(x)      # Speed must be positive
-                goal.time_allowance = Duration(sec=int(duration) if duration > 0 else 10)
+                goal.speed = speed
+                goal.time_allowance = Duration(sec=int(time_allowance))
                 
-                self._logger.info(f"Sending DriveOnHeading: distance={distance}m, speed={x}m/s")
+                self._logger.info(f"Sending DriveOnHeading: distance={distance}m, speed={speed}m/s")
                 
                 # Send goal
                 goal_future = self._drive_client.send_goal_async(goal)
@@ -217,14 +253,14 @@ class ROSControl(ABC):
                 result_future = goal_handle.get_result_async()
                 rclpy.spin_until_future_complete(self._node, result_future)
                 
-            elif abs(yaw) > 0:
+            elif abs(yaw) > 0:  # Rotation using Spin
                 # Calculate angle based on velocity and duration
                 angle = abs(yaw * duration) if duration > 0 else math.pi/2  # Default to 90 degrees if no duration
                 
                 # Create Spin goal
                 goal = Spin.Goal()
                 goal.target_yaw = angle if yaw > 0 else -angle
-                goal.time_allowance = Duration(sec=int(duration) if duration > 0 else 10)
+                goal.time_allowance = Duration(sec=int(time_allowance))
                 
                 self._logger.info(f"Sending Spin: angle={goal.target_yaw}rad")
                 
