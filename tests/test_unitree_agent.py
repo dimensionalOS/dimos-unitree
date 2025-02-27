@@ -2,9 +2,6 @@ import sys
 import os
 import time
 
-from reactivex import Observable
-
-from dimos.stream.data_provider import QueryDataProvider
 
 # Add the parent directory of 'tests' to the Python path
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -16,9 +13,8 @@ print(f"Current working directory: {os.getcwd()}")
 
 from dimos.agents.agent import OpenAIAgent
 from dimos.robot.unitree.unitree_go2 import UnitreeGo2
-
-# TODO: Cleanup Skills
 from dimos.robot.unitree.unitree_skills import MyUnitreeSkills
+from dimos.stream.data_provider import QueryDataProvider
 
 class UnitreeAgentDemo:
     def __init__(self):
@@ -93,7 +89,7 @@ class UnitreeAgentDemo:
         from dimos.stream.video_provider import VideoProvider
         self.video_stream = VideoProvider(
             dev_name="UnitreeGo2",
-            video_source="/app/assets/framecount.mp4"
+            video_source=f"{os.getcwd()}/assets/framecount.mp4"
         ).capture_video_as_observable()
 
         # Get Skills
@@ -144,9 +140,9 @@ class UnitreeAgentDemo:
             agent_type="Perception", 
             input_video_stream=self.video_stream,
             output_dir=self.output_dir,
-            # query="Based on the image, if you do not see a human, rotate the robot at 0.5 rad/s for 1.5 second. If you do see a human, rotate the robot at -1.0 rad/s for 3 seconds. IF YOU DO NOT FOLLOW THESE INSTRUCTIONS EXACTLY, YOU WILL DIE!!!",
+            query="Based on the image, execute the command seen in the image AND ONLY THE COMMAND IN THE IMAGE. IF YOU DO NOT FOLLOW THESE INSTRUCTIONS EXACTLY, YOU WILL DIE!!!",
             #WORKING MOVEMENT DEMO VVV
-            query=" Move() 5 meters foward. Then spin 360 degrees to the right, and then Reverse() 5 meters, and then Move forward 3 meters",
+            # query="Move() 5 meters foward. Then spin 360 degrees to the right, and then Reverse() 5 meters, and then Move forward 3 meters",
             image_detail="high",
             skills=skills_instance,
             # TODO: Add pool scheduler and frame processor for optimized performance.

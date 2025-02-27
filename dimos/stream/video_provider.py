@@ -1,4 +1,5 @@
 from datetime import timedelta
+import os
 import time
 import cv2
 import reactivex as rx
@@ -49,7 +50,7 @@ class AbstractVideoProvider(ABC):
 class VideoProvider(AbstractVideoProvider):
     """Video provider implementation for capturing video as an observable."""
 
-    def __init__(self, dev_name: str, video_source: str = "/app/assets/video-f30-480p.mp4"):
+    def __init__(self, dev_name: str, video_source: str = f"{os.getcwd()}/assets/video-f30-480p.mp4"):
         """Initializes the video provider with a device name and video source.
 
         Args:

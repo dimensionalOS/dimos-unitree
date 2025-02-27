@@ -67,7 +67,7 @@ class LLMAgent(Agent):
     #             agent_type: str = "LLM",
     #             query: str = "What do you see?", 
     #             input_video_stream: Observable = None,
-    #             output_dir: str = '/app/assets/agent', 
+    #             output_dir: str = f'{os.getcwd()}/assets/agent', 
     #             agent_memory: AbstractAgentSemanticMemory = None,
     #             system_query: str = None, 
     #             system_query_without_documents: str = None,
@@ -103,7 +103,7 @@ class LLMAgent(Agent):
     
 
     # region Logging
-    def _log_response_to_file(self, response = None, output_dir: str = '/app/assets/agent'):
+    def _log_response_to_file(self, response = None, output_dir: str = f'{os.getcwd()}/assets/agent'):
         """
         Logs the response from LLM to a file.
 
@@ -128,7 +128,7 @@ class OpenAIAgent(LLMAgent):
                  query: str = "What do you see?", 
                  input_query_stream: Observable = None,
                  input_video_stream: Observable = None,
-                 output_dir: str = '/app/assets/agent', 
+                 output_dir: str = f'{os.getcwd()}/assets/agent', 
                  agent_memory: AbstractAgentSemanticMemory = None,
                  system_query: str = None, 
                  system_query_without_documents: str = None,
@@ -564,7 +564,7 @@ class OpenAIAgent(LLMAgent):
         # Frame Processor
         if self.frame_processor is None:
             self.frame_processor = FrameProcessor(
-                output_dir="/app/assets/output/frames", 
+                output_dir=f'{os.getcwd()}/assets/output/frames', 
                 delete_on_init=True
             )
 
@@ -640,7 +640,7 @@ class OpenAIAgent(LLMAgent):
         # Frame Processor
         if self.frame_processor is None:
             self.frame_processor = FrameProcessor(
-                output_dir="/app/assets/output/frames", 
+                output_dir=f'{os.getcwd()}/assets/output/frames', 
                 delete_on_init=True
             )
 

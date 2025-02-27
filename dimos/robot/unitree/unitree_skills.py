@@ -207,6 +207,7 @@ class MyUnitreeSkills(AbstractSkill):
 
     class Wait(AbstractSkill):
         """Wait for a specified amount of time."""
+        
         _robot: Robot = None
         _GREEN_PRINT_COLOR: str = "\033[32m"
         _RESET_COLOR: str = "\033[0m"

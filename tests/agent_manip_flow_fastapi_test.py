@@ -47,16 +47,16 @@ def main():
     """
     disposables = CompositeDisposable()
 
-    processor = FrameProcessor(output_dir="/app/assets/frames", delete_on_init=True)
+    processor = FrameProcessor(output_dir=f"{os.getcwd()}/assets/frames", delete_on_init=True)
 
     optimal_thread_count = multiprocessing.cpu_count()  # Gets number of CPU cores
     thread_pool_scheduler = ThreadPoolScheduler(optimal_thread_count)
 
     VIDEO_SOURCES = [
-        "/app/assets/ldru.mp4",
-        "/app/assets/ldru_480p.mp4",
-        "/app/assets/trimmed_video_480p.mov",
-        "/app/assets/video-f30-480p.mp4",
+        f"{os.getcwd()}/assets/ldru.mp4",
+        f"{os.getcwd()}/assets/ldru_480p.mp4",
+        f"{os.getcwd()}/assets/trimmed_video_480p.mov",
+        f"{os.getcwd()}/assets/video-f30-480p.mp4",
         "rtsp://192.168.50.207:8080/h264.sdp",
         "rtsp://10.0.0.106:8080/h264.sdp"
     ]
