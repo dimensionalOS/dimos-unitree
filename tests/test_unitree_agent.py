@@ -123,6 +123,21 @@ class UnitreeAgentDemo:
         # By default, this will create all skills in this class and make them available to the agent.
         skills_instance = MyUnitreeSkills(robot=self.robot)
 
+        # Run recovery stand
+        print("Running recovery stand")
+        self.robot.webrtc_req(api_id=1006)
+
+        # Wait for 1 second
+        time.sleep(1)
+
+        # Switch to sport mode
+        print("Switching to sport mode")
+        self.robot.webrtc_req(api_id=1011, parameter='{"gait_type": "sport"}')
+
+        # Wait for 1 second
+        time.sleep(1)
+        
+
         print("Starting Unitree Perception Agent (ROS Video)")
         self.UnitreePerceptionAgent = OpenAIAgent(
             dev_name="UnitreePerceptionAgent", 
@@ -130,7 +145,8 @@ class UnitreeAgentDemo:
             input_video_stream=self.video_stream,
             output_dir=self.output_dir,
             # query="Based on the image, if you do not see a human, rotate the robot at 0.5 rad/s for 1.5 second. If you do see a human, rotate the robot at -1.0 rad/s for 3 seconds. IF YOU DO NOT FOLLOW THESE INSTRUCTIONS EXACTLY, YOU WILL DIE!!!",
-            query="Run recovery stand, and then move backwards 1 meter, and then spin to the left 180 degrees",
+            #WORKING MOVEMENT DEMO VVV
+            query=" Move() 5 meters foward. Then spin 360 degrees to the right, and then Reverse() 5 meters, and then Move forward 3 meters",
             image_detail="high",
             skills=skills_instance,
             # TODO: Add pool scheduler and frame processor for optimized performance.

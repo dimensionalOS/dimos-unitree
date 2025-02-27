@@ -1,5 +1,5 @@
 from typing import List, Optional, Tuple, Type
-
+import time
 from pydantic import Field
 from dimos.robot.robot import Robot
 from dimos.robot.skills import AbstractSkill
@@ -204,7 +204,29 @@ class MyUnitreeSkills(AbstractSkill):
                 raise RuntimeError("No ROS control interface available for movement")
             else:
                 return self._robot.ros_control.spin(degrees=-self.degrees) # Spinning right is negative degrees
-            
+
+    class Wait(AbstractSkill):
+        """Wait for a specified amount of time."""
+        _robot: Robot = None
+        _GREEN_PRINT_COLOR: str = "\033[32m"
+        _RESET_COLOR: str = "\033[0m"
+
+        seconds: float = Field(..., description="Seconds to wait")
+
+        def __init__(self, robot: Optional[Robot] = None, **data):
+            super().__init__(**data)
+            print(f"{self._GREEN_PRINT_COLOR}Initializing Wait Skill{self._RESET_COLOR}")
+            self._robot = robot
+            print(f"{self._GREEN_PRINT_COLOR}Wait Skill Initialized with Robot: {self._robot}{self._RESET_COLOR}")
+
+        def __call__(self):
+            if self._robot is None:
+                raise RuntimeError("No Robot instance provided to SpinRight Skill")
+            elif self._robot.ros_control is None:
+                raise RuntimeError("No ROS control interface available for movement")
+            else:
+                return time.sleep(self.seconds)
+                
 
             
         

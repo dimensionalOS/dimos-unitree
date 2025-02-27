@@ -146,18 +146,13 @@ class ROSControl(ABC):
     
     def _image_callback(self, msg):
         """Convert ROS image to numpy array and push to data stream"""
-        print("Running image callback")
         if self._video_provider and self._bridge:
             try:
                 if isinstance(msg, CompressedImage):
                     frame = self._bridge.compressed_imgmsg_to_cv2(msg)
-                    print(f"Compressed image")
                 else:
                     frame = self._bridge.imgmsg_to_cv2(msg, "bgr8")
-                print(f"Converted frame shape: {frame.shape}")
-                
                 self._video_provider.push_data(frame)
-                print("Successfully pushed frame to data provider")
             except Exception as e:
                 self._logger.error(f"Error converting image: {e}")
                 print(f"Full conversion error: {str(e)}")
