@@ -20,16 +20,22 @@ class UnitreeROSControl(ROSControl):
     def __init__(self, 
                  node_name: str = "unitree_hardware_interface",
                  use_compressed: bool = False,
-                 use_raw: bool = True):
+                 use_raw: bool = True,
+                 disable_video_stream: bool = False,
+                 mock_connection: bool = False):
+        
         # Select which camera topics to use
-        active_camera_topics = {
-            'main': self.CAMERA_TOPICS['raw' if use_raw else 'compressed']
-        }
+        active_camera_topics = None
+        if not disable_video_stream:
+            active_camera_topics = {
+                'main': self.CAMERA_TOPICS['raw' if use_raw else 'compressed']
+            }
         
         super().__init__(
             node_name=node_name,
             camera_topics=active_camera_topics,
-            use_compressed_video=use_compressed
+            use_compressed_video=use_compressed,
+            mock_connection=mock_connection
         )
         
         # Unitree-specific state tracking

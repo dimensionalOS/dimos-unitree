@@ -47,7 +47,8 @@ class ROSControl(ABC):
                  camera_topics: Dict[str, str] = None,
                  use_compressed_video: bool = False,
                  max_linear_velocity: float = 1.0,
-                 max_angular_velocity: float = 2.0):
+                 max_angular_velocity: float = 2.0, 
+                 mock_connection: bool = False):
         """
         Initialize base ROS control interface
         Args:
@@ -113,9 +114,10 @@ class ROSControl(ABC):
         self._backup_client = ActionClient(self._node, BackUp, 'backup')
         
         # Wait for action servers
-        self._drive_client.wait_for_server()
-        self._spin_client.wait_for_server()
-        self._backup_client.wait_for_server()
+        if not mock_connection:
+            self._drive_client.wait_for_server()
+            self._spin_client.wait_for_server()
+            self._backup_client.wait_for_server()
 
         # Publishers
         self._webrtc_pub = self._node.create_publisher(

@@ -47,7 +47,7 @@ def main():
     """
     disposables = CompositeDisposable()
 
-    processor = FrameProcessor(output_dir=f"{os.getcwd()}/assets/frames", delete_on_init=True)
+    processor = FrameProcessor(output_dir=f"{os.getcwd()}/assets/output/frames", delete_on_init=True)
 
     optimal_thread_count = multiprocessing.cpu_count()  # Gets number of CPU cores
     thread_pool_scheduler = ThreadPoolScheduler(optimal_thread_count)
