@@ -54,18 +54,13 @@ class UnitreeROSControl(ROSControl):
         # Direct access to protected instance variables from the parent class
         mode = msg.mode
         progress = msg.progress
-        
-        print(f"[UnitreeROSControl] Updating mode: mode={mode}, progress={progress}")
-        
+                
         if progress == 0 and mode == 1:
             self._mode = RobotMode.IDLE
-            print(f"[UnitreeROSControl] Robot mode set to IDLE (progress={progress}, mode={mode})")
             self._logger.debug("Robot mode set to IDLE (progress=0, mode=1)")
         elif progress == 1 or mode != 1:
             self._mode = RobotMode.MOVING
-            print(f"[UnitreeROSControl] Robot mode set to MOVING (progress={progress}, mode={mode})")
             self._logger.debug(f"Robot mode set to MOVING (progress={progress}, mode={mode})")
         else:
             self._mode = RobotMode.UNKNOWN
-            print(f"[UnitreeROSControl] Robot mode set to UNKNOWN (progress={progress}, mode={mode})")
             self._logger.debug(f"Robot mode set to UNKNOWN (progress={progress}, mode={mode})")

@@ -118,7 +118,7 @@ if __name__ == "__main__":
         robot.webrtc_req(api_id=1033)  # Dance1
         print("Queued: Dance1 (1022)")
         
-        robot.reverse(distance=1.0, speed=0.5)
+        robot.reverse(distance=0.5, speed=0.5)
 
         # Wiggle Hips
         robot.webrtc_req(api_id=1033)  # WiggleHips
@@ -131,6 +131,11 @@ if __name__ == "__main__":
         robot.webrtc_req(api_id=1017)  # Stretch
         print("Queued: Stretch (1017)")
         
+        robot.move(distance=1.0, speed=0.5)
+
+        robot.webrtc_req(api_id=1030)  # Dance1
+
+        robot.reverse(distance=0.5, speed=0.5)
         
 
 

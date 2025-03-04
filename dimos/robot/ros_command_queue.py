@@ -250,19 +250,6 @@ class ROSCommandQueue:
         
         return request_id
         
-    # Legacy alias for backward compatibility
-    def queue_request(self, api_id: int, topic: str = 'rt/api/sport/request', 
-                      parameter: str = '', priority: int = 0, 
-                      timeout: float = 30.0) -> str:
-        """Legacy method for backward compatibility"""
-        return self.queue_webrtc_request(
-            api_id=api_id, 
-            topic=topic,
-            params={'parameter': parameter},
-            priority=priority,
-            timeout=timeout
-        )
-        
     def _process_queue(self):
         """Process commands in the queue"""
         self._logger.info("Starting queue processing")

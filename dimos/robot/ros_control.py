@@ -51,7 +51,8 @@ class ROSControl(ABC):
                  imu_topic: str = None,
                  state_msg_type: Type = None,
                  imu_msg_type: Type = None,
-                 webrtc_msg_type: Type = None):
+                 webrtc_msg_type: Type = None,
+                 debug: bool = False):
         """
         Initialize base ROS control interface
         Args:
@@ -79,7 +80,7 @@ class ROSControl(ABC):
         self._webrtc_topic = webrtc_topic
         self._node = Node(node_name)
         self._logger = self._node.get_logger()
-        
+        self._debug = debug
         # Prepare a multi-threaded executor
         self._executor = MultiThreadedExecutor()
         
@@ -170,8 +171,8 @@ class ROSControl(ABC):
             # Initialize command queue
             self._command_queue = ROSCommandQueue(
                 webrtc_func=self.webrtc_req,
-                is_ready_func=lambda: self._debug_is_ready(),
-                is_busy_func=lambda: self._debug_is_busy(),
+                is_ready_func=lambda: self._mode == RobotMode.IDLE,
+                is_busy_func=lambda: self._mode == RobotMode.MOVING,
                 logger=self._logger
             )
             # Start the queue processing thread
@@ -198,7 +199,9 @@ class ROSControl(ABC):
         
         # Call the abstract method to update RobotMode enum based on the received state
         self._robot_state = msg
-        print(f"[ROSControl] State callback received: {msg.mode}, {msg.progress}")
+
+        if self._debug:
+            print(f"[ROSControl] State callback received: {msg}")
         self._update_mode(msg)
         # Log state changes
         self._logger.debug(f"Robot state updated: {self._robot_state}")
