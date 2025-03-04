@@ -1,15 +1,34 @@
+"""Agent framework for LLM-based autonomous systems.
+
+This module provides a flexible foundation for creating agents that can:
+- Process image and text inputs through LLM APIs
+- Store and retrieve contextual information using semantic memory
+- Handle tool/function calling
+- Process streaming inputs asynchronously
+
+The module offers base classes (Agent, LLMAgent) and concrete implementations
+like OpenAIAgent that connect to specific LLM providers.
+"""
+
+from __future__ import annotations
+
+# Standard library imports
 import json
 import os
 import threading
-from typing import Tuple, Optional
+import logging
+from typing import Any, Dict, List, Tuple, Optional
+
+# Third-party imports
 from dotenv import load_dotenv
 from openai import NOT_GIVEN, OpenAI
-from reactivex import Observer, create, Observable, empty, operators as RxOps, throw
+from pydantic import BaseModel
 import reactivex
+from reactivex import Observer, create, Observable, empty, operators as RxOps, throw, just
 from reactivex.disposable import CompositeDisposable, Disposable
 from reactivex.scheduler import ThreadPoolScheduler
-from pydantic import BaseModel
 
+# Local imports
 from dimos.agents.memory.base import AbstractAgentSemanticMemory
 from dimos.agents.memory.chroma_impl import AgentSemanticMemory
 from dimos.agents.prompt_builder.impl import PromptBuilder
@@ -17,12 +36,19 @@ from dimos.agents.tokenizer.openai_impl import AbstractTokenizer, OpenAI_Tokeniz
 from dimos.robot.skills import AbstractSkill
 from dimos.stream.frame_processor import FrameProcessor
 from dimos.stream.video_operators import Operators as MyOps, VideoOperators as MyVidOps
+from dimos.utils.threadpool import get_scheduler
+from dimos.utils.logging_config import setup_logger
 
 # Initialize environment variables
 load_dotenv()
 
-AGENT_PRINT_COLOR = "\033[33m"
-AGENT_RESET_COLOR = "\033[0m"
+# Initialize logger for the agent module
+logger = setup_logger("dimos.agents", level=logging.DEBUG)
+
+# Constants
+_TOKEN_BUDGET_PARTS = 4  # Number of parts to divide token budget
+_MAX_SAVED_FRAMES = 100  # Maximum number of frames to save
+
 
 # -----------------------------------------------------------------------------
 # region Agent Base Class
@@ -30,10 +56,11 @@ AGENT_RESET_COLOR = "\033[0m"
 class Agent:
     """Base agent that manages memory and subscriptions."""
 
-    def __init__(self, 
-                 dev_name: str = "NA", 
+    def __init__(self,
+                 dev_name: str = "NA",
                  agent_type: str = "Base",
-                 agent_memory: Optional[AbstractAgentSemanticMemory] = None):
+                 agent_memory: Optional[AbstractAgentSemanticMemory] = None,
+                 pool_scheduler: Optional[ThreadPoolScheduler] = None):
         """
         Initializes a new instance of the Agent.
 
@@ -41,19 +68,28 @@ class Agent:
             dev_name (str): The device name of the agent.
             agent_type (str): The type of the agent (e.g., 'Base', 'Vision').
             agent_memory (AbstractAgentSemanticMemory): The memory system for the agent.
+            pool_scheduler (ThreadPoolScheduler): The scheduler to use for thread pool operations.
+                If None, the global scheduler from get_scheduler() will be used.
         """
         self.dev_name = dev_name
         self.agent_type = agent_type
         self.agent_memory = agent_memory or AgentSemanticMemory()
         self.disposables = CompositeDisposable()
+        self.pool_scheduler = pool_scheduler if pool_scheduler else get_scheduler(
+        )
+        self.logger = setup_logger(
+            f"dimos.agents.{self.agent_type}.{self.dev_name}")
 
     def dispose_all(self):
         """Disposes of all active subscriptions managed by this agent."""
         if self.disposables:
             self.disposables.dispose()
         else:
-            print(f"{AGENT_PRINT_COLOR}No disposables to dispose.{AGENT_RESET_COLOR}")
+            self.logger.info("No disposables to dispose.")
+
+
 # endregion Agent Base Class
+
 
 # -----------------------------------------------------------------------------
 # region LLMAgent Base Class (Generic LLM Agent)
@@ -63,20 +99,36 @@ class LLMAgent(Agent):
 
     This class implements functionality for:
       - Updating the query
-      - Querying the agent’s memory (for RAG)
+      - Querying the agent's memory (for RAG)
       - Building prompts via a prompt builder
       - Handling tooling callbacks in responses
       - Subscribing to image and query streams
 
     Subclasses must implement the `_send_query` method, which is responsible
     for sending the prompt to a specific LLM API.
+    
+    Attributes:
+        query (str): The current query text to process.
+        prompt_builder (PromptBuilder): Handles construction of prompts.
+        skills (AbstractSkill): Available tools/functions for the agent.
+        system_query (str): System prompt for RAG context situations.
+        system_query_without_documents (str): System prompt when RAG unavailable.
+        image_detail (str): Detail level for image processing ('low','high','auto').
+        max_input_tokens_per_request (int): Maximum input token count.
+        max_output_tokens_per_request (int): Maximum output token count.
+        max_tokens_per_request (int): Total maximum token count.
+        rag_query_n (int): Number of results to fetch from memory.
+        rag_similarity_threshold (float): Minimum similarity for RAG results.
+        frame_processor (FrameProcessor): Processes video frames.
+        output_dir (str): Directory for output files.
     """
     logging_file_memory_lock = threading.Lock()
 
-    def __init__(self, 
-                 dev_name: str = "NA", 
+    def __init__(self,
+                 dev_name: str = "NA",
                  agent_type: str = "LLM",
-                 agent_memory: Optional[AbstractAgentSemanticMemory] = None):
+                 agent_memory: Optional[AbstractAgentSemanticMemory] = None,
+                 pool_scheduler: Optional[ThreadPoolScheduler] = None):
         """
         Initializes a new instance of the LLMAgent.
 
@@ -84,8 +136,11 @@ class LLMAgent(Agent):
             dev_name (str): The device name of the agent.
             agent_type (str): The type of the agent.
             agent_memory (AbstractAgentSemanticMemory): The memory system for the agent.
+            pool_scheduler (ThreadPoolScheduler): The scheduler to use for thread pool operations.
+                If None, the global scheduler from get_scheduler() will be used.
         """
-        super().__init__(dev_name, agent_type, agent_memory or AgentSemanticMemory())
+        super().__init__(dev_name, agent_type, agent_memory or
+                         AgentSemanticMemory(), pool_scheduler)
         # These attributes can be configured by a subclass if needed.
         self.query: Optional[str] = None
         self.prompt_builder: Optional[PromptBuilder] = None
@@ -99,7 +154,6 @@ class LLMAgent(Agent):
                                             self.max_output_tokens_per_request)
         self.rag_query_n: int = 4
         self.rag_similarity_threshold: float = 0.45
-        self.pool_scheduler: Optional[ThreadPoolScheduler] = None
         self.frame_processor: Optional[FrameProcessor] = None
         self.output_dir: str = os.path.join(os.getcwd(), "assets", "agent")
         os.makedirs(self.output_dir, exist_ok=True)
@@ -123,20 +177,17 @@ class LLMAgent(Agent):
         results = self.agent_memory.query(
             query_texts=self.query,
             n_results=self.rag_query_n,
-            similarity_threshold=self.rag_similarity_threshold
-        )
+            similarity_threshold=self.rag_similarity_threshold)
         formatted_results = "\n".join(
             f"Document ID: {doc.id}\nMetadata: {doc.metadata}\nContent: {doc.page_content}\nScore: {score}\n"
-            for (doc, score) in results
-        )
+            for (doc, score) in results)
         condensed_results = " | ".join(
-            f"{doc.page_content}" for (doc, _) in results
-        )
-        print(f"{AGENT_PRINT_COLOR}Agent Memory Query Results:\n{formatted_results}{AGENT_RESET_COLOR}")
-        print(f"{AGENT_PRINT_COLOR}=== Results End ==={AGENT_RESET_COLOR}")
+            f"{doc.page_content}" for (doc, _) in results)
+        self.logger.info(f"Agent Memory Query Results:\n{formatted_results}")
+        self.logger.info("=== Results End ===")
         return formatted_results, condensed_results
 
-    def _build_prompt(self, base64_image: Optional[str], 
+    def _build_prompt(self, base64_image: Optional[str],
                       dimensions: Optional[Tuple[int, int]],
                       override_token_limit: bool,
                       condensed_results: str) -> list:
@@ -151,18 +202,26 @@ class LLMAgent(Agent):
         Returns:
             list: A list of message dictionaries to be sent to the LLM.
         """
+        # Budget for each component of the prompt
         budgets = {
-            "system_prompt": self.max_input_tokens_per_request // 4,
-            "user_query": self.max_input_tokens_per_request // 4,
-            "image": self.max_input_tokens_per_request // 4,
-            "rag": self.max_input_tokens_per_request // 4,
+            "system_prompt":
+                self.max_input_tokens_per_request // _TOKEN_BUDGET_PARTS,
+            "user_query":
+                self.max_input_tokens_per_request // _TOKEN_BUDGET_PARTS,
+            "image":
+                self.max_input_tokens_per_request // _TOKEN_BUDGET_PARTS,
+            "rag":
+                self.max_input_tokens_per_request // _TOKEN_BUDGET_PARTS,
         }
+
+        # Define truncation policies for each component
         policies = {
             "system_prompt": "truncate_end",
             "user_query": "truncate_middle",
             "image": "do_not_truncate",
             "rag": "truncate_end",
         }
+
         return self.prompt_builder.build(
             user_query=self.query,
             override_token_limit=override_token_limit,
@@ -190,8 +249,11 @@ class LLMAgent(Agent):
         Returns:
             The final response message after processing tool calls, if any.
         """
-        # TODO: Make this more generic or move implementation to OpenAIAgent. This is presently OpenAI-specific.
-        def _tooling_callback(message, messages, response_message, skills: AbstractSkill):
+
+        # TODO: Make this more generic or move implementation to OpenAIAgent.
+        # This is presently OpenAI-specific.
+        def _tooling_callback(message, messages, response_message,
+                              skills: AbstractSkill):
             has_called_tools = False
             new_messages = []
             for tool_call in message.tool_calls:
@@ -199,7 +261,7 @@ class LLMAgent(Agent):
                 name = tool_call.function.name
                 args = json.loads(tool_call.function.arguments)
                 result = skills.call_function(name, **args)
-                print(f"{AGENT_PRINT_COLOR}Function Call Results: {result}{AGENT_RESET_COLOR}")
+                self.logger.info(f"Function Call Results: {result}")
                 new_messages.append({
                     "role": "tool",
                     "tool_call_id": tool_call.id,
@@ -207,17 +269,18 @@ class LLMAgent(Agent):
                     "name": name
                 })
             if has_called_tools:
-                print(f"{AGENT_PRINT_COLOR}Sending Another Query.{AGENT_RESET_COLOR}")
+                self.logger.info("Sending Another Query.")
                 messages.append(response_message)
                 messages.extend(new_messages)
                 # Delegate to sending the query again.
                 return self._send_query(messages)
             else:
-                print(f"{AGENT_PRINT_COLOR}No Need for Another Query.{AGENT_RESET_COLOR}")
+                self.logger.info("No Need for Another Query.")
                 return None
 
         if response_message.tool_calls is not None:
-            return _tooling_callback(response_message, messages, response_message, self.skills)
+            return _tooling_callback(response_message, messages,
+                                     response_message, self.skills)
         return None
 
     def _observable_query(self,
@@ -241,33 +304,37 @@ class LLMAgent(Agent):
         try:
             self._update_query(incoming_query)
             _, condensed_results = self._get_rag_context()
-            messages = self._build_prompt(base64_image, dimensions, override_token_limit,
+            messages = self._build_prompt(base64_image, dimensions,
+                                          override_token_limit,
                                           condensed_results)
-            # print(f"{AGENT_PRINT_COLOR}Sending Query: {messages}{AGENT_RESET_COLOR}")
-            print(f"{AGENT_PRINT_COLOR}Sending Query.{AGENT_RESET_COLOR}")
+            # self.logger.debug(f"Sending Query: {messages}")
+            self.logger.info("Sending Query.")
             response_message = self._send_query(messages)
-            print(f"{AGENT_PRINT_COLOR}Received Response: {response_message}{AGENT_RESET_COLOR}")
+            self.logger.info(f"Received Response: {response_message}")
             if response_message is None:
                 raise Exception("Response message does not exist.")
 
             # TODO: Make this more generic. The parsed tag and tooling handling may be OpenAI-specific.
             # If no skills are provided or there are no tool calls, emit the response directly.
-            if (self.skills is None or self.skills.get_tools() in (None, NOT_GIVEN) or
+            if (self.skills is None or
+                    self.skills.get_tools() in (None, NOT_GIVEN) or
                     response_message.tool_calls is None):
                 final_msg = (response_message.parsed
-                             if hasattr(response_message, 'parsed') and response_message.parsed
-                             else response_message.content)
+                             if hasattr(response_message, 'parsed') and
+                             response_message.parsed else
+                             response_message.content)
                 observer.on_next(final_msg)
             else:
-                response_message_2 = self._handle_tooling(response_message, messages)
+                response_message_2 = self._handle_tooling(
+                    response_message, messages)
                 final_msg = response_message_2 if response_message_2 is not None else response_message
                 observer.on_next(final_msg)
             observer.on_completed()
         except Exception as e:
-            print(f"{AGENT_PRINT_COLOR}[ERROR] Query failed in {self.dev_name}: {e}{AGENT_RESET_COLOR}")
+            self.logger.error(f"Query failed in {self.dev_name}: {e}")
             observer.on_error(e)
 
-    def _send_query(self, messages: list):
+    def _send_query(self, messages: list) -> Any:
         """Sends the query to the LLM API.
 
         This method must be implemented by subclasses with specifics of the LLM API.
@@ -276,12 +343,13 @@ class LLMAgent(Agent):
             messages (list): The prompt messages to be sent.
 
         Returns:
-            The response message from the LLM.
+            Any: The response message from the LLM.
 
         Raises:
             NotImplementedError: Always, unless overridden.
         """
-        raise NotImplementedError("Subclasses must implement _send_query method.")
+        raise NotImplementedError(
+            "Subclasses must implement _send_query method.")
 
     def _log_response_to_file(self, response, output_dir: str = None):
         """Logs the LLM response to a file.
@@ -297,9 +365,10 @@ class LLMAgent(Agent):
                 log_path = os.path.join(output_dir, 'memory.txt')
                 with open(log_path, 'a') as file:
                     file.write(f"{self.dev_name}: {response}\n")
-                print(f"{AGENT_PRINT_COLOR}[INFO] LLM Response [{self.dev_name}]: {response}{AGENT_RESET_COLOR}")
+                self.logger.info(f"LLM Response [{self.dev_name}]: {response}")
 
-    def subscribe_to_image_processing(self, frame_observable: Observable) -> Disposable:
+    def subscribe_to_image_processing(
+            self, frame_observable: Observable) -> Disposable:
         """Subscribes to a stream of video frames for processing.
 
         This method sets up a subscription to process incoming video frames.
@@ -312,61 +381,91 @@ class LLMAgent(Agent):
         Returns:
             Disposable: A disposable representing the subscription.
         """
-        processing_lock = threading.Lock()
+        # Initialize frame processor if not already set
         if self.frame_processor is None:
             self.frame_processor = FrameProcessor(delete_on_init=True)
 
-        print_emission_args = {"enabled": True, "dev_name": self.dev_name, "counts": {}}
-        
-        def release_lock_on_error(e):
-            print(f"\033[91mReleasing lock for {self.dev_name} on error: {e}\033[0m")
-            safe_release()
+        print_emission_args = {
+            "enabled": True,
+            "dev_name": self.dev_name,
+            "counts": {}
+        }
 
-        def safe_release():
-            if processing_lock.locked():
-                try:
-                    processing_lock.release()
-                except RuntimeError as e:
-                    print("Lock not held, can't release")
+        def _process_frame(frame) -> Observable:
+            """
+            Processes a single frame by:
+            - Logging the receipt
+            - Exporting the frame as a JPEG
+            - Encoding the image
+            - Filtering out invalid results
+            - Sending the encoded image to the LLM via _observable_query
+            
+            Returns:
+                An observable that emits the response from _observable_query.
+            """
+            return just(frame).pipe(
+                MyOps.print_emission(id='B', **print_emission_args),
+                RxOps.observe_on(self.pool_scheduler),
+                MyOps.print_emission(id='C', **print_emission_args),
+                RxOps.subscribe_on(self.pool_scheduler),
+                MyOps.print_emission(id='D', **print_emission_args),
+                MyVidOps.with_jpeg_export(self.frame_processor,
+                                          suffix=f"{self.dev_name}_frame_",
+                                          save_limit=_MAX_SAVED_FRAMES),
+                MyOps.print_emission(id='E', **print_emission_args),
+                MyVidOps.encode_image(),
+                MyOps.print_emission(id='F', **print_emission_args),
+                RxOps.filter(lambda base64_and_dims: base64_and_dims is not None
+                             and base64_and_dims[0] is not None and
+                             base64_and_dims[1] is not None),
+                MyOps.print_emission(id='G', **print_emission_args),
+                RxOps.flat_map(lambda base64_and_dims: create(
+                    lambda observer, _: self._observable_query(
+                        observer,
+                        base64_image=base64_and_dims[0],
+                        dimensions=base64_and_dims[1]))),
+                MyOps.print_emission(id='H', **print_emission_args),
+            )
 
-        observable: Observable = frame_observable.pipe(
-            MyOps.print_emission(id='A', **print_emission_args),
-            RxOps.filter(lambda _: not processing_lock.locked()),
-            MyOps.print_emission(id='B', **print_emission_args),
-            RxOps.do_action(on_next=lambda _: processing_lock.acquire(blocking=False)),
-            MyOps.print_emission(id='C', **print_emission_args),
-            RxOps.observe_on(self.pool_scheduler),
-            MyOps.print_emission(id='D', **print_emission_args),
-            MyVidOps.with_jpeg_export(self.frame_processor, suffix=f"{self.dev_name}_frame_", save_limit=100),
-            MyOps.print_emission(id='E', **print_emission_args),
-            # Process the item:
-            # ==========================
-            MyVidOps.encode_image(),
-            MyOps.print_emission(id='F', **print_emission_args),
-            RxOps.filter(lambda base64_and_dims: base64_and_dims is not None 
-                         and base64_and_dims[0] is not None and base64_and_dims[1] is not None),
-            RxOps.flat_map(lambda base64_and_dims: create(
-                lambda observer, _: self._observable_query(
-                    observer, base64_image=base64_and_dims[0], dimensions=base64_and_dims[1]
-                ).pipe(
-                    RxOps.catch(lambda e, _: release_lock_on_error(e)),
+        # Use a mutable flag to ensure only one frame is processed at a time.
+        is_processing = [False]
+
+        def process_if_free(frame):
+            if is_processing[0]:
+                # Drop frame if a request is in progress
+                return empty()
+            else:
+                is_processing[0] = True
+                return _process_frame(frame).pipe(
+                    MyOps.print_emission(id='I', **print_emission_args),
+                    RxOps.observe_on(self.pool_scheduler),
+                    MyOps.print_emission(id='J', **print_emission_args),
+                    RxOps.subscribe_on(self.pool_scheduler),
+                    MyOps.print_emission(id='K', **print_emission_args),
+                    RxOps.do_action(
+                        on_completed=lambda: is_processing.__setitem__(
+                            0, False),
+                        on_error=lambda e: is_processing.__setitem__(0, False)),
+                    MyOps.print_emission(id='L', **print_emission_args),
                 )
-            )),
-            # ==========================
-            MyOps.print_emission(id='G', **print_emission_args),
-            RxOps.do_action(on_next=safe_release()),
-            MyOps.print_emission(id='H', **print_emission_args),
-            RxOps.subscribe_on(self.pool_scheduler)
+
+        observable = frame_observable.pipe(
+            MyOps.print_emission(id='A', **print_emission_args),
+            RxOps.flat_map(process_if_free),
+            MyOps.print_emission(id='M', **print_emission_args),
         )
+
         disposable = observable.subscribe(
-            on_next=lambda response: self._log_response_to_file(response, self.output_dir),
-            on_error=release_lock_on_error,
-            on_completed=lambda: print(f"{AGENT_PRINT_COLOR}Stream processing completed for {self.dev_name}{AGENT_RESET_COLOR}")
-        )
+            on_next=lambda response: self._log_response_to_file(
+                response, self.output_dir),
+            on_error=lambda e: self.logger.error(f"Error encountered: {e}"),
+            on_completed=lambda: self.logger.info(
+                f"Stream processing completed for {self.dev_name}"))
         self.disposables.add(disposable)
         return disposable
 
-    def subscribe_to_query_processing(self, query_observable: Observable) -> Disposable:
+    def subscribe_to_query_processing(
+            self, query_observable: Observable) -> Disposable:
         """Subscribes to a stream of queries for processing.
 
         This method sets up a subscription to process incoming queries by directly
@@ -378,47 +477,66 @@ class LLMAgent(Agent):
         Returns:
             Disposable: A disposable representing the subscription.
         """
-        processing_lock = threading.Lock()
-        print_emission_args = {"enabled": True, "dev_name": self.dev_name, "counts": {}}
+        print_emission_args = {
+            "enabled": True,
+            "dev_name": self.dev_name,
+            "counts": {}
+        }
 
-        def release_lock_on_error(e):
-            print(f"\033[91mReleasing lock for {self.dev_name} on error: {e}\033[0m")
-            safe_release()
+        def _process_query(query) -> Observable:
+            """
+            Processes a single query by logging it and passing it to _observable_query.
+            Returns an observable that emits the LLM response.
+            """
+            return just(query).pipe(
+                MyOps.print_emission(id='Pr A', **print_emission_args),
+                RxOps.flat_map(lambda query: create(
+                    lambda observer, _: self._observable_query(
+                        observer, incoming_query=query))),
+                MyOps.print_emission(id='Pr B', **print_emission_args),
+            )
 
-        def safe_release():
-            if processing_lock.locked():
-                try:
-                    processing_lock.release()
-                except RuntimeError as e:
-                    print("Lock not held, can't release")
+        # A mutable flag indicating whether a query is currently being processed.
+        is_processing = [False]
 
-        observable: Observable = query_observable.pipe(
+        def process_if_free(query):
+            if is_processing[0]:
+                # Drop query if a request is already in progress.
+                return empty()
+            else:
+                is_processing[0] = True
+                self.logger.info("Processing Query.")
+                return _process_query(query).pipe(
+                    MyOps.print_emission(id='B', **print_emission_args),
+                    RxOps.observe_on(self.pool_scheduler),
+                    MyOps.print_emission(id='C', **print_emission_args),
+                    RxOps.subscribe_on(self.pool_scheduler),
+                    MyOps.print_emission(id='D', **print_emission_args),
+                    RxOps.do_action(
+                        on_completed=lambda: is_processing.__setitem__(
+                            0, False),
+                        on_error=lambda e: is_processing.__setitem__(0, False)),
+                    MyOps.print_emission(id='E', **print_emission_args),
+                )
+
+        observable = query_observable.pipe(
             MyOps.print_emission(id='A', **print_emission_args),
-            RxOps.filter(lambda _: not processing_lock.locked()),
-            MyOps.print_emission(id='B', **print_emission_args),
-            RxOps.do_action(on_next=lambda _: processing_lock.acquire(blocking=False)),
-            MyOps.print_emission(id='C', **print_emission_args),
-            RxOps.observe_on(self.pool_scheduler),
-            MyOps.print_emission(id='D', **print_emission_args),
-            # Process the item:
-            # ==========================
-            RxOps.flat_map(lambda incoming_query: create(
-                lambda observer, _: self._observable_query(observer, incoming_query=incoming_query)
-            )),
-            # ==========================
-            MyOps.print_emission(id='E', **print_emission_args),
-            RxOps.do_action(on_next=lambda _: processing_lock.release()),
-            MyOps.print_emission(id='F', **print_emission_args),
-            RxOps.subscribe_on(self.pool_scheduler)
-        )
+            RxOps.flat_map(lambda query: process_if_free(query)),
+            MyOps.print_emission(id='F', **print_emission_args))
+
         disposable = observable.subscribe(
-            on_next=lambda response: self._log_response_to_file(response, self.output_dir),
-            on_error=release_lock_on_error,
-            on_completed=lambda: print(f"{AGENT_PRINT_COLOR}Stream processing completed for {self.dev_name}{AGENT_RESET_COLOR}")
-        )
+            on_next=lambda response: self._log_response_to_file(
+                response, self.output_dir),
+            on_error=lambda e: self.logger.error(
+                f"Error processing query for {self.dev_name}: {e}"),
+            on_completed=lambda: self.logger.info(
+                f"Stream processing completed for {self.dev_name}"))
         self.disposables.add(disposable)
         return disposable
+
+
 # endregion LLMAgent Base Class (Generic LLM Agent)
+
 
 # -----------------------------------------------------------------------------
 # region OpenAIAgent Subclass (OpenAI-Specific Implementation)
@@ -464,32 +582,30 @@ class OpenAIAgent(LLMAgent):
             input_video_stream (Observable): An observable for video frames.
             output_dir (str): Directory for output files.
             agent_memory (AbstractAgentSemanticMemory): The memory system.
-            system_query (str): The system prompt template.
-            system_query_without_documents (str): Fallback system prompt.
-            max_input_tokens_per_request (int): Maximum input tokens.
-            max_output_tokens_per_request (int): Maximum output tokens.
-            model_name (str): The OpenAI model name.
-            prompt_builder (PromptBuilder): The prompt builder instance.
-            tokenizer (AbstractTokenizer): The tokenizer.
-            rag_query_n (int): Number of results for RAG.
-            rag_similarity_threshold (float): Similarity threshold for RAG.
+            system_query (str): The system prompt to use with RAG context.
+            system_query_without_documents (str): The system prompt to use without RAG context.
+            max_input_tokens_per_request (int): Maximum tokens for input.
+            max_output_tokens_per_request (int): Maximum tokens for output.
+            model_name (str): The OpenAI model name to use.
+            prompt_builder (PromptBuilder): Custom prompt builder.
+            tokenizer (AbstractTokenizer): Custom tokenizer for token counting.
+            rag_query_n (int): Number of results to fetch in RAG queries.
+            rag_similarity_threshold (float): Minimum similarity for RAG results.
             skills (AbstractSkill): Skills available to the agent.
-            response_model (BaseModel): The response model.
-            frame_processor (FrameProcessor): The frame processor.
-            image_detail (str): Level of image detail.
-            pool_scheduler (ThreadPoolScheduler): Scheduler for threading.
+            response_model (BaseModel): Optional Pydantic model for responses.
+            frame_processor (FrameProcessor): Custom frame processor.
+            image_detail (str): Detail level for images ("low", "high", "auto").
+            pool_scheduler (ThreadPoolScheduler): The scheduler to use for thread pool operations.
+                If None, the global scheduler from get_scheduler() will be used.
         """
-        super().__init__(dev_name, agent_type, agent_memory or AgentSemanticMemory())
+        super().__init__(dev_name, agent_type, agent_memory or
+                         AgentSemanticMemory(), pool_scheduler)
         self.client = OpenAI()
         self.query = query
         self.output_dir = output_dir
         self.system_query = system_query
         self.system_query_without_documents = system_query_without_documents
         os.makedirs(self.output_dir, exist_ok=True)
-
-        # Set up a thread pool scheduler.
-        import multiprocessing
-        self.pool_scheduler = pool_scheduler or ThreadPoolScheduler(multiprocessing.cpu_count())
 
         # Configure skills.
         self.skills = skills if skills is not None else AbstractSkill()
@@ -499,7 +615,8 @@ class OpenAIAgent(LLMAgent):
         self.response_model = response_model if response_model is not None else NOT_GIVEN
         self.model_name = model_name
         self.prompt_builder = prompt_builder or PromptBuilder(self.model_name)
-        self.tokenizer = tokenizer or OpenAI_Tokenizer(model_name=self.model_name)
+        self.tokenizer = tokenizer or OpenAI_Tokenizer(
+            model_name=self.model_name)
         self.rag_query_n = rag_query_n
         self.rag_similarity_threshold = rag_similarity_threshold
         self.image_detail = image_detail
@@ -510,36 +627,50 @@ class OpenAIAgent(LLMAgent):
         # Add static context to memory.
         self._add_context_to_memory()
 
-        self.frame_processor = frame_processor or FrameProcessor(delete_on_init=True)
+        self.frame_processor = frame_processor or FrameProcessor(
+            delete_on_init=True)
         self.input_video_stream = input_video_stream
         self.input_query_stream = input_query_stream
 
         # Ensure only one input stream is provided.
         if self.input_video_stream is not None and self.input_query_stream is not None:
-            raise ValueError("More than one input stream provided. Please provide only one input stream.")
+            raise ValueError(
+                "More than one input stream provided. Please provide only one input stream."
+            )
 
         if self.input_video_stream is not None:
-            print(f"{AGENT_PRINT_COLOR}Subscribing to input video stream...{AGENT_RESET_COLOR}")
-            self.disposables.add(self.subscribe_to_image_processing(self.input_video_stream))
+            self.logger.info("Subscribing to input video stream...")
+            self.disposables.add(
+                self.subscribe_to_image_processing(self.input_video_stream))
         if self.input_query_stream is not None:
-            print(f"{AGENT_PRINT_COLOR}Subscribing to input query stream...{AGENT_RESET_COLOR}")
-            self.disposables.add(self.subscribe_to_query_processing(self.input_query_stream))
+            self.logger.info("Subscribing to input query stream...")
+            self.disposables.add(
+                self.subscribe_to_query_processing(self.input_query_stream))
 
-        print(f"{AGENT_PRINT_COLOR}OpenAI Agent Initialized.{AGENT_RESET_COLOR}")
+        self.logger.info("OpenAI Agent Initialized.")
 
     def _add_context_to_memory(self):
         """Adds initial context to the agent's memory."""
         context_data = [
-            ("id0", "Optical Flow is a technique used to track the movement of objects in a video sequence."),
-            ("id1", "Edge Detection is a technique used to identify the boundaries of objects in an image."),
-            ("id2", "Video is a sequence of frames captured at regular intervals."),
-            ("id3", "Colors in Optical Flow are determined by the movement of light, and can be used to track the movement of objects."),
-            ("id4", "Json is a data interchange format that is easy for humans to read and write, and easy for machines to parse and generate."),
+            ("id0",
+             "Optical Flow is a technique used to track the movement of objects in a video sequence."
+            ),
+            ("id1",
+             "Edge Detection is a technique used to identify the boundaries of objects in an image."
+            ),
+            ("id2",
+             "Video is a sequence of frames captured at regular intervals."),
+            ("id3",
+             "Colors in Optical Flow are determined by the movement of light, and can be used to track the movement of objects."
+            ),
+            ("id4",
+             "Json is a data interchange format that is easy for humans to read and write, and easy for machines to parse and generate."
+            ),
         ]
         for doc_id, text in context_data:
             self.agent_memory.add_vector(doc_id, text)
 
-    def _send_query(self, messages: list):
+    def _send_query(self, messages: list) -> Any:
         """Sends the query to OpenAI's API.
 
         Depending on whether a response model is provided, the appropriate API
@@ -553,25 +684,42 @@ class OpenAIAgent(LLMAgent):
 
         Raises:
             Exception: If no response message is returned.
+            ConnectionError: If there's an issue connecting to the API.
+            ValueError: If the messages or other parameters are invalid.
         """
-        if self.response_model is not NOT_GIVEN:
-            response = self.client.beta.chat.completions.parse(
-                model=self.model_name,
-                messages=messages,
-                response_format=self.response_model,
-                tools=(self.skills.get_tools() if self.skills is not None else NOT_GIVEN),
-                max_tokens=self.max_output_tokens_per_request,
-            )
-        else:
-            response = self.client.chat.completions.create(
-                model=self.model_name,
-                messages=messages,
-                max_tokens=self.max_output_tokens_per_request,
-                tools=(self.skills.get_tools() if self.skills is not None else NOT_GIVEN),
-            )
-        response_message = response.choices[0].message
-        if response_message is None:
-            print(f"{AGENT_PRINT_COLOR}Response message does not exist.{AGENT_RESET_COLOR}")
-            raise Exception("Response message does not exist.")
-        return response_message
+        try:
+            if self.response_model is not NOT_GIVEN:
+                response = self.client.beta.chat.completions.parse(
+                    model=self.model_name,
+                    messages=messages,
+                    response_format=self.response_model,
+                    tools=(self.skills.get_tools()
+                           if self.skills is not None else NOT_GIVEN),
+                    max_tokens=self.max_output_tokens_per_request,
+                )
+            else:
+                response = self.client.chat.completions.create(
+                    model=self.model_name,
+                    messages=messages,
+                    max_tokens=self.max_output_tokens_per_request,
+                    tools=(self.skills.get_tools()
+                           if self.skills is not None else NOT_GIVEN),
+                )
+
+            response_message = response.choices[0].message
+            if response_message is None:
+                self.logger.error("Response message does not exist.")
+                raise Exception("Response message does not exist.")
+            return response_message
+        except ConnectionError as ce:
+            self.logger.error(f"Connection error with API: {ce}")
+            raise
+        except ValueError as ve:
+            self.logger.error(f"Invalid parameters: {ve}")
+            raise
+        except Exception as e:
+            self.logger.error(f"Unexpected error in API call: {e}")
+            raise
+
+
 # endregion OpenAIAgent Subclass (OpenAI-Specific Implementation)
