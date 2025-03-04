@@ -24,7 +24,7 @@ import math
 from nav2_simple_commander.robot_navigator import BasicNavigator
 from builtin_interfaces.msg import Duration
 from geometry_msgs.msg import Point
-from dimos.stream.webrtc import WebRTCQueueManager
+from dimos.robot.ros_command_queue import ROSCommandQueue
 
 
 __all__ = ['ROSControl', 'RobotMode']
@@ -167,18 +167,17 @@ class ROSControl(ABC):
             self._webrtc_pub = self._node.create_publisher(
                 webrtc_msg_type, webrtc_topic, qos_profile=command_qos)
             
-            # Initialize WebRTCQueueManager after publishers are created
-            self._webrtc_queue_manager = WebRTCQueueManager(
-                send_request_func=self.webrtc_req,
-                is_ready_func=lambda: self._mode == RobotMode.IDLE,
-                is_busy_func=lambda: self._mode == RobotMode.MOVING,
+            # Initialize command queue
+            self._command_queue = ROSCommandQueue(
+                webrtc_func=self.webrtc_req,
+                is_ready_func=lambda: self._debug_is_ready(),
+                is_busy_func=lambda: self._debug_is_busy(),
                 logger=self._logger
             )
-            # Start the queue manager immediately
-            self._webrtc_queue_manager.start()
+            # Start the queue processing thread
+            self._command_queue.start()
         else:
             self._logger.warning("No WebRTC message type provided - WebRTC commands will be unavailable")
-            self._webrtc_queue_manager = None
             
         # Start ROS spin in a background thread via the executor
         self._spin_thread = threading.Thread(target=self._ros_spin, daemon=True)
@@ -199,6 +198,7 @@ class ROSControl(ABC):
         
         # Call the abstract method to update RobotMode enum based on the received state
         self._robot_state = msg
+        print(f"[ROSControl] State callback received: {msg.mode}, {msg.progress}")
         self._update_mode(msg)
         # Log state changes
         self._logger.debug(f"Robot state updated: {self._robot_state}")
@@ -275,13 +275,63 @@ class ROSControl(ABC):
         return self._video_provider
     
 
-    def move(self, distance: float, speed: float = 0.5 ,time_allowance: float = 20) -> bool:
+    def _send_action_client_goal(self, client, goal_msg, description=None, time_allowance=20.0):
+        """
+        Generic function to send any action client goal and wait for completion.
+        
+        Args:
+            client: The action client to use
+            goal_msg: The goal message to send
+            description: Optional description for logging
+            time_allowance: Maximum time to wait for completion
+            
+        Returns:
+            bool: True if action succeeded, False otherwise
+        """
+        if description:
+            self._logger.info(description)
+            
+        print(f"[ROSControl] Sending action client goal: {description}")
+        print(f"[ROSControl] Goal message: {goal_msg}")
+            
+        # Reset action result tracking
+        self._action_success = None
+        
+        # Send the goal
+        send_goal_future = client.send_goal_async(
+            goal_msg, 
+            feedback_callback=lambda feedback: None
+        )
+        send_goal_future.add_done_callback(self._goal_response_callback)
+        
+        # Wait for completion
+        start_time = time.time()
+        while self._action_success is None and time.time() - start_time < time_allowance:
+            time.sleep(0.1)
+            
+        elapsed = time.time() - start_time
+        print(f"[ROSControl] Action completed in {elapsed:.2f}s with result: {self._action_success}")
+            
+        # Check result    
+        if self._action_success is None:
+            self._logger.error(f"Action timed out after {time_allowance}s")
+            return False
+        elif self._action_success:
+            self._logger.info(f"Action succeeded")
+            return True
+        else:
+            self._logger.error(f"Action failed")
+            return False
+
+    def move(self, distance: float, speed: float = 0.5, time_allowance: float = 120) -> bool:
         """
         Move the robot forward by a specified distance
         
         Args:
             distance: Distance to move forward in meters (must be positive)
             speed: Speed to move at in m/s (default 0.5)
+            time_allowance: Maximum time to wait for the request to complete
+            
         Returns:
             bool: True if movement succeeded
         """
@@ -292,32 +342,35 @@ class ROSControl(ABC):
                 
             speed = min(abs(speed), self.MAX_LINEAR_VELOCITY)
             
-            # Create DriveOnHeading goal
-            goal = DriveOnHeading.Goal()
-            goal.target.x = distance
-            goal.target.y = 0.0
-            goal.target.z = 0.0
-            goal.speed = speed
-            goal.time_allowance = Duration(sec=time_allowance)
-            
-            self._logger.info(f"Moving forward: distance={distance}m, speed={speed}m/s")
-            
-            # Send goal
-            goal_future = self._drive_client.send_goal_async(goal)
-            goal_future.add_done_callback(self._goal_response_callback)
-            
-            # Wait for completion
-            rclpy.spin_until_future_complete(self._node, goal_future)
-            goal_handle = goal_future.result()
-            
-            if not goal_handle.accepted:
-                self._logger.error('DriveOnHeading goal rejected')
-                return False
+            # Define function to execute the move
+            def execute_move():
+                # Create DriveOnHeading goal
+                goal = DriveOnHeading.Goal()
+                goal.target.x = distance
+                goal.target.y = 0.0
+                goal.target.z = 0.0
+                goal.speed = speed
+                goal.time_allowance = Duration(sec=time_allowance)
                 
-            # Get result
-            result_future = goal_handle.get_result_async()
-            rclpy.spin_until_future_complete(self._node, result_future)
+                self._logger.info(f"Moving forward: distance={distance}m, speed={speed}m/s")
+                
+                return self._send_action_client_goal(
+                    self._drive_client, 
+                    goal, 
+                    f"Moving forward {distance}m at {speed}m/s", 
+                    time_allowance
+                )
             
+            # Queue the action
+            cmd_id = self._command_queue.queue_action_client_request(
+                action_name="move",
+                execute_func=execute_move,
+                priority=0,
+                timeout=time_allowance,
+                distance=distance,
+                speed=speed
+            )
+            self._logger.info(f"Queued move command: {cmd_id} - Distance: {distance}m, Speed: {speed}m/s")
             return True
                 
         except Exception as e:
@@ -325,14 +378,16 @@ class ROSControl(ABC):
             import traceback
             self._logger.error(traceback.format_exc())
             return False
-            
-    def reverse(self, distance: float, speed: float = 0.5, time_allowance: float = 20) -> bool:
+
+    def reverse(self, distance: float, speed: float = 0.5, time_allowance: float = 120) -> bool:
         """
         Move the robot backward by a specified distance
         
         Args:
             distance: Distance to move backward in meters (must be positive)
             speed: Speed to move at in m/s (default 0.5)
+            time_allowance: Maximum time to wait for the request to complete
+            
         Returns:
             bool: True if movement succeeded
         """
@@ -343,33 +398,42 @@ class ROSControl(ABC):
                 
             speed = min(abs(speed), self.MAX_LINEAR_VELOCITY)
             
-            # Create BackUp goal
-            goal = BackUp.Goal()
-            goal.target = Point()
-            goal.target.x = -distance  # Negative for backward motion
-            goal.target.y = 0.0
-            goal.target.z = 0.0
-            goal.speed = speed  # BackUp expects positive speed
-            goal.time_allowance = Duration(sec=time_allowance)
-            
-            self._logger.info(f"Moving backward: distance={distance}m, speed={speed}m/s")
-            
-            # Send goal
-            goal_future = self._backup_client.send_goal_async(goal)
-            goal_future.add_done_callback(self._goal_response_callback)
-            
-            # Wait for completion
-            rclpy.spin_until_future_complete(self._node, goal_future)
-            goal_handle = goal_future.result()
-            
-            if not goal_handle.accepted:
-                self._logger.error('BackUp goal rejected')
-                return False
+            # Define function to execute the reverse
+            def execute_reverse():
+                # Create BackUp goal
+                goal = BackUp.Goal()
+                goal.target = Point()
+                goal.target.x = -distance  # Negative for backward motion
+                goal.target.y = 0.0
+                goal.target.z = 0.0
+                goal.speed = speed  # BackUp expects positive speed
+                goal.time_allowance = Duration(sec=time_allowance)
                 
-            # Get result
-            result_future = goal_handle.get_result_async()
-            rclpy.spin_until_future_complete(self._node, result_future)
+                print(f"[ROSControl] execute_reverse: Creating BackUp goal with distance={distance}m, speed={speed}m/s")
+                print(f"[ROSControl] execute_reverse: Goal details: x={goal.target.x}, y={goal.target.y}, z={goal.target.z}, speed={goal.speed}")
+                
+                self._logger.info(f"Moving backward: distance={distance}m, speed={speed}m/s")
+                
+                result = self._send_action_client_goal(
+                    self._backup_client, 
+                    goal, 
+                    f"Moving backward {distance}m at {speed}m/s", 
+                    time_allowance
+                )
+                
+                print(f"[ROSControl] execute_reverse: BackUp action result: {result}")
+                return result
             
+            # Queue the action
+            cmd_id = self._command_queue.queue_action_client_request(
+                action_name="reverse",
+                execute_func=execute_reverse,
+                priority=0,
+                timeout=time_allowance,
+                distance=distance,
+                speed=speed
+            )
+            self._logger.info(f"Queued reverse command: {cmd_id} - Distance: {distance}m, Speed: {speed}m/s")
             return True
                 
         except Exception as e:
@@ -377,14 +441,16 @@ class ROSControl(ABC):
             import traceback
             self._logger.error(traceback.format_exc())
             return False
-            
-    def spin(self, degrees: float, speed: float = 45.0, time_allowance: float = 20) -> bool:
+
+    def spin(self, degrees: float, speed: float = 45.0, time_allowance: float = 120) -> bool:
         """
         Rotate the robot by a specified angle
         
         Args:
             degrees: Angle to rotate in degrees (positive for counter-clockwise, negative for clockwise)
             speed: Angular speed in degrees/second (default 45.0)
+            time_allowance: Maximum time to wait for the request to complete
+            
         Returns:
             bool: True if movement succeeded
         """
@@ -397,29 +463,32 @@ class ROSControl(ABC):
             angular_speed = min(angular_speed, self.MAX_ANGULAR_VELOCITY)
             time_allowance = max(int(abs(angle) / angular_speed * 2), 20)  # At least 20 seconds or double the expected time
             
-            # Create Spin goal
-            goal = Spin.Goal()
-            goal.target_yaw = angle  # Nav2 Spin action expects radians
-            goal.time_allowance = Duration(sec=time_allowance)
-            
-            self._logger.info(f"Spinning: angle={degrees}deg ({angle:.2f}rad)")
-            
-            # Send goal
-            goal_future = self._spin_client.send_goal_async(goal)
-            goal_future.add_done_callback(self._goal_response_callback)
-            
-            # Wait for completion
-            rclpy.spin_until_future_complete(self._node, goal_future)
-            goal_handle = goal_future.result()
-            
-            if not goal_handle.accepted:
-                self._logger.error('Spin goal rejected')
-                return False
+            # Define function to execute the spin
+            def execute_spin():
+                # Create Spin goal
+                goal = Spin.Goal()
+                goal.target_yaw = angle  # Nav2 Spin action expects radians
+                goal.time_allowance = Duration(sec=time_allowance)
                 
-            # Get result
-            result_future = goal_handle.get_result_async()
-            rclpy.spin_until_future_complete(self._node, result_future)
+                self._logger.info(f"Spinning: angle={degrees}deg ({angle:.2f}rad)")
+                
+                return self._send_action_client_goal(
+                    self._spin_client, 
+                    goal, 
+                    f"Spinning {degrees} degrees at {speed} deg/s", 
+                    time_allowance
+                )
             
+            # Queue the action
+            cmd_id = self._command_queue.queue_action_client_request(
+                action_name="spin",
+                execute_func=execute_spin,
+                priority=0,
+                timeout=time_allowance,
+                degrees=degrees,
+                speed=speed
+            )
+            self._logger.info(f"Queued spin command: {cmd_id} - Degrees: {degrees}, Speed: {speed}deg/s")
             return True
                 
         except Exception as e:
@@ -427,15 +496,18 @@ class ROSControl(ABC):
             import traceback
             self._logger.error(traceback.format_exc())
             return False
-    
+
     def _goal_response_callback(self, future):
         """Handle the goal response."""
         goal_handle = future.result()
         if not goal_handle.accepted:
             self._logger.warn('Goal was rejected!')
+            print("[ROSControl] Goal was REJECTED by the action server")
+            self._action_success = False
             return
 
         self._logger.info('Goal accepted')
+        print("[ROSControl] Goal was ACCEPTED by the action server")
         result_future = goal_handle.get_result_async()
         result_future.add_done_callback(self._goal_result_callback)
     
@@ -444,8 +516,12 @@ class ROSControl(ABC):
         try:
             result = future.result().result
             self._logger.info('Goal completed')
+            print(f"[ROSControl] Goal COMPLETED with result: {result}")
+            self._action_success = True
         except Exception as e:
             self._logger.error(f'Goal failed with error: {e}')
+            print(f"[ROSControl] Goal FAILED with error: {e}")
+            self._action_success = False
     
     def stop(self) -> bool:
         """Stop all robot movement"""
@@ -463,9 +539,9 @@ class ROSControl(ABC):
         self.stop()
 
         # Stop the WebRTC queue manager
-        if self._webrtc_queue_manager:
+        if self._command_queue:
             self._logger.info("Stopping WebRTC queue manager...")
-            self._webrtc_queue_manager.stop()
+            self._command_queue.stop()
 
         # Shut down the executor to stop spin loop cleanly
         self._executor.shutdown()
@@ -474,7 +550,8 @@ class ROSControl(ABC):
         self._node.destroy_node()
         rclpy.shutdown()
 
-    def webrtc_req(self, api_id: int, topic: str = 'rt/api/sport/request', parameter: str = '', priority: int = 0) -> bool:
+    def webrtc_req(self, api_id: int, topic: str = 'rt/api/sport/request', parameter: str = '', 
+                priority: int = 0, request_id: str = None, data=None, params=None) -> bool:
         """
         Send a WebRTC request command to the robot
         
@@ -483,6 +560,9 @@ class ROSControl(ABC):
             topic: The topic to publish to (e.g. 'rt/api/sport/request')
             parameter: Optional parameter string
             priority: Priority level (0 or 1)
+            request_id: Optional request ID for tracking (not used in ROS implementation)
+            data: Optional data dictionary (not used in ROS implementation)
+            params: Optional params dictionary (not used in ROS implementation)
             
         Returns:
             bool: True if command was sent successfully
@@ -519,8 +599,8 @@ class ROSControl(ABC):
         print(f"Mode enum: {mode}")
 
     def queue_webrtc_req(self, api_id: int, topic: str = 'rt/api/sport/request', 
-                         parameter: str = '', priority: int = 0, 
-                         timeout: float = 90.0) -> str:
+                          parameter: str = '', priority: int = 0, 
+                          timeout: float = 90.0, request_id: str = None, data=None) -> str:
         """
         Queue a WebRTC request to be sent when the robot is IDLE
         
@@ -530,18 +610,30 @@ class ROSControl(ABC):
             parameter: Optional parameter string
             priority: Priority level (0 or 1)
             timeout: Maximum time to wait for the request to complete
+            request_id: Optional request ID (if None, one will be generated)
+            data: Optional data dictionary (not used in ROS implementation)
             
         Returns:
             str: Request ID that can be used to track the request
         """
-        if self._webrtc_queue_manager is None:
-            self._logger.error("WebRTC queue manager not initialized - cannot queue request")
-            return ""
-            
-        return self._webrtc_queue_manager.queue_request(
+        return self._command_queue.queue_webrtc_request(
             api_id=api_id,
             topic=topic,
-            parameter=parameter,
+            params={'parameter': parameter},
             priority=priority,
-            timeout=timeout
+            timeout=timeout,
+            request_id=request_id,
+            data=data
         )
+
+    def _debug_is_ready(self):
+        """Debug wrapper for is_ready_func"""
+        is_ready = self._mode == RobotMode.IDLE
+        print(f"[ROSControl] is_ready check: {is_ready} (mode={self._mode.name})")
+        return is_ready
+        
+    def _debug_is_busy(self):
+        """Debug wrapper for is_busy_func"""
+        is_busy = self._mode == RobotMode.MOVING
+        print(f"[ROSControl] is_busy check: {is_busy} (mode={self._mode.name})")
+        return is_busy

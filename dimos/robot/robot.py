@@ -88,7 +88,8 @@ class Robot(ABC):
             raise RuntimeError("No ROS control interface available for rotation")
         return self.ros_control.spin(degrees, speed)
     
-    def webrtc_req(self, api_id: int, topic: str = 'rt/api/sport/request', parameter: str = '', priority: int = 0) -> bool:
+    def webrtc_req(self, api_id: int, topic: str = 'rt/api/sport/request', parameter: str = '', 
+                  priority: int = 0, request_id: str = None, data=None, timeout: float = 100.0) -> bool:
         """Send a WebRTC request command to the robot.
         
         Args:
@@ -96,13 +97,24 @@ class Robot(ABC):
             topic: The topic to publish to (e.g. 'rt/api/sport/request')
             parameter: Optional parameter string
             priority: Priority level (0 or 1)
+            request_id: Optional request ID for tracking
+            data: Optional data dictionary
+            timeout: Maximum time to wait for the command to complete
             
         Returns:
-            bool: True if command was sent successfully
+            str or bool: Request ID if queued, True if sent directly
         """
         if self.ros_control is None:
             raise RuntimeError("No ROS control interface available for WebRTC commands")
-        return self.ros_control.queue_webrtc_req(api_id, topic, parameter, priority)
+        return self.ros_control.queue_webrtc_req(
+            api_id=api_id, 
+            topic=topic, 
+            parameter=parameter, 
+            priority=priority,
+            request_id=request_id,
+            data=data,
+            timeout=timeout
+        )
 
     @abstractmethod
     def do(self, *args, **kwargs):
