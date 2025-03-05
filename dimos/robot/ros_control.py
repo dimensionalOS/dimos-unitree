@@ -46,13 +46,14 @@ class ROSControl(ABC):
                  camera_topics: Dict[str, str] = None,
                  use_compressed_video: bool = False,
                  max_linear_velocity: float = 1.0,
-                 mock_connection: bool = False):
+                 mock_connection: bool = False,
                  max_angular_velocity: float = 2.0,
                  state_topic: str = None,
                  imu_topic: str = None,
                  state_msg_type: Type = None,
                  imu_msg_type: Type = None,
                  webrtc_msg_type: Type = None):
+    
         """
         Initialize base ROS control interface
         Args:

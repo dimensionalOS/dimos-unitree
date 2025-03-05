@@ -39,7 +39,7 @@ class UnitreeROSControl(ROSControl):
             node_name=node_name,
             camera_topics=active_camera_topics,
             use_compressed_video=use_compressed,
-            mock_connection=mock_connection
+            mock_connection=mock_connection,
             state_topic=state_topic,
             imu_topic=imu_topic,
             webrtc_topic=webrtc_topic,
