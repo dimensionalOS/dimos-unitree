@@ -96,7 +96,7 @@ class Robot(ABC):
             api_id: The API ID for the command
             topic: The topic to publish to (defaults to ROSControl webrtc_api_topic)
             parameter: Optional parameter string
-            priority: Priority level (0 or 1)
+            priority: Priority level as defined by PriorityQueue(). Defaults to no priority. 
             request_id: Optional request ID for tracking
             data: Optional data dictionary
             timeout: Maximum time to wait for the command to complete
