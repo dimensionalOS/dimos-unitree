@@ -25,7 +25,10 @@ from nav2_simple_commander.robot_navigator import BasicNavigator
 from builtin_interfaces.msg import Duration
 from geometry_msgs.msg import Point
 from dimos.robot.ros_command_queue import ROSCommandQueue
+from dimos.utils.logging_config import setup_logger
+import logging
 
+logger = setup_logger("dimos.robot.ros_control", level=logging.DEBUG)
 
 __all__ = ['ROSControl', 'RobotMode']
 
@@ -628,15 +631,3 @@ class ROSControl(ABC):
             request_id=request_id,
             data=data
         )
-
-    def _debug_is_ready(self):
-        """Debug wrapper for is_ready_func"""
-        is_ready = self._mode == RobotMode.IDLE
-        print(f"[ROSControl] is_ready check: {is_ready} (mode={self._mode.name})")
-        return is_ready
-        
-    def _debug_is_busy(self):
-        """Debug wrapper for is_busy_func"""
-        is_busy = self._mode == RobotMode.MOVING
-        print(f"[ROSControl] is_busy check: {is_busy} (mode={self._mode.name})")
-        return is_busy

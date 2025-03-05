@@ -9,10 +9,12 @@ Commands are processed sequentially and only when the robot is in IDLE state.
 import threading
 import time
 import uuid
-import logging
 from enum import Enum, auto
 from queue import PriorityQueue, Empty
 from typing import Callable, Optional, NamedTuple, Dict, Any, Tuple, List
+from dimos.utils.logging_config import setup_logger
+import logging
+
 
 class CommandType(Enum):
     """Types of commands that can be queued"""
@@ -64,7 +66,8 @@ class ROSCommandQueue:
         self._webrtc_func = webrtc_func
         self._is_ready_func = is_ready_func or (lambda: True)
         self._is_busy_func = is_busy_func
-        self._logger = logger or logging.getLogger('ROSCommandQueue')
+        self._logger = setup_logger("dimos.robot.ros_command_queue", level=logging.DEBUG)
+
         self._debug = debug
         
         # Queue of commands to process
@@ -323,7 +326,7 @@ class ROSCommandQueue:
                         
                         # Execute the command
                         try:
-                            # All command types use the execute_func field
+                            # Where command execution occurs
                             success = command.execute_func()
                             
                             if success:
