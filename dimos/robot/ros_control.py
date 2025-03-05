@@ -45,7 +45,6 @@ class ROSControl(ABC):
     
     def __init__(self, 
                  node_name: str,
-                 webrtc_topic: str,
                  camera_topics: Dict[str, str] = None,
                  use_compressed_video: bool = False,
                  max_linear_velocity: float = 1.0,
@@ -54,13 +53,14 @@ class ROSControl(ABC):
                  imu_topic: str = None,
                  state_msg_type: Type = None,
                  imu_msg_type: Type = None,
+                 webrtc_topic: str = None,
+                 webrtc_api_topic: str = None,
                  webrtc_msg_type: Type = None,
                  debug: bool = False):
         """
         Initialize base ROS control interface
         Args:
             node_name: Name for the ROS node
-            webrtc_topic: Topic for WebRTC commands
             camera_topics: Dictionary of camera topics
             use_compressed_video: Whether to use compressed video
             max_linear_velocity: Maximum linear velocity (m/s)
@@ -69,6 +69,8 @@ class ROSControl(ABC):
             imu_topic: Topic name for IMU data (optional)
             state_msg_type: The ROS message type for state data
             imu_msg_type: The ROS message type for IMU data
+            webrtc_topic: Topic for WebRTC commands
+            webrtc_api_topic: Topic for WebRTC API commands
             webrtc_msg_type: The ROS message type for webrtc data
         """
         # Initialize rclpy and ROS node if not already running
@@ -81,6 +83,7 @@ class ROSControl(ABC):
         self._imu_msg_type = imu_msg_type
         self._webrtc_msg_type = webrtc_msg_type
         self._webrtc_topic = webrtc_topic
+        self._webrtc_api_topic = webrtc_api_topic
         self._node = Node(node_name)
         self._logger = self._node.get_logger()
         self._debug = debug
@@ -556,14 +559,18 @@ class ROSControl(ABC):
         self._node.destroy_node()
         rclpy.shutdown()
 
-    def webrtc_req(self, api_id: int, topic: str = 'rt/api/sport/request', parameter: str = '', 
-                priority: int = 0, request_id: str = None, data=None, params=None) -> bool:
+    def webrtc_req(self, api_id: int,
+                   topic: str = None,
+                   parameter: str = '', 
+                   priority: int = 0,
+                   request_id: str = None,
+                   data=None) -> bool:
         """
         Send a WebRTC request command to the robot
         
         Args:
             api_id: The API ID for the command
-            topic: The topic to publish to (e.g. 'rt/api/sport/request')
+            topic: The API topic to publish to (defaults to self._webrtc_api_topic)
             parameter: Optional parameter string
             priority: Priority level (0 or 1)
             request_id: Optional request ID for tracking (not used in ROS implementation)
@@ -577,12 +584,12 @@ class ROSControl(ABC):
             # Create and send command
             cmd = self._webrtc_msg_type()
             cmd.api_id = api_id
-            cmd.topic = topic
+            cmd.topic = topic if topic is not None else self._webrtc_api_topic
             cmd.parameter = parameter
             cmd.priority = priority
             
             self._webrtc_pub.publish(cmd)
-            self._logger.info(f"Sent WebRTC request: api_id={api_id}, topic={topic}")
+            self._logger.info(f"Sent WebRTC request: api_id={api_id}, topic={cmd.topic}")
             return True
             
         except Exception as e:
@@ -604,15 +611,19 @@ class ROSControl(ABC):
         print(f"Current RobotMode: {mode.name}")
         print(f"Mode enum: {mode}")
 
-    def queue_webrtc_req(self, api_id: int, topic: str = 'rt/api/sport/request', 
-                          parameter: str = '', priority: int = 0, 
-                          timeout: float = 90.0, request_id: str = None, data=None) -> str:
+    def queue_webrtc_req(self, api_id: int,
+                         topic: str = None,
+                         parameter: str = '',
+                         priority: int = 0, 
+                         timeout: float = 90.0,
+                         request_id: str = None,
+                         data=None) -> str:
         """
         Queue a WebRTC request to be sent when the robot is IDLE
         
         Args:
             api_id: The API ID for the command
-            topic: The topic to publish to (e.g. 'rt/api/sport/request')
+            topic: The topic to publish to (defaults to self._webrtc_api_topic)
             parameter: Optional parameter string
             priority: Priority level (0 or 1)
             timeout: Maximum time to wait for the request to complete
@@ -624,7 +635,7 @@ class ROSControl(ABC):
         """
         return self._command_queue.queue_webrtc_request(
             api_id=api_id,
-            topic=topic,
+            topic=topic if topic is not None else self._webrtc_api_topic,
             params={'parameter': parameter},
             priority=priority,
             timeout=timeout,

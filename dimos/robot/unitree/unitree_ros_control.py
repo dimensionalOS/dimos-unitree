@@ -27,12 +27,16 @@ class UnitreeROSControl(ROSControl):
     DEFAULT_WEBRTC_TOPIC = 'webrtc_req'
     DEFAULT_MAX_LINEAR_VELOCITY = 1.0
     DEFAULT_MAX_ANGULAR_VELOCITY = 2.0
+
+    # Hard coded WebRTC API parameters for Unitree Go2
+    DEFAULT_WEBRTC_API_TOPIC = 'rt/api/sport/request'
     
     def __init__(self, 
                  node_name: str = "unitree_hardware_interface",
                  state_topic: str = None,
                  imu_topic: str = None,
                  webrtc_topic: str = None,
+                 webrtc_api_topic: str = None,
                  state_msg_type: Type = None,
                  imu_msg_type: Type = None,
                  webrtc_msg_type: Type = None,
@@ -67,6 +71,7 @@ class UnitreeROSControl(ROSControl):
         state_topic = state_topic or self.DEFAULT_STATE_TOPIC
         imu_topic = imu_topic or self.DEFAULT_IMU_TOPIC
         webrtc_topic = webrtc_topic or self.DEFAULT_WEBRTC_TOPIC
+        webrtc_api_topic = webrtc_api_topic or self.DEFAULT_WEBRTC_API_TOPIC
         state_msg_type = state_msg_type or self.DEFAULT_STATE_MSG_TYPE
         imu_msg_type = imu_msg_type or self.DEFAULT_IMU_MSG_TYPE
         webrtc_msg_type = webrtc_msg_type or self.DEFAULT_WEBRTC_MSG_TYPE
@@ -79,10 +84,11 @@ class UnitreeROSControl(ROSControl):
             use_compressed_video=use_compressed,
             state_topic=state_topic,
             imu_topic=imu_topic,
-            webrtc_topic=webrtc_topic,
             state_msg_type=state_msg_type,
             imu_msg_type=imu_msg_type,
             webrtc_msg_type=webrtc_msg_type,
+            webrtc_topic=webrtc_topic,
+            webrtc_api_topic=webrtc_api_topic,
             max_linear_velocity=max_linear_velocity,
             max_angular_velocity=max_angular_velocity,
             debug=debug
