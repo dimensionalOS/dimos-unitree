@@ -24,16 +24,22 @@ class UnitreeROSControl(ROSControl):
                  imu_topic: str = 'imu',
                  webrtc_topic: str = 'webrtc_req',
                  use_compressed: bool = False,
-                 use_raw: bool = True):
+                 use_raw: bool = True,
+                 disable_video_stream: bool = False,
+                 mock_connection: bool = False):
+        
         # Select which camera topics to use
-        active_camera_topics = {
-            'main': self.CAMERA_TOPICS['raw' if use_raw else 'compressed']
-        }
+        active_camera_topics = None
+        if not disable_video_stream:
+            active_camera_topics = {
+                'main': self.CAMERA_TOPICS['raw' if use_raw else 'compressed']
+            }
         
         super().__init__(
             node_name=node_name,
             camera_topics=active_camera_topics,
             use_compressed_video=use_compressed,
+            mock_connection=mock_connection
             state_topic=state_topic,
             imu_topic=imu_topic,
             webrtc_topic=webrtc_topic,

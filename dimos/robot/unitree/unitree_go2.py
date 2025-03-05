@@ -1,4 +1,5 @@
 import multiprocessing
+from typing import Optional
 import cv2
 from dimos.robot.robot import Robot
 from dimos.robot.unitree.unitree_skills import MyUnitreeSkills
@@ -39,14 +40,16 @@ UNITREE_GO2_RESET_COLOR = "\033[0m"
 class UnitreeGo2(Robot):
     def __init__(self, 
                  agent_config: AgentConfig = None,
-                 ros_control: UnitreeROSControl = None,
+                 ros_control: Optional[UnitreeROSControl] = None,
                  ip = None,
                  connection_method: WebRTCConnectionMethod = WebRTCConnectionMethod.LocalSTA,
                  serial_number: str = None,
                  output_dir: str = os.getcwd(), # TODO: Pull from ENV variable to handle docker and local development
                  api_call_interval: int = 5,
                  use_ros: bool = True,
-                 use_webrtc: bool = False):
+                 use_webrtc: bool = False,
+                 disable_video_stream: bool = False,
+                 mock_connection: bool = False):
 
         """Initialize the UnitreeGo2 robot.
         
@@ -60,13 +63,16 @@ class UnitreeGo2(Robot):
             api_call_interval: Interval between API calls in seconds
             use_ros: Whether to use ROSControl and ROS video provider
             use_webrtc: Whether to use WebRTC video provider ONLY
+            disable_video_stream: Whether to disable the video stream
+            mock_connection: Whether to mock the connection to the robot
         """
+        print(f"Initializing UnitreeGo2 with use_ros: {use_ros} and use_webrtc: {use_webrtc}")
         if not (use_ros ^ use_webrtc):  # XOR operator ensures exactly one is True
             raise ValueError("Exactly one video/control provider (ROS or WebRTC) must be enabled")
 
         # Initialize ros_control if it is not provided and use_ros is True
         if ros_control is None and use_ros:
-            ros_control = UnitreeROSControl(node_name="unitree_go2", use_raw=True)
+            ros_control = UnitreeROSControl(node_name="unitree_go2", use_raw=True, disable_video_stream=disable_video_stream, mock_connection=mock_connection)
         super().__init__(agent_config=agent_config, ros_control=ros_control)
         
         # Initialize UnitreeGo2-specific attributes
@@ -88,10 +94,10 @@ class UnitreeGo2(Robot):
         print(f"Agent outputs will be saved to: {os.path.join(self.output_dir, 'memory.txt')}")
 
         # Choose data provider based on configuration
-        if use_ros:
+        if use_ros and not disable_video_stream:
             # Use ROS video provider from ROSControl
            self.video_stream = self.ros_control.video_provider
-        elif use_webrtc:
+        elif use_webrtc and not disable_video_stream:
             # Use WebRTC ONLY video provider
             self.video_stream = UnitreeVideoProvider(
                 dev_name="UnitreeGo2",
@@ -99,6 +105,9 @@ class UnitreeGo2(Robot):
                 serial_number=serial_number,
                 ip=self.ip if connection_method == WebRTCConnectionMethod.LocalSTA else None
             )
+        else:
+            self.video_stream = None
+        
         # Initialize video stream with specified connection method
         # self.video_stream = UnitreeVideoProvider(
 
@@ -133,7 +142,7 @@ class UnitreeGo2(Robot):
         # Define a frame processor that logs the frames to disk as jpgs
         frame_processor = FrameProcessor(
             delete_on_init=True,
-            output_dir=os.path.join(self.output_dir, "frames")
+            output_dir=os.path.join(self.output_dir, "output", "frames")
         )
 
         # # Debugging ZMQ Socket Code
@@ -177,12 +186,6 @@ class UnitreeGo2(Robot):
 
         # Skills Library
         skills_instance = MyUnitreeSkills(robot=self)
-        list_of_skills: list[AbstractSkill] = [skills_instance.Move]
-        list_of_skills_json = skills_instance.get_list_of_skills_as_json(list_of_skills)
-        skills_instance.create_instance("Move", {"robot": self})
-        print(f"skills_instance: {skills_instance}")
-        print(f"list_of_skills_json: {list_of_skills_json}")
-        skills_instance.set_tools(list_of_skills_json)
 
         print(f"{UNITREE_GO2_PRINT_COLOR}Initializing Move Agent...{UNITREE_GO2_RESET_COLOR}")
         self.UnitreeMoveAgent = OpenAIAgent(
