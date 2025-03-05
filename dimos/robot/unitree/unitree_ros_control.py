@@ -44,7 +44,9 @@ class UnitreeROSControl(ROSControl):
                  max_angular_velocity: float = None,
                  use_compressed: bool = False,
                  use_raw: bool = True,
-                 debug: bool = False):
+                 debug: bool = False
+                 disable_video_stream: bool = False,
+                 mock_connection: bool = False):
         """
         Initialize Unitree ROS control interface with default values for Unitree Go2
         
@@ -61,11 +63,16 @@ class UnitreeROSControl(ROSControl):
             use_compressed: Whether to use compressed video
             use_raw: Whether to use raw camera topics
             debug: Whether to enable debug logging
+            disable_video_stream: Whether to run without video stream for testing.
+            mock_connection: Whether to run without active ActionClient servers for testing. 
         """
+        
         # Select which camera topics to use
-        active_camera_topics = {
-            'main': self.CAMERA_TOPICS['raw' if use_raw else 'compressed']
-        }
+        active_camera_topics = None
+        if not disable_video_stream:
+            active_camera_topics = {
+                'main': self.CAMERA_TOPICS['raw' if use_raw else 'compressed']
+            }
         
         # Use default values if not provided
         state_topic = state_topic or self.DEFAULT_STATE_TOPIC
@@ -82,6 +89,7 @@ class UnitreeROSControl(ROSControl):
             node_name=node_name,
             camera_topics=active_camera_topics,
             use_compressed_video=use_compressed,
+            mock_connection=mock_connection,
             state_topic=state_topic,
             imu_topic=imu_topic,
             state_msg_type=state_msg_type,

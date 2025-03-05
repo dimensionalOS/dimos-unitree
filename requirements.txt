@@ -2,10 +2,11 @@ opencv-python
 python-dotenv
 openai
 numpy
+colorlog==6.9.0
+yapf==0.40.2
 
 # pycolmap
 
-numpy
 ffmpeg-python
 pytest
 python-dotenv
