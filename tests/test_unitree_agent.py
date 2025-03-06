@@ -27,7 +27,6 @@ class UnitreeAgentDemo:
         self.connection_method = None
         self.serial_number = None
         self.output_dir = None
-        self.api_call_interval = None
         self._fetch_env_vars()
 
     def _fetch_env_vars(self):
@@ -45,7 +44,6 @@ class UnitreeAgentDemo:
         self.serial_number = get_env_var("SERIAL_NUMBER")
         self.output_dir = get_env_var(
             "ROS_OUTPUT_DIR", os.path.join(os.getcwd(), "assets/output/ros"))
-        self.api_call_interval = get_env_var("API_CALL_INTERVAL", "5")
 
     def _initialize_robot(self, with_video_stream=True):
         print(
@@ -56,7 +54,6 @@ class UnitreeAgentDemo:
             connection_method=self.connection_method,
             serial_number=self.serial_number,
             output_dir=self.output_dir,
-            api_call_interval=self.api_call_interval,
             disable_video_stream=(not with_video_stream),
             mock_connection=MOCK_CONNECTION,
         )
