@@ -27,6 +27,7 @@ import reactivex
 from reactivex import Observer, create, Observable, empty, operators as RxOps, throw, just
 from reactivex.disposable import CompositeDisposable, Disposable
 from reactivex.scheduler import ThreadPoolScheduler
+from reactivex.subject import Subject
 
 # Local imports
 from dimos.agents.memory.base import AbstractAgentSemanticMemory
@@ -103,6 +104,7 @@ class LLMAgent(Agent):
       - Building prompts via a prompt builder
       - Handling tooling callbacks in responses
       - Subscribing to image and query streams
+      - Emitting responses as an observable stream
 
     Subclasses must implement the `_send_query` method, which is responsible
     for sending the prompt to a specific LLM API.
@@ -121,6 +123,7 @@ class LLMAgent(Agent):
         rag_similarity_threshold (float): Minimum similarity for RAG results.
         frame_processor (FrameProcessor): Processes video frames.
         output_dir (str): Directory for output files.
+        response_subject (Subject): Subject that emits agent responses.
     """
     logging_file_memory_lock = threading.Lock()
 
@@ -157,6 +160,9 @@ class LLMAgent(Agent):
         self.frame_processor: Optional[FrameProcessor] = None
         self.output_dir: str = os.path.join(os.getcwd(), "assets", "agent")
         os.makedirs(self.output_dir, exist_ok=True)
+
+        # Subject for emitting responses
+        self.response_subject = Subject()
 
     def _update_query(self, incoming_query: Optional[str]) -> None:
         """Updates the query if an incoming query is provided.
@@ -324,15 +330,18 @@ class LLMAgent(Agent):
                              response_message.parsed else
                              response_message.content)
                 observer.on_next(final_msg)
+                self.response_subject.on_next(final_msg)
             else:
                 response_message_2 = self._handle_tooling(
                     response_message, messages)
                 final_msg = response_message_2 if response_message_2 is not None else response_message
                 observer.on_next(final_msg)
+                self.response_subject.on_next(final_msg)
             observer.on_completed()
         except Exception as e:
             self.logger.error(f"Query failed in {self.dev_name}: {e}")
             observer.on_error(e)
+            self.response_subject.on_error(e)
 
     def _send_query(self, messages: list) -> Any:
         """Sends the query to the LLM API.
@@ -500,6 +509,7 @@ class LLMAgent(Agent):
         is_processing = [False]
 
         def process_if_free(query):
+            self.logger.info(f"Processing Query: {query}")
             if is_processing[0]:
                 # Drop query if a request is already in progress.
                 return empty()
@@ -534,6 +544,20 @@ class LLMAgent(Agent):
         self.disposables.add(disposable)
         return disposable
 
+    def get_response_observable(self) -> Observable:
+        """Gets an observable that emits responses from this agent.
+        
+        Returns:
+            Observable: An observable that emits string responses from the agent.
+        """
+        return self.response_subject.pipe(RxOps.observe_on(
+            self.pool_scheduler))
+
+    def dispose_all(self):
+        """Disposes of all active subscriptions managed by this agent."""
+        super().dispose_all()
+        self.response_subject.on_completed()
+
 
 # endregion LLMAgent Base Class (Generic LLM Agent)
 
@@ -555,7 +579,8 @@ class OpenAIAgent(LLMAgent):
                  query: str = "What do you see?",
                  input_query_stream: Optional[Observable] = None,
                  input_video_stream: Optional[Observable] = None,
-                 output_dir: str = os.path.join(os.getcwd(), "assets", "agent"),
+                 output_dir: str = os.path.join(os.getcwd(), "assets",
+                                                "agent"),
                  agent_memory: Optional[AbstractAgentSemanticMemory] = None,
                  system_query: Optional[str] = None,
                  system_query_without_documents: Optional[str] = None,
@@ -598,8 +623,8 @@ class OpenAIAgent(LLMAgent):
             pool_scheduler (ThreadPoolScheduler): The scheduler to use for thread pool operations.
                 If None, the global scheduler from get_scheduler() will be used.
         """
-        super().__init__(dev_name, agent_type, agent_memory or
-                         AgentSemanticMemory(), pool_scheduler)
+        super().__init__(dev_name, agent_type, agent_memory
+                         or AgentSemanticMemory(), pool_scheduler)
         self.client = OpenAI()
         self.query = query
         self.output_dir = output_dir
@@ -654,18 +679,18 @@ class OpenAIAgent(LLMAgent):
         context_data = [
             ("id0",
              "Optical Flow is a technique used to track the movement of objects in a video sequence."
-            ),
+             ),
             ("id1",
              "Edge Detection is a technique used to identify the boundaries of objects in an image."
-            ),
+             ),
             ("id2",
              "Video is a sequence of frames captured at regular intervals."),
             ("id3",
              "Colors in Optical Flow are determined by the movement of light, and can be used to track the movement of objects."
-            ),
+             ),
             ("id4",
              "Json is a data interchange format that is easy for humans to read and write, and easy for machines to parse and generate."
-            ),
+             ),
         ]
         for doc_id, text in context_data:
             self.agent_memory.add_vector(doc_id, text)
@@ -720,6 +745,22 @@ class OpenAIAgent(LLMAgent):
         except Exception as e:
             self.logger.error(f"Unexpected error in API call: {e}")
             raise
+
+    def stream_query(self, query_text: str) -> Observable:
+        """Creates an observable that processes a text query and emits the response.
+        
+        This method provides a simple way to send a text query and get an observable
+        stream of the response. It's designed for one-off queries rather than
+        continuous processing of input streams.
+        
+        Args:
+            query_text (str): The query text to process.
+            
+        Returns:
+            Observable: An observable that emits the response as a string.
+        """
+        return create(lambda observer, _: self._observable_query(
+            observer, incoming_query=query_text))
 
 
 # endregion OpenAIAgent Subclass (OpenAI-Specific Implementation)
