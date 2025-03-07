@@ -4,7 +4,7 @@ A streamlined interface for controlling and interacting with robots through DimO
 
 ## Setup
 
-First, create an `.env` file in the root directory with your configuration:
+First, create an `.env` file in the root dimos directory with your configuration:
 
 ```bash
 # Example .env file
@@ -50,9 +50,17 @@ python tests/test_unitree_agent_queries_fastapi.py
 
 ### 3. Start Frontend
 
+**Install yarn if not already installed**
+
+```bash
+npm install -g yarn
+```
+
+**Then install dependencies and start the development server**
+
 ```bash
 # In a new terminal
-cd dimos/web/dimensional-website
+cd dimos/web/dimos-interface
 
 # Install dependencies (first time only)
 yarn install
