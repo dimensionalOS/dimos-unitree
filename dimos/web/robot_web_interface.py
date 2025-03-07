@@ -10,7 +10,7 @@ import sys
 CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
 sys.path.append(os.path.join(CURRENT_DIR, "dimensional-website/api"))
 
-from server import FastAPIServer
+from dimos.web.fastapi_server import FastAPIServer
 
 class RobotWebInterface(FastAPIServer):
     """Wrapper class for the dimensional-website FastAPI server."""
