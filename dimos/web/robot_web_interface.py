@@ -1,19 +1,19 @@
 """
 Robot Web Interface wrapper for DIMOS.
-Provides a clean interface to the dimensional-website FastAPI server.
+Provides a clean interface to the dimensional-interface FastAPI server.
 """
 
 import os
 import sys
 
-# Add the dimensional-website api directory to path
+# Add the dimos-interface api directory to path
 CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
-sys.path.append(os.path.join(CURRENT_DIR, "dimensional-website/api"))
+sys.path.append(os.path.join(CURRENT_DIR, "dimos-interface/api"))
 
 from dimos.web.fastapi_server import FastAPIServer
 
 class RobotWebInterface(FastAPIServer):
-    """Wrapper class for the dimensional-website FastAPI server."""
+    """Wrapper class for the dimos-interface FastAPI server."""
     
     def __init__(self, port=5555, **streams):
         super().__init__(
