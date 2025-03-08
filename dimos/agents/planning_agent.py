@@ -7,6 +7,7 @@ This module provides a PlanningAgent that can:
 - Stream individual plan steps to other agents
 """
 
+import threading
 from typing import List, Optional, Dict
 import json
 from reactivex import Subject, Observable, disposable, create
@@ -46,7 +47,7 @@ class PlanningAgent(LLMAgent):
             input_query_stream: Observable stream of user queries
             use_terminal: Whether to enable terminal input
         """
-        # System prompt for planning
+        # System prompt for planning 
         self.system_prompt = """You are a planning assistant that helps break down tasks into concrete, executable steps.
 Your goal is to:
 1. Understand the user's task through dialogue
@@ -113,8 +114,12 @@ Remember: ONLY output valid JSON, no other text."""
             
         # Terminal mode
         self.use_terminal = use_terminal
+
         if use_terminal:
-            self.start_terminal_interface()
+            # Start terminal interface in a separate thread
+            terminal_thread = threading.Thread(target=self.start_terminal_interface, daemon=True)
+            terminal_thread.start()
+            self.logger.info("Terminal interface started in separate thread")
         
         self.logger.info("Planning agent initialized")
         
@@ -164,7 +169,7 @@ Remember: ONLY output valid JSON, no other text."""
         self.latest_response = response
             
         # Emit response to observers
-        self.response_subject.on_next(response)
+        # self.response_subject.on_next(response)
 
     def _stream_plan(self) -> None:
         """Stream each step of the confirmed plan."""
@@ -176,7 +181,7 @@ Remember: ONLY output valid JSON, no other text."""
             # Add a small delay between steps to ensure they're processed
             time.sleep(0.5)
             try:
-                self.response_subject.on_next(step)
+                self.response_subject.on_next(str(step))
                 self.logger.debug(f"Successfully emitted step {i} to response_subject")
             except Exception as e:
                 self.logger.error(f"Error emitting step {i}: {e}")

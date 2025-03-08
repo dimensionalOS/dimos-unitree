@@ -13,6 +13,7 @@ Environment Variables:
 import os
 import sys
 import threading
+import time
 
 # Add project root to Python path
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -47,7 +48,8 @@ def main():
         logger.info("Initializing Unitree Robot")
         robot = UnitreeGo2(ip=robot_ip,
                            connection_method=connection_method,
-                           output_dir=output_dir)
+                           output_dir=output_dir,
+                           mock_connection=True)
 
         # Set up video stream
         logger.info("Starting video stream")
@@ -114,6 +116,11 @@ def main():
             logger.info("Starting FastAPI server")
             web_interface.run()
 
+        # Keep the main thread alive
+        logger.error("NOTE: Keeping main thread alive")
+        while True:
+            time.sleep(1)
+
     except KeyboardInterrupt:
         print("Stopping demo...")
     except Exception as e:
@@ -130,8 +137,13 @@ def main():
             web_interface.dispose_all()
         if robot:
             robot.cleanup()
+        # Halt execution forever
+        while True:
+            time.sleep(1)
 
     return 0
 
 if __name__ == "__main__":
     sys.exit(main())
+
+# Move the robot forward by 1 meter, then turn 90 degrees clockwise, then move backward by 1 meter, then turn a random angle counterclockwise, then repeat this sequence 5 times.
