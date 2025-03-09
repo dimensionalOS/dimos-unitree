@@ -1,13 +1,13 @@
 import os
-from dimos.simulation.simulator import Simulator
-from dimos.simulation.stream import SimulationStream
+from dimos.simulation.isaac import IsaacSimulator
+from dimos.simulation.isaac import IsaacStream
 
 def main():
     # Initialize simulator
-    sim = Simulator(headless=True)
+    sim = IsaacSimulator(headless=True)
     
     # Create stream with custom settings
-    stream = SimulationStream(
+    stream = IsaacStream(
         simulator=sim,
         width=1920,
         height=1080,
