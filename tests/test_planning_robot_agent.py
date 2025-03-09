@@ -14,11 +14,6 @@ import os
 import sys
 import threading
 import time
-
-# Add project root to Python path
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-
-# Local application imports
 from dimos.agents.agent import OpenAIAgent
 from dimos.agents.planning_agent import PlanningAgent
 from dimos.robot.unitree.unitree_go2 import UnitreeGo2
