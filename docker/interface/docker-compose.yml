@@ -7,8 +7,8 @@ services:
     image: dimos-web-interface:latest
     container_name: dimos-web-interface
     network_mode: "host"
-    # ports:
-    #  - "3000:3000"
+    ports:
+      - "3000:3000"
     volumes:
       - ../../dimos/web/dimos_interface:/app
     healthcheck:
