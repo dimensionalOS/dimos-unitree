@@ -37,7 +37,6 @@ class PlanningAgent(LLMAgent):
     def __init__(self,
                  dev_name: str = "PlanningAgent",
                  model_name: str = "gpt-4",
-                 max_steps: int = 10,
                  input_query_stream: Optional[Observable] = None,
                  use_terminal: bool = False,
                  skills: Optional[AbstractSkill] = None):
@@ -54,9 +53,7 @@ class PlanningAgent(LLMAgent):
         self.skills = skills
         skills_list = []
         if self.skills is not None:
-            print(type(self.skills.get_tools()))
             skills_list = (self.skills.get_tools())
-            print(skills_list)
         
         
         self.system_prompt = f"""You are a Robot planning assistant that helps break down tasks into concrete, executable steps.
@@ -106,7 +103,6 @@ Remember: ONLY output valid JSON, no other text."""
         # OpenAI client
         self.client = OpenAI()
         self.model_name = model_name
-        self.max_steps = max_steps
         
         # Reduce token limits to avoid context length errors
         self.max_output_tokens_per_request = 1000
@@ -152,9 +148,21 @@ Remember: ONLY output valid JSON, no other text."""
                 max_tokens=self.max_output_tokens_per_request
             )
             
-            # Parse response as JSON
+            # Get response text
             response_text = response.choices[0].message.content
-            return json.loads(response_text)
+            
+            # Try to parse as JSON for plan responses
+            try:
+                parsed = json.loads(response_text)
+                return parsed
+            except json.JSONDecodeError:
+                # If not JSON, treat as dialogue
+                print(f"Error parsing JSON: {response_text}")
+                return {
+                    "type": "dialogue",
+                    "content": response_text,
+                    "needs_confirmation": False
+                }
             
         except Exception as e:
             self.logger.error(f"Error in _send_query: {e}")

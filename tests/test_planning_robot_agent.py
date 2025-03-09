@@ -66,7 +66,6 @@ def main():
             planner = PlanningAgent(
                 dev_name="TaskPlanner",
                 model_name="gpt-4",
-                max_steps=10,
                 use_terminal=True,
                 skills=skills_instance
             )
@@ -80,7 +79,6 @@ def main():
             planner = PlanningAgent(
                 dev_name="TaskPlanner",
                 model_name="gpt-4",
-                max_steps=10,
                 input_query_stream=web_interface.query_stream,
                 skills=skills_instance
             )
