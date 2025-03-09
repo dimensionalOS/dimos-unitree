@@ -33,7 +33,7 @@ export const combinedStreamState = derived(
 // Function to fetch available streams
 async function fetchAvailableStreams(): Promise<string[]> {
   try {
-    const response = await fetch('http://localhost:5555/streams', {
+    const response = await fetch('http://0.0.0.0:5555/streams', {
       headers: {
         'Accept': 'application/json'
       }
@@ -69,7 +69,7 @@ export const showStream = async (streamKey?: string) => {
 
     streamStore.set({
       isVisible: true,
-      url: 'http://localhost:5555',
+      url: 'http://0.0.0.0:5555',
       streamKey,
       isLoading: false,
       error: null,
