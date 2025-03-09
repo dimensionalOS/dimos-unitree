@@ -25,6 +25,7 @@ from dimos.robot.unitree.unitree_go2 import UnitreeGo2
 from dimos.robot.unitree.unitree_skills import MyUnitreeSkills
 from dimos.utils.logging_config import logger
 from dimos.web.robot_web_interface import RobotWebInterface
+from dimos.utils.threadpool import ThreadPoolScheduler, make_new_scheduler, make_single_thread_scheduler
 
 def main():
     # Get environment variables
@@ -93,8 +94,11 @@ def main():
             input_query_stream=planner_responses,
             output_dir=output_dir,
             skills=skills_instance,
-            system_query="You are a robot execution agent that can execute tasks on a virtual robot. You are given a task to execute and a list of skills that you can use to execute the task. ONLY OUTPUT THE SKILLS TO EXECUTE, NOTHING ELSE."
 
+            system_query="You are a robot execution agent that can execute tasks on a virtual robot. You are given a task to execute and a list of skills that you can use to execute the task. ONLY OUTPUT THE SKILLS TO EXECUTE, NOTHING ELSE.",
+
+
+            thread_pool_scheduler=make_single_thread_scheduler()
         )
 
         # Get executor's response observable
