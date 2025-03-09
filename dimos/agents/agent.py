@@ -76,8 +76,7 @@ class Agent:
         self.agent_type = agent_type
         self.agent_memory = agent_memory or AgentSemanticMemory()
         self.disposables = CompositeDisposable()
-        self.pool_scheduler = pool_scheduler if pool_scheduler else get_scheduler(
-        )
+        self.pool_scheduler = pool_scheduler if pool_scheduler else get_scheduler()
         self.logger = setup_logger(
             f"dimos.agents.{self.agent_type}.{self.dev_name}")
 
@@ -114,7 +113,6 @@ class LLMAgent(Agent):
         prompt_builder (PromptBuilder): Handles construction of prompts.
         skills (AbstractSkill): Available tools/functions for the agent.
         system_query (str): System prompt for RAG context situations.
-        system_query_without_documents (str): System prompt when RAG unavailable.
         image_detail (str): Detail level for image processing ('low','high','auto').
         max_input_tokens_per_request (int): Maximum input token count.
         max_output_tokens_per_request (int): Maximum output token count.
@@ -149,7 +147,6 @@ class LLMAgent(Agent):
         self.prompt_builder: Optional[PromptBuilder] = None
         self.skills: Optional[AbstractSkill] = None
         self.system_query: Optional[str] = None
-        self.system_query_without_documents: Optional[str] = None
         self.image_detail: str = "low"
         self.max_input_tokens_per_request: int = 128000
         self.max_output_tokens_per_request: int = 16384
@@ -236,7 +233,6 @@ class LLMAgent(Agent):
             image_height=dimensions[1] if dimensions is not None else None,
             image_detail=self.image_detail,
             rag_context=condensed_results,
-            fallback_system_prompt=self.system_query_without_documents,
             system_prompt=self.system_query,
             budgets=budgets,
             policies=policies,
@@ -583,7 +579,6 @@ class OpenAIAgent(LLMAgent):
                                                 "agent"),
                  agent_memory: Optional[AbstractAgentSemanticMemory] = None,
                  system_query: Optional[str] = None,
-                 system_query_without_documents: Optional[str] = None,
                  max_input_tokens_per_request: int = 128000,
                  max_output_tokens_per_request: int = 16384,
                  model_name: str = "gpt-4o",
@@ -608,7 +603,6 @@ class OpenAIAgent(LLMAgent):
             output_dir (str): Directory for output files.
             agent_memory (AbstractAgentSemanticMemory): The memory system.
             system_query (str): The system prompt to use with RAG context.
-            system_query_without_documents (str): The system prompt to use without RAG context.
             max_input_tokens_per_request (int): Maximum tokens for input.
             max_output_tokens_per_request (int): Maximum tokens for output.
             model_name (str): The OpenAI model name to use.
@@ -629,7 +623,6 @@ class OpenAIAgent(LLMAgent):
         self.query = query
         self.output_dir = output_dir
         self.system_query = system_query
-        self.system_query_without_documents = system_query_without_documents
         os.makedirs(self.output_dir, exist_ok=True)
 
         # Configure skills.
