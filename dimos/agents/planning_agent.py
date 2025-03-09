@@ -78,7 +78,7 @@ For dialogue responses, use:
 For plan proposals, use:
 {
     "type": "plan",
-    "content": ["Step 1", "Step 2", ...],
+    "content": ["Execute", "Execute", ...],
     "needs_confirmation": true
 }
 
@@ -215,13 +215,22 @@ Remember: ONLY output valid JSON, no other text."""
             {"role": "system", "content": self.system_prompt}
         ]
         
-        # Add conversation history
+        # Add the new user input to conversation history
+        self.conversation_history.append({
+            "type": "user_message",
+            "content": user_input
+        })
+        
+        # Add complete conversation history including both user and assistant messages
         for msg in self.conversation_history:
-            if msg["type"] == "dialogue":
+            if msg["type"] == "user_message":
+                messages.append({"role": "user", "content": msg["content"]})
+            elif msg["type"] == "dialogue":
                 messages.append({"role": "assistant", "content": msg["content"]})
-                
-        # Add user's new input
-        messages.append({"role": "user", "content": user_input})
+            elif msg["type"] == "plan":
+                # For plans, format them nicely in the conversation
+                plan_text = "Here's my proposed plan:\n" + "\n".join(f"{i+1}. {step}" for i, step in enumerate(msg["content"]))
+                messages.append({"role": "assistant", "content": plan_text})
         
         # Get and handle response
         response = self._send_query(messages)

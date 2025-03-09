@@ -93,6 +93,8 @@ def main():
             input_query_stream=planner_responses,
             output_dir=output_dir,
             skills=skills_instance,
+            system_query="You are a robot execution agent that can execute tasks on a virtual robot. You are given a task to execute and a list of skills that you can use to execute the task. ONLY OUTPUT THE SKILLS TO EXECUTE, NOTHING ELSE."
+
         )
 
         # Get executor's response observable
