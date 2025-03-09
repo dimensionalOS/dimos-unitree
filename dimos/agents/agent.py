@@ -658,8 +658,6 @@ class OpenAIAgent(LLMAgent):
 
         # Configure skills.
         self.skills = skills if skills is not None else AbstractSkill()
-        if skills is None:
-            self.skills.set_tools(NOT_GIVEN)
 
         self.response_model = response_model if response_model is not None else NOT_GIVEN
         self.model_name = model_name

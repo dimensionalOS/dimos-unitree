@@ -65,7 +65,7 @@ def main():
             logger.info("Starting planning agent in terminal mode")
             planner = PlanningAgent(
                 dev_name="TaskPlanner",
-                model_name="gpt-4",
+                model_name="gpt-4o",
                 use_terminal=True,
                 skills=skills_instance
             )
@@ -78,7 +78,7 @@ def main():
             logger.info("Starting planning agent with web interface")
             planner = PlanningAgent(
                 dev_name="TaskPlanner",
-                model_name="gpt-4",
+                model_name="gpt-4o",
                 input_query_stream=web_interface.query_stream,
                 skills=skills_instance
             )
