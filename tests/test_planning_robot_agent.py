@@ -10,10 +10,21 @@ Environment Variables:
     USE_TERMINAL: Optional. If set to "true", use terminal interface instead of web.
 """
 
-import os
 import sys
+import os
+
+# Add the parent directory of 'demos' to the Python path
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+print(f"Hi from {os.path.basename(__file__)}\n")
+
+# -----
+
+from textwrap import dedent
 import threading
 import time
+
+# Local application imports
 from dimos.agents.agent import OpenAIAgent
 from dimos.agents.planning_agent import PlanningAgent
 from dimos.robot.unitree.unitree_go2 import UnitreeGo2
@@ -84,15 +95,20 @@ def main():
         
         # Initialize execution agent with robot skills
         logger.info("Starting execution agent")
-        stragentsys="You are a robot execution agent that can execute tasks on a virtual robot. You are given a task to execute and a list of skills that you can use to execute the task. ONLY OUTPUT THE SKILLS TO EXECUTE, NOTHING ELSE."
-            
+        system_query=dedent(
+            """
+            You are a robot execution agent that can execute tasks on a virtual
+            robot. You are given a task to execute and a list of skills that 
+            you can use to execute the task. ONLY OUTPUT THE SKILLS TO EXECUTE,
+            NOTHING ELSE.
+            """
+        )
         executor = OpenAIAgent(
             dev_name="StepExecutor",
             input_query_stream=planner_responses,
             output_dir=output_dir,
             skills=skills_instance,
-            system_query=stragentsys,
-            system_query_without_documents=stragentsys,
+            system_query=system_query,
             pool_scheduler=make_single_thread_scheduler()
         )
 
@@ -142,9 +158,8 @@ def main():
         while True:
             time.sleep(1)
 
-    return 0
 
 if __name__ == "__main__":
     sys.exit(main())
 
-# Move the robot forward by 1 meter, then turn 90 degrees clockwise, then move backward by 1 meter, then turn a random angle counterclockwise, then repeat this sequence 5 times.
+# Example Task: Move the robot forward by 1 meter, then turn 90 degrees clockwise, then move backward by 1 meter, then turn a random angle counterclockwise, then repeat this sequence 5 times.
