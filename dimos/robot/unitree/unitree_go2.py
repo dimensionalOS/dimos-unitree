@@ -51,7 +51,8 @@ class UnitreeGo2(Robot):
             use_ros: bool = True,
             use_webrtc: bool = False,
             disable_video_stream: bool = False,
-            mock_connection: bool = False):
+            mock_connection: bool = False,
+            debug: bool = True):
         """Initialize the UnitreeGo2 robot.
         
         Args:
@@ -76,7 +77,8 @@ class UnitreeGo2(Robot):
                 node_name="unitree_go2",
                 use_raw=True,
                 disable_video_stream=disable_video_stream,
-                mock_connection=mock_connection)
+                mock_connection=mock_connection,
+                debug=debug)
         super().__init__(agent_config=agent_config, ros_control=ros_control)
 
         # Initialize UnitreeGo2-specific attributes

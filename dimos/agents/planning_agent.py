@@ -128,13 +128,19 @@ class PlanningAgent(OpenAIAgent):
         Args:
             response: Parsed response dictionary
         """
+        print("DEBUG: Before handling response")
+
+        print(f"DEBUG: Response: {response}")
+
         # Add to conversation history
         self.conversation_history.append(response)
-        
+        print("DEBUG: After adding to conversation history")
         # If it's a plan, update current plan
         if response["type"] == "plan":
+            print("DEBUG: Before accessing response['content'] in _handle_response")
             self.logger.info(f"Updating current plan: {response['content']}")
-            self.current_plan = response["content"]
+            self.current_plan =  ["content"]
+            print("DEBUG: After accessing response['content'] in _handle_response")
             
         # Store latest response
         self.latest_response = response
@@ -143,9 +149,12 @@ class PlanningAgent(OpenAIAgent):
     def _stream_plan(self) -> None:
         """Stream each step of the confirmed plan."""
         self.logger.info("Starting to stream plan steps")
+        print("DEBUG: Before accessing self.current_plan in _stream_plan")
         self.logger.debug(f"Current plan: {self.current_plan}")
+        print("DEBUG: After accessing self.current_plan in _stream_plan")
 
         for i, step in enumerate(self.current_plan, 1):
+            print(f"DEBUG: Processing plan step {i}: {step}")
             self.logger.info(f"Streaming step {i}: {step}")
             # Add a small delay between steps to ensure they're processed
             time.sleep(0.5)
@@ -158,7 +167,7 @@ class PlanningAgent(OpenAIAgent):
         self.logger.info("Plan streaming completed")
         self.response_subject.on_completed()
     
-    def _send_query(self, messages: list) -> dict:
+    def _send_query(self, messages: list) -> PlanningAgentResponse:
         """Send query to OpenAI and parse the response.
         
         Extends OpenAIAgent's _send_query to handle planning-specific response formats.
@@ -170,8 +179,11 @@ class PlanningAgent(OpenAIAgent):
             dict: Parsed response with type, content, and needs_confirmation
         """
         try:
+            print("DEBUG: Before sending query")
             response_message = super()._send_query(messages)
+            print(f"DEBUG: Response message: {response_message}")
             response_text = response_message.content
+            print("DEBUG: Before parsing response content in _send_query")
             # Parse JSON and validate
             try:
                 parsed_json = json.loads(response_text)
@@ -217,11 +229,13 @@ class PlanningAgent(OpenAIAgent):
         if self.current_plan and user_input.lower() in ["yes", "y", "confirm"]:
             self.logger.info("Plan confirmation received")
             self.plan_confirmed = True
+            print("DEBUG: Creating confirmation message with content")
             confirmation_msg = {
                 "type": "dialogue",
                 "content": "Plan confirmed! Streaming steps to execution...",
                 "needs_confirmation": False
             }
+            print("DEBUG: After creating confirmation message")
             self._handle_response(confirmation_msg)
             self._stream_plan()
             return
@@ -232,20 +246,28 @@ class PlanningAgent(OpenAIAgent):
         ]
         
         # Add the new user input to conversation history
+        print("DEBUG: Before adding user input to conversation history")
         self.conversation_history.append({
             "type": "user_message",
             "content": user_input
         })
+        print("DEBUG: After adding user input to conversation history")
         
         # Add complete conversation history including both user and assistant messages
+        print("DEBUG: Before processing conversation history")
         for msg in self.conversation_history:
             if msg["type"] == "user_message":
+                print("DEBUG: Adding user message to messages")
                 messages.append({"role": "user", "content": msg["content"]})
             elif msg["type"] == "dialogue":
+                print("DEBUG: Adding dialogue message to messages")
                 messages.append({"role": "assistant", "content": msg["content"]})
             elif msg["type"] == "plan":
+                print("DEBUG: Before creating plan text")
                 plan_text = "Here's my proposed plan:\n" + "\n".join(f"{i+1}. {step}" for i, step in enumerate(msg["content"]))
+                print("DEBUG: After creating plan text")
                 messages.append({"role": "assistant", "content": plan_text})
+        print("DEBUG: After processing conversation history")
         
         # Get and handle response
         response = self._send_query(messages)
@@ -272,15 +294,19 @@ class PlanningAgent(OpenAIAgent):
                 self.process_user_input(user_input)
                 
                 # Display response
+                print("DEBUG: Before displaying latest response")
                 if self.latest_response["type"] == "dialogue":
                     print(f"\nPlanner: {self.latest_response['content']}")
                 elif self.latest_response["type"] == "plan":
                     print("\nProposed Plan:")
+                    print("DEBUG: Before iterating through plan content")
                     for i, step in enumerate(self.latest_response["content"], 1):
                         print(f"{i}. {step}")
+                    print("DEBUG: After iterating through plan content")
                     if self.latest_response["needs_confirmation"]:
                         print("\nDoes this plan look good? (yes/no)")
-                        
+                print("DEBUG: After displaying latest response")
+                    
                 if self.plan_confirmed:
                     print("\nPlan confirmed! Streaming steps to execution...")
                     break
@@ -289,6 +315,7 @@ class PlanningAgent(OpenAIAgent):
                 print("\nStopping...")
                 break
             except Exception as e:
+                print(f"DEBUG: Exception in terminal interface: {e}")
                 print(f"\nError: {e}")
                 break
 

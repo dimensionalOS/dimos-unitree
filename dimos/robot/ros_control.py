@@ -182,7 +182,8 @@ class ROSControl(ABC):
                 webrtc_func=self.webrtc_req,
                 is_ready_func=lambda: self._mode == RobotMode.IDLE,
                 is_busy_func=lambda: self._mode == RobotMode.MOVING,
-                logger=self._logger
+                logger=self._logger,
+                debug=self._debug
             )
             # Start the queue processing thread
             self._command_queue.start()

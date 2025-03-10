@@ -255,7 +255,8 @@ class ROSCommandQueue:
     def _process_queue(self):
         """Process commands in the queue"""
         self._logger.info("Starting queue processing")
-        print("[WebRTC Queue] Processing thread started")
+        if self._debug:
+            print("[WebRTC Queue] Processing thread started")
         
         while not self._should_stop:
             # Print queue status

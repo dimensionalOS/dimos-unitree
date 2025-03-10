@@ -7,7 +7,6 @@ Environment Variables:
     ROBOT_IP: Required. IP address of the robot.
     CONN_TYPE: Required. Connection method to the robot.
     ROS_OUTPUT_DIR: Optional. Directory for ROS output files.
-    USE_TERMINAL: Optional. If set to "true", use terminal interface instead of web.
 """
 
 import sys
@@ -23,6 +22,8 @@ print(f"Hi from {os.path.basename(__file__)}\n")
 from textwrap import dedent
 import threading
 import time
+import reactivex as rx
+import reactivex.operators as ops
 
 # Local application imports
 from dimos.agents.agent import OpenAIAgent
@@ -30,7 +31,7 @@ from dimos.agents.planning_agent import PlanningAgent
 from dimos.robot.unitree.unitree_go2 import UnitreeGo2
 from dimos.robot.unitree.unitree_skills import MyUnitreeSkills
 from dimos.utils.logging_config import logger
-from dimos.web.robot_web_interface import RobotWebInterface
+from dimos.web.fastapi_server import FastAPIServer
 from dimos.utils.threadpool import make_single_thread_scheduler
 
 def main():
@@ -41,9 +42,7 @@ def main():
     connection_method = os.getenv("CONN_TYPE") or 'webrtc'
     output_dir = os.getenv("ROS_OUTPUT_DIR",
                            os.path.join(os.getcwd(), "assets/output/ros"))
-    use_terminal = os.getenv("USE_TERMINAL", "").lower() == "true"
 
-    use_terminal = True
     # Initialize components as None for proper cleanup
     robot = None
     web_interface = None
@@ -56,7 +55,8 @@ def main():
         robot = UnitreeGo2(ip=robot_ip,
                            connection_method=connection_method,
                            output_dir=output_dir,
-                           mock_connection=True)
+                           mock_connection=True,
+                           debug=False)
 
         # Set up video stream
         logger.info("Starting video stream")
@@ -66,32 +66,46 @@ def main():
         logger.info("Initializing robot skills")
         skills_instance = MyUnitreeSkills(robot=robot)
 
-        if use_terminal:
-            # Terminal mode - no web interface needed
-            logger.info("Starting planning agent in terminal mode")
-            planner = PlanningAgent(
-                dev_name="TaskPlanner",
-                model_name="gpt-4o",
-                use_terminal=True,
-                skills=skills_instance
-            )
-        else:
-            # Web interface mode
-            logger.info("Initializing FastAPI server")
-            streams = {"unitree_video": video_stream}
-            web_interface = RobotWebInterface(port=5555, **streams)
-
-            logger.info("Starting planning agent with web interface")
-            planner = PlanningAgent(
-                dev_name="TaskPlanner",
-                model_name="gpt-4o",
-                input_query_stream=web_interface.query_stream,
-                skills=skills_instance
-            )
+        # Create subjects for planner and executor responses
+        logger.info("Creating response streams")
+        planner_response_subject = rx.subject.Subject()
+        planner_response_stream = planner_response_subject.pipe(ops.share())
         
+        executor_response_subject = rx.subject.Subject()
+        executor_response_stream = executor_response_subject.pipe(ops.share())
+        
+        # Web interface mode with FastAPI server
+        logger.info("Initializing FastAPI server")
+        streams = {"unitree_video": video_stream}
+        text_streams = {
+            "planner_responses": planner_response_stream,
+            "executor_responses": executor_response_stream,
+        }
+        
+        web_interface = FastAPIServer(port=5555, text_streams=text_streams, **streams)
+
+        logger.info("Starting planning agent with web interface")
+        planner = PlanningAgent(
+            dev_name="TaskPlanner",
+            model_name="gpt-4o",
+            input_query_stream=web_interface.query_stream,
+            skills=skills_instance
+        )
+    
         # Get planner's response observable
         logger.info("Setting up agent response streams")
         planner_responses = planner.get_response_observable()
+        
+        # Connect planner to its subject
+        planner_responses.subscribe(
+            lambda x: planner_response_subject.on_next(x)
+        )
+
+        planner_responses.subscribe(
+            on_next=lambda x: logger.info(f"Planner response: {x}"),
+            on_error=lambda e: logger.error(f"Planner error: {e}"),
+            on_completed=lambda: logger.info("Planner completed")
+        )
         
         # Initialize execution agent with robot skills
         logger.info("Starting execution agent")
@@ -121,22 +135,15 @@ def main():
             on_error=lambda e: logger.error(f"Executor error: {e}"),
             on_completed=lambda: logger.info("Executor completed")
         )
+        
+        # Connect executor to its subject
+        executor_responses.subscribe(
+            lambda x: executor_response_subject.on_next(x)
+        )
 
-        if use_terminal:
-            # In terminal mode, just wait for the planning session to complete
-            logger.info("Waiting for planning session to complete")
-            while not planner.plan_confirmed:
-                pass
-            logger.info("Planning session completed")
-        else:
-            # Start web server (blocking call)
-            logger.info("Starting FastAPI server")
-            web_interface.run()
-
-        # Keep the main thread alive
-        logger.error("NOTE: Keeping main thread alive")
-        while True:
-            time.sleep(1)
+        # Start web server (blocking call)
+        logger.info("Starting FastAPI server")
+        web_interface.run()
 
     except KeyboardInterrupt:
         print("Stopping demo...")
