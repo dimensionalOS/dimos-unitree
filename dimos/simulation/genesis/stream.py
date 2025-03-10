@@ -1,12 +1,13 @@
 import cv2
 import numpy as np
 import time
+import subprocess
 from typing import Literal, Optional, Union
 from pathlib import Path
 from ..base.stream_base import StreamBase, AnnotatorType, TransportType
 
-class IsaacStream(StreamBase):
-    """Isaac Sim stream implementation."""
+class GenesisStream(StreamBase):
+    """Genesis stream implementation."""
     
     def __init__(
         self,
@@ -14,13 +15,13 @@ class IsaacStream(StreamBase):
         width: int = 1920,
         height: int = 1080,
         fps: int = 60,
-        camera_path: str = "/World/alfred_parent_prim/alfred_base_descr/chest_cam_rgb_camera_frame/chest_cam",
+        camera_path: str = "/camera",
         annotator_type: AnnotatorType = 'rgb',
         transport: TransportType = 'tcp',
         rtsp_url: str = "rtsp://mediamtx:8554/stream",
         usd_path: Optional[Union[str, Path]] = None
     ):
-        """Initialize the Isaac Sim stream."""
+        """Initialize the Genesis stream."""
         super().__init__(
             simulator=simulator,
             width=width,
@@ -33,9 +34,7 @@ class IsaacStream(StreamBase):
             usd_path=usd_path
         )
         
-        # Import omni.replicator after SimulationApp initialization
-        import omni.replicator.core as rep
-        self.rep = rep
+        self.scene = simulator.get_stage()
         
         # Initialize components
         if usd_path:
@@ -44,36 +43,33 @@ class IsaacStream(StreamBase):
         self._setup_ffmpeg()
         self._setup_annotator()
         
+        # Build scene after camera is set up
+        simulator.build()
+        
     def _load_stage(self, usd_path: Union[str, Path]):
-        """Load USD stage from file."""
-        import omni.usd
-        abs_path = str(Path(usd_path).resolve())
-        omni.usd.get_context().open_stage(abs_path)
-        self.stage = self.simulator.get_stage()
-        if not self.stage:
-            raise RuntimeError(f"Failed to load stage: {abs_path}")
+        """Load stage from file."""
+        # Genesis handles stage loading through simulator
+        pass
             
     def _setup_camera(self):
         """Setup and validate camera."""
-        self.stage = self.simulator.get_stage()
-        camera_prim = self.stage.GetPrimAtPath(self.camera_path)
-        if not camera_prim:
-            raise RuntimeError(f"Failed to find camera at path: {self.camera_path}")
-            
-        self.render_product = self.rep.create.render_product(
-            self.camera_path,
-            resolution=(self.width, self.height)
+        self.camera = self.scene.add_camera(
+            res=(self.width, self.height),
+            pos=(3.5, 0.0, 2.5),
+            lookat=(0, 0, 0.5),
+            fov=30,
+            GUI=False,
         )
         
     def _setup_annotator(self):
         """Setup the specified annotator."""
-        self.annotator = self.rep.AnnotatorRegistry.get_annotator(self.annotator_type)
-        self.annotator.attach(self.render_product)
+        # Genesis handles different render types through camera.render()
+        pass
         
     def stream(self):
         """Start the streaming loop."""
         try:
-            print("[Stream] Starting camera stream loop...")
+            print("[Stream] Starting Genesis camera stream...")
             frame_count = 0
             start_time = time.time()
             
@@ -82,12 +78,21 @@ class IsaacStream(StreamBase):
                 
                 # Step simulation and get frame
                 step_start = time.time()
-                self.rep.orchestrator.step()
+                self.scene.step()
                 step_time = time.time() - step_start
                 print(f"[Stream] Simulation step took {step_time*1000:.2f}ms")
+
+                # Get frame based on annotator type
+                if self.annotator_type == 'rgb':
+                    frame, _, _, _ = self.camera.render(rgb=True)
+                elif self.annotator_type == 'normals':
+                    _, _, _, frame = self.camera.render(normal=True)
+                else:
+                    frame, _, _, _ = self.camera.render(rgb=True)  # Default to RGB
                 
-                frame = self.annotator.get_data()
-                frame = cv2.cvtColor(frame, cv2.COLOR_RGBA2BGR)
+                # Convert frame format if needed
+                if isinstance(frame, np.ndarray):
+                    frame = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
                 
                 # Write to FFmpeg
                 self.proc.stdin.write(frame.tobytes())
@@ -115,5 +120,8 @@ class IsaacStream(StreamBase):
             self.proc.stdin.close()
             self.proc.wait()
         print("[Cleanup] Closing simulation...")
-        self.simulator.close()
-        print("[Cleanup] Successfully cleaned up resources")
+        try:
+            self.simulator.close()
+        except AttributeError:
+            print("[Cleanup] Warning: Could not close simulator properly")
+        print("[Cleanup] Successfully cleaned up resources") 

@@ -13,7 +13,7 @@ def main():
         height=1080,
         fps=60,
         camera_path="/World/alfred_parent_prim/alfred_base_descr/chest_cam_rgb_camera_frame/chest_cam",
-        annotator='rgb',
+        annotator_type='rgb',
         transport='tcp',
         rtsp_url="rtsp://mediamtx:8554/stream",
         usd_path=f"{os.getcwd()}/assets/TestSim3.usda"

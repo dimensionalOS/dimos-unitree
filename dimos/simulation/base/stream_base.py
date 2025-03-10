@@ -1,6 +1,7 @@
 from abc import ABC, abstractmethod
 from typing import Literal, Optional, Union
 from pathlib import Path
+import subprocess
 
 AnnotatorType = Literal['rgb', 'normals', 'bounding_box_3d', 'motion_vectors']
 TransportType = Literal['tcp', 'udp']
@@ -16,7 +17,7 @@ class StreamBase(ABC):
         height: int = 1080,
         fps: int = 60,
         camera_path: str = "/World/camera",
-        annotator: AnnotatorType = 'rgb',
+        annotator_type: AnnotatorType = 'rgb',
         transport: TransportType = 'tcp',
         rtsp_url: str = "rtsp://mediamtx:8554/stream",
         usd_path: Optional[Union[str, Path]] = None
@@ -39,9 +40,10 @@ class StreamBase(ABC):
         self.height = height
         self.fps = fps
         self.camera_path = camera_path
-        self.annotator_type = annotator
+        self.annotator_type = annotator_type
         self.transport = transport
         self.rtsp_url = rtsp_url
+        self.proc = None
         
     @abstractmethod
     def _load_stage(self, usd_path: Union[str, Path]):
@@ -53,10 +55,25 @@ class StreamBase(ABC):
         """Setup and validate camera."""
         pass
         
-    @abstractmethod
     def _setup_ffmpeg(self):
-        """Setup FFmpeg process."""
-        pass
+        """Setup FFmpeg process for streaming."""
+        command = [
+            'ffmpeg',
+            '-y',
+            '-f', 'rawvideo',
+            '-vcodec', 'rawvideo',
+            '-pix_fmt', 'bgr24',
+            '-s', f"{self.width}x{self.height}",
+            '-r', str(self.fps),
+            '-i', '-',
+            '-an',
+            '-c:v', 'h264_nvenc',
+            '-preset', 'fast',
+            '-f', 'rtsp',
+            '-rtsp_transport', self.transport,
+            self.rtsp_url
+        ]
+        self.proc = subprocess.Popen(command, stdin=subprocess.PIPE)
         
     @abstractmethod
     def _setup_annotator(self):
