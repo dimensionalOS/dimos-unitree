@@ -141,9 +141,9 @@ if __name__ == "__main__":
         robot.spin(degrees=90.0, speed=45.0)    
         print("Queued: Spin left 90 degrees at 45 degrees/s")
 
+        # To prevent termination
         while True:
             time.sleep(0.1)
-            # robot.read_agent_outputs()
 
     except KeyboardInterrupt:
         print("\nStopping perception...")

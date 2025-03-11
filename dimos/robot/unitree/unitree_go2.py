@@ -113,21 +113,3 @@ class UnitreeGo2(Robot):
 
     def do(self, *args, **kwargs):
         pass
-
-    def read_agent_outputs(self):
-        """Read and print the latest agent outputs from the memory file."""
-        memory_file = os.path.join(self.output_dir, 'memory.txt')
-        try:
-            with open(memory_file, 'r') as file:
-                content = file.readlines()
-                if content:
-                    print("\n=== Agent Outputs ===")
-                    for line in content:
-                        print(line.strip())
-                    print("==================\n")
-                else:
-                    print("Memory file exists but is empty. Waiting for agent responses...")
-        except FileNotFoundError:
-            print("Waiting for first agent response...")
-        except Exception as e:
-            print(f"Error reading agent outputs: {e}")
