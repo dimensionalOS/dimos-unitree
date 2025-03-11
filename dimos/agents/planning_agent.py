@@ -102,7 +102,7 @@ class PlanningAgent(OpenAIAgent):
             agent_type="Planning",
             query="",  # Will be set by process_user_input
             model_name=model_name,
-            input_query_stream=None,  # We'll handle query processing ourselves
+            input_query_stream=input_query_stream,  # We'll handle query processing ourselves
             system_query=system_query,
             max_output_tokens_per_request=1000,
             response_model=PlanningAgentResponse
@@ -120,41 +120,40 @@ class PlanningAgent(OpenAIAgent):
         # Set up query stream if provided
         if input_query_stream:
             self.logger.info("Setting up query stream subscription")
-            self.disposables.add(self.subscribe_to_query_processing(input_query_stream))
+            #self.disposables.add(self.subscribe_to_query_processing(input_query_stream))
             
-    def _handle_response(self, response: dict) -> None:
+    def _handle_response(self, response) -> None:
         """Handle the agent's response and update state.
         
         Args:
-            response: Parsed response dictionary
+            response: ParsedChatCompletionMessage containing PlanningAgentResponse
         """
-        print("DEBUG: Before handling response")
-
-        print(f"DEBUG: Response: {response}")
-
-        # Add to conversation history
-        self.conversation_history.append(response)
-        print("DEBUG: After adding to conversation history")
+        print("handle response", response)
+        print("handle response type", type(response))
+        
+        # Extract the PlanningAgentResponse from parsed field if available
+        planning_response = response.parsed if hasattr(response, 'parsed') else response
+        print("planning response", planning_response)
+        print("planning response type", type(planning_response))
+        # Convert to dict for storage in conversation history
+        response_dict = planning_response.model_dump()
+        self.conversation_history.append(response_dict)
+        
         # If it's a plan, update current plan
-        if response["type"] == "plan":
-            print("DEBUG: Before accessing response['content'] in _handle_response")
-            self.logger.info(f"Updating current plan: {response['content']}")
-            self.current_plan =  ["content"]
-            print("DEBUG: After accessing response['content'] in _handle_response")
+        if planning_response.type == "plan":
+            self.logger.info(f"Updating current plan: {planning_response.content}")
+            self.current_plan = planning_response.content
             
         # Store latest response
-        self.latest_response = response
+        self.latest_response = response_dict
             
 
     def _stream_plan(self) -> None:
         """Stream each step of the confirmed plan."""
         self.logger.info("Starting to stream plan steps")
-        print("DEBUG: Before accessing self.current_plan in _stream_plan")
         self.logger.debug(f"Current plan: {self.current_plan}")
-        print("DEBUG: After accessing self.current_plan in _stream_plan")
 
         for i, step in enumerate(self.current_plan, 1):
-            print(f"DEBUG: Processing plan step {i}: {step}")
             self.logger.info(f"Streaming step {i}: {step}")
             # Add a small delay between steps to ensure they're processed
             time.sleep(0.5)
@@ -176,45 +175,18 @@ class PlanningAgent(OpenAIAgent):
             messages: List of message dictionaries
             
         Returns:
-            dict: Parsed response with type, content, and needs_confirmation
+            PlanningAgentResponse: Validated response with type, content, and needs_confirmation
         """
+        
         try:
-            print("DEBUG: Before sending query")
-            response_message = super()._send_query(messages)
-            print(f"DEBUG: Response message: {response_message}")
-            response_text = response_message.content
-            print("DEBUG: Before parsing response content in _send_query")
-            # Parse JSON and validate
-            try:
-                parsed_json = json.loads(response_text)
-                validated = PlanningAgentResponse(**parsed_json)
-                # Create response object that matches LLMAgent._observable_query expectations
-                class ResponseObj:
-                    def __init__(self, parsed):
-                        self.parsed = parsed
-                        self.__dict__.update(parsed.dict())
-                    def __str__(self):
-                        if isinstance(self.content, list):
-                            return "\n".join(self.content)
-                        return str(self.content)
-                return ResponseObj(validated)
-            except:
-                self.logger.error(f"WARNING: Invalid PlanningAgentResponse response: {response_text}")
-                # Create fallback response
-                fallback = PlanningAgentResponse(
-                    type="dialogue",
-                    content=f"Error: Invalid response format - {response_text}",
-                    needs_confirmation=False
-                )
-                return ResponseObj(fallback)
-                
+            return super()._send_query(messages)
         except Exception as e:
-            fallback = PlanningAgentResponse(
+            self.logger.error(f"Caught exception in _send_query: {str(e)}")
+            return PlanningAgentResponse(
                 type="dialogue",
                 content=f"Error: {str(e)}",
                 needs_confirmation=False
             )
-            return ResponseObj(fallback)
 
     def process_user_input(self, user_input: str) -> None:
         """Process user input and generate appropriate response.
@@ -229,13 +201,11 @@ class PlanningAgent(OpenAIAgent):
         if self.current_plan and user_input.lower() in ["yes", "y", "confirm"]:
             self.logger.info("Plan confirmation received")
             self.plan_confirmed = True
-            print("DEBUG: Creating confirmation message with content")
-            confirmation_msg = {
-                "type": "dialogue",
-                "content": "Plan confirmed! Streaming steps to execution...",
-                "needs_confirmation": False
-            }
-            print("DEBUG: After creating confirmation message")
+            confirmation_msg = PlanningAgentResponse(
+                type="dialogue",
+                content="Plan confirmed! Streaming steps to execution...",
+                needs_confirmation=False
+            )
             self._handle_response(confirmation_msg)
             self._stream_plan()
             return
@@ -246,28 +216,20 @@ class PlanningAgent(OpenAIAgent):
         ]
         
         # Add the new user input to conversation history
-        print("DEBUG: Before adding user input to conversation history")
         self.conversation_history.append({
             "type": "user_message",
             "content": user_input
         })
-        print("DEBUG: After adding user input to conversation history")
         
         # Add complete conversation history including both user and assistant messages
-        print("DEBUG: Before processing conversation history")
         for msg in self.conversation_history:
             if msg["type"] == "user_message":
-                print("DEBUG: Adding user message to messages")
                 messages.append({"role": "user", "content": msg["content"]})
             elif msg["type"] == "dialogue":
-                print("DEBUG: Adding dialogue message to messages")
                 messages.append({"role": "assistant", "content": msg["content"]})
             elif msg["type"] == "plan":
-                print("DEBUG: Before creating plan text")
                 plan_text = "Here's my proposed plan:\n" + "\n".join(f"{i+1}. {step}" for i, step in enumerate(msg["content"]))
-                print("DEBUG: After creating plan text")
                 messages.append({"role": "assistant", "content": plan_text})
-        print("DEBUG: After processing conversation history")
         
         # Get and handle response
         response = self._send_query(messages)
@@ -294,19 +256,15 @@ class PlanningAgent(OpenAIAgent):
                 self.process_user_input(user_input)
                 
                 # Display response
-                print("DEBUG: Before displaying latest response")
                 if self.latest_response["type"] == "dialogue":
                     print(f"\nPlanner: {self.latest_response['content']}")
                 elif self.latest_response["type"] == "plan":
                     print("\nProposed Plan:")
-                    print("DEBUG: Before iterating through plan content")
                     for i, step in enumerate(self.latest_response["content"], 1):
                         print(f"{i}. {step}")
-                    print("DEBUG: After iterating through plan content")
                     if self.latest_response["needs_confirmation"]:
                         print("\nDoes this plan look good? (yes/no)")
-                print("DEBUG: After displaying latest response")
-                    
+                        
                 if self.plan_confirmed:
                     print("\nPlan confirmed! Streaming steps to execution...")
                     break
@@ -315,30 +273,5 @@ class PlanningAgent(OpenAIAgent):
                 print("\nStopping...")
                 break
             except Exception as e:
-                print(f"DEBUG: Exception in terminal interface: {e}")
                 print(f"\nError: {e}")
                 break
-
-    def _observable_query(self, observer, base64_image=None, dimensions=None, override_token_limit=False, incoming_query=None):
-        """Override to ensure we pass only string content to downstream agents."""
-        try:
-            self._update_query(incoming_query)
-            _, condensed_results = self._get_rag_context()
-            messages = self._build_prompt(base64_image, dimensions, override_token_limit, condensed_results)
-            self.logger.info("Sending Query.")
-            response = self._send_query(messages)
-            self.logger.info(f"LLM Response [{self.dev_name}]: {response.parsed}")
-            
-            # For plan responses, join steps with newlines
-            if response.type == "plan":
-                final_msg = "\n".join(response.content)
-            else:
-                final_msg = str(response.content)
-                
-            observer.on_next(final_msg)
-            self.response_subject.on_next(final_msg)
-            observer.on_completed()
-        except Exception as e:
-            self.logger.error(f"Query failed in {self.dev_name}: {e}")
-            observer.on_error(e)
-            self.response_subject.on_error(e)
