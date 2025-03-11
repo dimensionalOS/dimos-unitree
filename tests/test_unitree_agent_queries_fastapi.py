@@ -37,7 +37,8 @@ def main():
         logger.info("Initializing Unitree Robot")
         robot = UnitreeGo2(ip=robot_ip,
                            connection_method=connection_method,
-                           output_dir=output_dir)
+                           output_dir=output_dir,
+                           skills=MyUnitreeSkills())
 
         # Set up video stream
         logger.info("Starting video stream")
@@ -48,14 +49,12 @@ def main():
         streams = {"unitree_video": video_stream}
         web_interface = RobotWebInterface(port=5555, **streams)
 
-        # Initialize agent with robot skills
-        skills_instance = MyUnitreeSkills(robot=robot)
         logger.info("Starting perception agent")
         agent = OpenAIAgent(
             dev_name="UnitreeQueryPerceptionAgent",
             input_query_stream=web_interface.query_stream,
             output_dir=output_dir,
-            skills=skills_instance,
+            skills=robot.get_skills(),
         )
 
         # Start server (blocking call)
