@@ -70,14 +70,16 @@ This guide explains how to set up and run the Isaac Sim and Genesis streaming fu
 2. **Build and run with docker-compose**
    For Isaac Sim:
    ```bash
-   docker compose -f docker-compose.isaac.yml build
-   docker compose -f docker-compose.isaac.yml up
+   docker compose -f isaac/docker-compose.yml build
+   docker compose -f isaac/docker-compose.yml up
+
    ```
 
    For Genesis:
    ```bash
-   docker compose -f docker-compose.genesis.yml build
-   docker compose -f docker-compose.genesis.yml up
+   docker compose -f genesis/docker-compose.yml build
+   docker compose -f genesis/docker-compose.yml up
+
    ```
 
 This will:

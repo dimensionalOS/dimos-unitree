@@ -49,7 +49,7 @@ WORKDIR /workspace
 RUN git clone https://github.com/Genesis-Embodied-AI/Genesis.git && \
     cd Genesis && \
     git submodule update --init --recursive
-COPY ./docker/simulation/genesis_files/build_luisa.sh /workspace/build_luisa.sh
+COPY ./docker/simulation/genesis/build_luisa.sh /workspace/build_luisa.sh
 RUN chmod +x ./build_luisa.sh && ./build_luisa.sh ${PYTHON_VERSION}
 
 # ===============================================================
@@ -112,9 +112,9 @@ RUN cd /opt/conda/lib && \
     mv libstdc++.so.6 libstdc++.so.6.old && \
     ln -s /usr/lib/x86_64-linux-gnu/libstdc++.so.6 libstdc++.so.6
 
-COPY ./docker/simulation/genesis_files/10_nvidia.json /usr/share/glvnd/egl_vendor.d/10_nvidia.json
-COPY ./docker/simulation/genesis_files/nvidia_icd.json /usr/share/vulkan/icd.d/nvidia_icd.json
-COPY ./docker/simulation/genesis_files/nvidia_layers.json /etc/vulkan/implicit_layer.d/nvidia_layers.json
+COPY ./docker/simulation/genesis/10_nvidia.json /usr/share/glvnd/egl_vendor.d/10_nvidia.json
+COPY ./docker/simulation/genesis/nvidia_icd.json /usr/share/vulkan/icd.d/nvidia_icd.json
+COPY ./docker/simulation/genesis/nvidia_layers.json /etc/vulkan/implicit_layer.d/nvidia_layers.json
 
 # Change working directory to /app for proper relative pathing
 WORKDIR /app
