@@ -164,7 +164,7 @@ class LLMAgent(Agent):
         self.process_all_inputs: bool = process_all_inputs
         os.makedirs(self.output_dir, exist_ok=True)
         
-        # Subject for emitting responses
+        # Subject for emitting responses to sub Agents()
         self.response_subject = Subject()
 
     def _update_query(self, incoming_query: Optional[str]) -> None:
@@ -319,6 +319,7 @@ class LLMAgent(Agent):
             self.logger.info("Sending Query.")
             response_message = self._send_query(messages)
             self.logger.info(f"Received Response: {response_message}")
+            print("init reponse message type", type(response_message))
             if response_message is None:
                 raise Exception("Response message does not exist.")
 
@@ -330,13 +331,28 @@ class LLMAgent(Agent):
                 final_msg = (response_message.parsed
                              if hasattr(response_message, 'parsed') and
                              response_message.parsed else
-                             (response_message.content if hasattr(response_message, 'content') else response_message))
+                             response_message.content)
+                
+                # Handles parsing for all custom Pydantic models i.e. PlanningAgentResponse
+                if isinstance(final_msg, BaseModel):
+                    print("final msg type", type(final_msg))
+                    print("final msg", final_msg)
+                    # Get the full model data
+                    data = final_msg.model_dump()
+                    print("data", data)
+                    # If "content" exists in the Pydantic model, use it; otherwise use the full model data
+                    final_msg = (", ".join(data["content"]) if isinstance(data.get("content", None), list) 
+                               else str(data.get("content", str(data))))
+                    print(f"final msg after extraction: {final_msg}")
+
                 observer.on_next(final_msg)
                 self.response_subject.on_next(final_msg)
             else:
                 response_message_2 = self._handle_tooling(
                     response_message, messages)
                 final_msg = response_message_2 if response_message_2 is not None else response_message
+                if isinstance(final_msg, BaseModel):
+                    final_msg = final_msg.content
                 observer.on_next(final_msg)
                 self.response_subject.on_next(final_msg)
             observer.on_completed()
@@ -501,6 +517,7 @@ class LLMAgent(Agent):
             """
             return just(query).pipe(
                 MyOps.print_emission(id='Pr A', **print_emission_args),
+                # Flat map maintains input query order when LLM inference time is of variable length
                 RxOps.flat_map(lambda query: create(
                     lambda observer, _: self._observable_query(
                         observer, incoming_query=query))),
