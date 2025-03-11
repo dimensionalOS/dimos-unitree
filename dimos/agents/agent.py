@@ -335,15 +335,12 @@ class LLMAgent(Agent):
                 
                 # Handles parsing for all custom Pydantic models i.e. PlanningAgentResponse
                 if isinstance(final_msg, BaseModel):
-                    print("final msg type", type(final_msg))
-                    print("final msg", final_msg)
                     # Get the full model data
                     data = final_msg.model_dump()
                     print("data", data)
                     # If "content" exists in the Pydantic model, use it; otherwise use the full model data
                     final_msg = (", ".join(data["content"]) if isinstance(data.get("content", None), list) 
                                else str(data.get("content", str(data))))
-                    print(f"final msg after extraction: {final_msg}")
 
                 observer.on_next(final_msg)
                 self.response_subject.on_next(final_msg)
@@ -351,8 +348,8 @@ class LLMAgent(Agent):
                 response_message_2 = self._handle_tooling(
                     response_message, messages)
                 final_msg = response_message_2 if response_message_2 is not None else response_message
-                if isinstance(final_msg, BaseModel):
-                    final_msg = final_msg.content
+                if isinstance(final_msg, BaseModel): # TODO: Test
+                    final_msg = str(final_msg.content)
                 observer.on_next(final_msg)
                 self.response_subject.on_next(final_msg)
             observer.on_completed()
