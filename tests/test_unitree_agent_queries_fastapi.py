@@ -49,9 +49,9 @@ def main():
         streams = {"unitree_video": video_stream}
         web_interface = RobotWebInterface(port=5555, **streams)
 
-        logger.info("Starting perception agent")
+        logger.info("Starting action primitive execution agent")
         agent = OpenAIAgent(
-            dev_name="UnitreeQueryPerceptionAgent",
+            dev_name="UnitreeQueryExecutionAgent",
             input_query_stream=web_interface.query_stream,
             output_dir=output_dir,
             skills=robot.get_skills(),
