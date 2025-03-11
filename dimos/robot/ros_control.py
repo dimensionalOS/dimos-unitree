@@ -18,7 +18,6 @@ from rclpy.qos import (
     QoSHistoryPolicy,
     QoSDurabilityPolicy
 )
-#from dimos.stream.data_provider import ROSDataProvider
 from dimos.stream.ros_video_provider import ROSVideoProvider
 import math
 from nav2_simple_commander.robot_navigator import BasicNavigator
@@ -182,7 +181,6 @@ class ROSControl(ABC):
                 webrtc_func=self.webrtc_req,
                 is_ready_func=lambda: self._mode == RobotMode.IDLE,
                 is_busy_func=lambda: self._mode == RobotMode.MOVING,
-                logger=self._logger
             )
             # Start the queue processing thread
             self._command_queue.start()

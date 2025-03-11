@@ -1,8 +1,6 @@
 import inspect
 from typing import Callable, Dict, Type
-
 from pydantic import BaseModel, create_model
-
 from dimos.robot.skills import AbstractSkill
 
 class ROSSkillLibrary(AbstractSkill):
@@ -66,31 +64,3 @@ def register_skill(name: str = None):
 
         return wrapper
     return decorator
-    
-# TESTING:
-# TODO: REMOVE
-
-# from skill_library import SkillLibrary
-# from robot import Robot
-
-# robot = Robot()
-# skill_library = SkillLibrary()
-
-# # List registered skills
-# print("Available skills:", skill_library.list_skills())
-
-# # Get the auto-generated Pydantic model for validation
-# MoveModel = skill_library.get_model("move_robot")
-# print("Pydantic Model Schema for move_robot:")
-# print(MoveModel.schema())
-
-# # Test with incorrect parameters (this will raise a validation error)
-# try:
-#     move_func = skill_library.get_skill("move_robot")
-#     if move_func:
-#         move_func(robot, x="fast", y=0.0, yaw=0.5, duration="short")  # Invalid types
-# except Exception as e:
-#     print(f"Validation Error: {e}")
-
-# # Test with valid parameters (this will execute successfully)
-# move_func(robot, x=1.0, y=0.0, yaw=0.5, duration=2.0)
