@@ -12,7 +12,7 @@ Environment Variables:
 import sys
 import os
 
-from dimos.web.robot_web_interface import RobotWebInterface
+
 
 # Add the parent directory of 'demos' to the Python path
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -34,6 +34,7 @@ from dimos.robot.unitree.unitree_go2 import UnitreeGo2
 from dimos.robot.unitree.unitree_skills import MyUnitreeSkills
 from dimos.utils.logging_config import logger
 from dimos.web.fastapi_server import FastAPIServer
+# from dimos.web.robot_web_interface import RobotWebInterface
 from dimos.utils.threadpool import make_single_thread_scheduler
 
 def main():
@@ -56,7 +57,8 @@ def main():
         logger.info("Initializing Unitree Robot")
         robot = UnitreeGo2(ip=robot_ip,
                            connection_method=connection_method,
-                           output_dir=output_dir)
+                           output_dir=output_dir,
+                           mock_connection=True)
 
         # Set up video stream
         logger.info("Starting video stream")
@@ -82,7 +84,8 @@ def main():
             "executor_responses": executor_response_stream,
         }
         
-        web_interface = RobotWebInterface(port=5555, text_streams=text_streams, **streams)
+        web_interface = FastAPIServer(
+            port=5555, text_streams=text_streams, **streams)
 
         logger.info("Starting planning agent with web interface")
         planner = PlanningAgent(
