@@ -10,13 +10,19 @@ Environment Variables:
     USE_TERMINAL: Optional. If set to "true", use terminal interface instead of web.
 """
 
-import os
 import sys
+import os
+
+# Add the parent directory of 'demos' to the Python path
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+print(f"Hi from {os.path.basename(__file__)}\n")
+
+# -----
+
+from textwrap import dedent
 import threading
 import time
-
-# Add project root to Python path
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 # Local application imports
 from dimos.agents.agent import OpenAIAgent
@@ -25,6 +31,7 @@ from dimos.robot.unitree.unitree_go2 import UnitreeGo2
 from dimos.robot.unitree.unitree_skills import MyUnitreeSkills
 from dimos.utils.logging_config import logger
 from dimos.web.robot_web_interface import RobotWebInterface
+from dimos.utils.threadpool import make_single_thread_scheduler
 
 def main():
     # Get environment variables
@@ -64,9 +71,9 @@ def main():
             logger.info("Starting planning agent in terminal mode")
             planner = PlanningAgent(
                 dev_name="TaskPlanner",
-                model_name="gpt-4",
-                max_steps=10,
-                use_terminal=True
+                model_name="gpt-4o",
+                use_terminal=True,
+                skills=skills_instance
             )
         else:
             # Web interface mode
@@ -77,9 +84,9 @@ def main():
             logger.info("Starting planning agent with web interface")
             planner = PlanningAgent(
                 dev_name="TaskPlanner",
-                model_name="gpt-4",
-                max_steps=10,
-                input_query_stream=web_interface.query_stream
+                model_name="gpt-4o",
+                input_query_stream=web_interface.query_stream,
+                skills=skills_instance
             )
         
         # Get planner's response observable
@@ -88,11 +95,21 @@ def main():
         
         # Initialize execution agent with robot skills
         logger.info("Starting execution agent")
+        system_query=dedent(
+            """
+            You are a robot execution agent that can execute tasks on a virtual
+            robot. You are given a task to execute and a list of skills that 
+            you can use to execute the task. ONLY OUTPUT THE SKILLS TO EXECUTE,
+            NOTHING ELSE.
+            """
+        )
         executor = OpenAIAgent(
             dev_name="StepExecutor",
             input_query_stream=planner_responses,
             output_dir=output_dir,
             skills=skills_instance,
+            system_query=system_query,
+            pool_scheduler=make_single_thread_scheduler()
         )
 
         # Get executor's response observable
@@ -141,9 +158,8 @@ def main():
         while True:
             time.sleep(1)
 
-    return 0
 
 if __name__ == "__main__":
     sys.exit(main())
 
-# Move the robot forward by 1 meter, then turn 90 degrees clockwise, then move backward by 1 meter, then turn a random angle counterclockwise, then repeat this sequence 5 times.
+# Example Task: Move the robot forward by 1 meter, then turn 90 degrees clockwise, then move backward by 1 meter, then turn a random angle counterclockwise, then repeat this sequence 5 times.
