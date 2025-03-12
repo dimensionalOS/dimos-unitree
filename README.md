@@ -178,7 +178,50 @@ while True: # keep process running
   time.sleep(1)
 ```
 
+### Calling Action Primitives
 
+Call action primitives directly from ```Robot()``` for prototyping and testing.
+
+```python
+robot = UnitreeGo2(ip=robot_ip,)
+
+# Call a Unitree WebRTC action primitive
+robot.webrtc_req(api_id=1016) # "Hello" command
+
+# Call a ROS2 action primitive
+robot.move(distance=1.0, speed=0.5)
+```
+
+### Creating Custom Skills (non-unitree specific)
+
+#### Create basic custom skills by inheriting from ```AbstractSkill``` and implementing the ```__call__``` method.
+
+```python
+class Flip(AbstractSkill):
+    def __call__(self, robot):
+      return self.robot.flip(robot)
+```
+
+#### Chain together skills to create recursive skill trees
+
+```python
+class Jump(AbstractSkill):
+    def __call__(self):
+      return self.robot.jump()
+
+class Flip(AbstractSkill):
+    def __call__(self):
+      return self.robot.flip()
+
+class JumpAndFlip(AbstractSkill):
+    def __init__(self, robot):
+        super().__init__(robot)
+        self.jump = Jump(robot)
+        self.flip = Flip(robot)
+
+    def __call__(self):
+        return [self.jump(), self.flip()]
+```
 
 ## Documentation
 
