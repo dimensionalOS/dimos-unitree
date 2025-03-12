@@ -31,7 +31,8 @@ from dimos.agents.planning_agent import PlanningAgent
 from dimos.robot.unitree.unitree_go2 import UnitreeGo2
 from dimos.robot.unitree.unitree_skills import MyUnitreeSkills
 from dimos.utils.logging_config import logger
-from dimos.web.fastapi_server import FastAPIServer
+# from dimos.web.fastapi_server import FastAPIServer
+from dimos.web.robot_web_interface import RobotWebInterface
 from dimos.utils.threadpool import make_single_thread_scheduler
 
 def main():
@@ -82,7 +83,8 @@ def main():
             "executor_responses": executor_response_stream,
         }
         
-        web_interface = FastAPIServer(port=5555, text_streams=text_streams, **streams)
+        web_interface = RobotWebInterface(
+            port=5555, text_streams=text_streams, **streams)
 
         logger.info("Starting planning agent with web interface")
         planner = PlanningAgent(
@@ -112,9 +114,9 @@ def main():
         system_query=dedent(
             """
             You are a robot execution agent that can execute tasks on a virtual
-            robot. You are given a task to execute and a list of skills that 
-            you can use to execute the task. ONLY OUTPUT THE SKILLS TO EXECUTE,
-            NOTHING ELSE.
+            robot. The sole text you will be given is the task to execute.
+            You will be given a list of skills that you can use to execute the task.
+            ONLY OUTPUT THE SKILLS TO EXECUTE, NOTHING ELSE.
             """
         )
         executor = OpenAIAgent(
