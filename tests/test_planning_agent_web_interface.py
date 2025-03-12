@@ -56,9 +56,7 @@ def main():
         robot = UnitreeGo2(ip=robot_ip,
                            connection_method=connection_method,
                            output_dir=output_dir,
-                           mock_connection=True,
-                           debug=False)
-
+                           mock_connection=True,)
         # Set up video stream
         logger.info("Starting video stream")
         video_stream = robot.get_ros_video_stream()
