@@ -367,7 +367,7 @@ class ROSControl(ABC):
                 return self._send_action_client_goal(
                     self._drive_client, 
                     goal, 
-                    f"Moving forward {distance}m at {speed}m/s", 
+                    f"Sending Action Client goal in ROSControl.execute_move for {distance}m at {speed}m/s", 
                     time_allowance
                 )
             
