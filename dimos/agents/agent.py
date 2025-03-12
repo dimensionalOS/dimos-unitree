@@ -435,7 +435,8 @@ class LLMAgent(Agent):
                     lambda observer, _: self._observable_query(
                         observer,
                         base64_image=base64_and_dims[0],
-                        dimensions=base64_and_dims[1]))),
+                        dimensions=base64_and_dims[1],
+                        incoming_query=self.system_query))),
                 MyOps.print_emission(id='H', **print_emission_args),
             )
 
