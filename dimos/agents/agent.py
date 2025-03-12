@@ -164,7 +164,7 @@ class LLMAgent(Agent):
         self.process_all_inputs: bool = process_all_inputs
         os.makedirs(self.output_dir, exist_ok=True)
         
-        # Subject for emitting responses to sub Agents()
+        # Subject for emitting responses
         self.response_subject = Subject()
 
     def _update_query(self, incoming_query: Optional[str]) -> None:
@@ -319,7 +319,6 @@ class LLMAgent(Agent):
             self.logger.info("Sending Query.")
             response_message = self._send_query(messages)
             self.logger.info(f"Received Response: {response_message}")
-            print("init reponse message type", type(response_message))
             if response_message is None:
                 raise Exception("Response message does not exist.")
 
@@ -504,7 +503,6 @@ class LLMAgent(Agent):
             """
             return just(query).pipe(
                 MyOps.print_emission(id='Pr A', **print_emission_args),
-                # Flat map maintains input query order when LLM inference time is of variable length
                 RxOps.flat_map(lambda query: create(
                     lambda observer, _: self._observable_query(
                         observer, incoming_query=query))),

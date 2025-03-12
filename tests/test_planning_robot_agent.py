@@ -7,12 +7,11 @@ Environment Variables:
     ROBOT_IP: Required. IP address of the robot.
     CONN_TYPE: Required. Connection method to the robot.
     ROS_OUTPUT_DIR: Optional. Directory for ROS output files.
+    USE_TERMINAL: Optional. If set to "true", use terminal interface instead of web.
 """
 
 import sys
 import os
-
-
 
 # Add the parent directory of 'demos' to the Python path
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -33,7 +32,6 @@ from dimos.agents.planning_agent import PlanningAgent
 from dimos.robot.unitree.unitree_go2 import UnitreeGo2
 from dimos.robot.unitree.unitree_skills import MyUnitreeSkills
 from dimos.utils.logging_config import logger
-# from dimos.web.fastapi_server import FastAPIServer
 from dimos.web.robot_web_interface import RobotWebInterface
 from dimos.utils.threadpool import make_single_thread_scheduler
 
@@ -45,6 +43,7 @@ def main():
     connection_method = os.getenv("CONN_TYPE") or 'webrtc'
     output_dir = os.getenv("ROS_OUTPUT_DIR",
                            os.path.join(os.getcwd(), "assets/output/ros"))
+    use_terminal = os.getenv("USE_TERMINAL", "").lower() == "true"
 
     # Initialize components as None for proper cleanup
     robot = None
@@ -68,57 +67,60 @@ def main():
         logger.info("Initializing robot skills")
         skills_instance = MyUnitreeSkills(robot=robot)
 
-        # Create subjects for planner and executor responses
-        logger.info("Creating response streams")
-        planner_response_subject = rx.subject.Subject()
-        planner_response_stream = planner_response_subject.pipe(ops.share())
+        if use_terminal:
+            # Terminal mode - no web interface needed
+            logger.info("Starting planning agent in terminal mode")
+            planner = PlanningAgent(
+                dev_name="TaskPlanner",
+                model_name="gpt-4o",
+                use_terminal=True,
+                skills=skills_instance
+            )
+        else:
+            # Web interface mode
+            logger.info("Creating response streams")
+            planner_response_subject = rx.subject.Subject()
+            planner_response_stream = planner_response_subject.pipe(ops.share())
+            
+            executor_response_subject = rx.subject.Subject()
+            executor_response_stream = executor_response_subject.pipe(ops.share())
+            
+            # Web interface mode with FastAPI server
+            logger.info("Initializing FastAPI server")
+            streams = {"unitree_video": video_stream}
+            text_streams = {
+                "planner_responses": planner_response_stream,
+                "executor_responses": executor_response_stream,
+            }
+            
+            logger.info("Initializing FastAPI server")
+            web_interface = RobotWebInterface(
+                port=5555, text_streams=text_streams, **streams)
         
-        executor_response_subject = rx.subject.Subject()
-        executor_response_stream = executor_response_subject.pipe(ops.share())
-        
-        # Web interface mode with FastAPI server
-        logger.info("Initializing FastAPI server")
-        streams = {"unitree_video": video_stream}
-        text_streams = {
-            "planner_responses": planner_response_stream,
-            "executor_responses": executor_response_stream,
-        }
-        
-        web_interface = RobotWebInterface(
-            port=5555, text_streams=text_streams, **streams)
-
-        logger.info("Starting planning agent with web interface")
-        planner = PlanningAgent(
-            dev_name="TaskPlanner",
-            model_name="gpt-4o",
-            input_query_stream=web_interface.query_stream,
-            skills=skills_instance
-        )
-    
         # Get planner's response observable
         logger.info("Setting up agent response streams")
         planner_responses = planner.get_response_observable()
-        
-        # Connect planner to its subject
-        planner_responses.subscribe(
-            lambda x: planner_response_subject.on_next(x)
-        )
 
-        planner_responses.subscribe(
-            on_next=lambda x: logger.info(f"Planner response: {x}"),
-            on_error=lambda e: logger.error(f"Planner error: {e}"),
-            on_completed=lambda: logger.info("Planner completed")
-        )
+        if not use_terminal:
+            # Connect planner to its subject
+            planner_responses.subscribe(
+                lambda x: planner_response_subject.on_next(x)
+            )
+
+            planner_responses.subscribe(
+                on_next=lambda x: logger.info(f"Planner response: {x}"),
+                on_error=lambda e: logger.error(f"Planner error: {e}"),
+                on_completed=lambda: logger.info("Planner completed")
+            )
         
         # Initialize execution agent with robot skills
         logger.info("Starting execution agent")
         system_query=dedent(
             """
             You are a robot execution agent that can execute tasks on a virtual
-            robot. You will be given a task as user input and a list of skills/tools/functions 
-            that you can use to execute the task. ONLY PERFORM THE FUNCTION 
-            EXECUTION. AFTER EXECUTION, OUTPUT THE FUNCTION YOU EXECUTED WITH 
-            THEIR ARGUMENTS IN NATURAL LANGUAGE, NOTHING ELSE.
+            robot. You are given a task to execute and a list of skills that 
+            you can use to execute the task. ONLY OUTPUT THE SKILLS TO EXECUTE,
+            NOTHING ELSE.
             """
         )
         executor = OpenAIAgent(
@@ -139,15 +141,27 @@ def main():
             on_error=lambda e: logger.error(f"Executor error: {e}"),
             on_completed=lambda: logger.info("Executor completed")
         )
-        
-        # Connect executor to its subject
-        executor_responses.subscribe(
-            lambda x: executor_response_subject.on_next(x)
-        )
 
-        # Start web server (blocking call)
-        logger.info("Starting FastAPI server")
-        web_interface.run()
+        if use_terminal:
+            # In terminal mode, just wait for the planning session to complete
+            logger.info("Waiting for planning session to complete")
+            while not planner.plan_confirmed:
+                pass
+            logger.info("Planning session completed")
+        else:
+            # Connect executor to its subject
+            executor_responses.subscribe(
+                lambda x: executor_response_subject.on_next(x)
+            )
+
+            # Start web server (blocking call)
+            logger.info("Starting FastAPI server")
+            web_interface.run()
+
+        # Keep the main thread alive
+        logger.error("NOTE: Keeping main thread alive")
+        while True:
+            time.sleep(1)
 
     except KeyboardInterrupt:
         print("Stopping demo...")
@@ -172,5 +186,3 @@ def main():
 
 if __name__ == "__main__":
     sys.exit(main())
-
-# Example Task: Move the robot forward by 1 meter, then turn 90 degrees clockwise, then move backward by 1 meter, then turn a random angle counterclockwise, then repeat this sequence 5 times.
