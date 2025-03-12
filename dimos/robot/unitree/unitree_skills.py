@@ -134,8 +134,8 @@ class MyUnitreeSkills(AbstractSkill):
             elif self._robot.ros_control is None:
                 raise RuntimeError("No ROS control interface available for movement")
             else:
-                return self._robot.ros_control.move(distance=self.distance)
-    
+                return self._robot.move(distance=self.distance)
+
     class Reverse(AbstractSkill):
         """Reverse the robot using distance commands."""
 
@@ -157,7 +157,7 @@ class MyUnitreeSkills(AbstractSkill):
             elif self._robot.ros_control is None:
                 raise RuntimeError("No ROS control interface available for movement")
             else:
-                return self._robot.ros_control.reverse(distance=self.distance)
+                return self._robot.reverse(distance=self.distance)
 
     class SpinLeft(AbstractSkill):
         """Spin the robot left using degree commands."""
@@ -180,8 +180,8 @@ class MyUnitreeSkills(AbstractSkill):
             elif self._robot.ros_control is None:
                 raise RuntimeError("No ROS control interface available for movement")
             else:
-                return self._robot.ros_control.spin(degrees=self.degrees) # Spinning left is positive degrees
-            
+                return self._robot.spin(degrees=self.degrees)  # Spinning left is positive degrees
+
     class SpinRight(AbstractSkill):
         """Spin the robot right using degree commands."""
 
@@ -203,7 +203,7 @@ class MyUnitreeSkills(AbstractSkill):
             elif self._robot.ros_control is None:
                 raise RuntimeError("No ROS control interface available for movement")
             else:
-                return self._robot.ros_control.spin(degrees=-self.degrees) # Spinning right is negative degrees
+                return self._robot.spin(degrees=-self.degrees)  # Spinning right is negative degrees
 
     class Wait(AbstractSkill):
         """Wait for a specified amount of time."""
