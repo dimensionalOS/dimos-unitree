@@ -200,7 +200,7 @@ class PlanningAgent(OpenAIAgent):
             # Create a proper PlanningAgentResponse with content as a list
             confirmation_msg = PlanningAgentResponse(
                 type="dialogue",
-                content=["Plan confirmed! Streaming steps to execution..."],
+                content="Plan confirmed! Streaming steps to execution...",
                 needs_confirmation=False
             )
             self._handle_response(confirmation_msg)
