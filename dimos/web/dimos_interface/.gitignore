@@ -11,6 +11,7 @@ lerna-debug.log*
 node_modules
 dist
 dist-ssr
+.vite/
 *.local
 dist.zip
 yarn.lock
