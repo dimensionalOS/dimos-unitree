@@ -56,14 +56,14 @@ def main():
         robot = UnitreeGo2(ip=robot_ip,
                            connection_method=connection_method,
                            output_dir=output_dir,
-                           mock_connection=True,)
+                           mock_connection=False,
+                           skills=MyUnitreeSkills())
         # Set up video stream
         logger.info("Starting video stream")
         video_stream = robot.get_ros_video_stream()
 
         # Initialize robot skills
         logger.info("Initializing robot skills")
-        skills_instance = MyUnitreeSkills(robot=robot)
 
         # Create subjects for planner and executor responses
         logger.info("Creating response streams")
@@ -89,7 +89,7 @@ def main():
             dev_name="TaskPlanner",
             model_name="gpt-4o",
             input_query_stream=web_interface.query_stream,
-            skills=skills_instance
+            skills=robot.get_skills()
         )
     
         # Get planner's response observable
@@ -121,7 +121,7 @@ def main():
             dev_name="StepExecutor",
             input_query_stream=planner_responses,
             output_dir=output_dir,
-            skills=skills_instance,
+            skills=robot.get_skills(),
             system_query=system_query,
             pool_scheduler=make_single_thread_scheduler()
         )
