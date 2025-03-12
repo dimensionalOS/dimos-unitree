@@ -100,6 +100,7 @@ Non-production directories excluded
 │   │   └── unitree/ # Unitree Go2 specific control and skills implementations
 │   ├── stream/      # WebRTC and data streaming
 │   ├── web/         # DimOS development interface and API
+│   │   └── dimos_interface/  # DimOS web interface 
 │   ├── simulation/  # Robot simulation environments
 │   ├── utils/       # Utility functions and helpers
 │   └── types/       # Type definitions and interfaces
@@ -108,6 +109,7 @@ Non-production directories excluded
 ```
 
 ## Building
+
 
 ### Simple DimOS Application
 
@@ -127,26 +129,55 @@ agent = OpenAIAgent(
             dev_name="UnitreeExecutionAgent",
             input_video_stream=robot.get_ros_video_stream(),
             skills=robot.get_skills(),
-            system_query="Jump when you see a human! Front flip when you see a dog!"
+            system_query="Jump when you see a human! Front flip when you see a dog!",
+            model_name="gpt-4o"
         )
+
+while True: # keep process running
+  time.sleep(1)
 ```
+
 
 ### DimOS Application with Agent chaining
 
-Our reactive Pub/Sub data streaming architecture allow for each chaining of Agent_1 output --> Agent_2 input via the ```input_query_stream``` parameter which takes an ```Observable``` input. 
+Let's build a simple DimOS application with Agent chaining. We define a ```planner``` as a ```PlanningAgent``` that takes in user input to devise a complex multi-step plan. This plan is passed step-by-step to an ```executor``` agent that can queue ```AbstractSkill``` commands to the ```ROSCommandQueue```. 
+
+Our reactive Pub/Sub data streaming architecture allows for chaining of ```Agent_0 --> Agent_1 --> ... --> Agent_n``` via the ```input_query_stream``` parameter in each which takes an ```Observable``` input from the previous Agent in the chain. 
+
+**Via this method you can chain together any number of Agents() to create complex dimensional applications.** 
 
 ```python
+
+web_interface = RobotWebInterface(port=5555)
 
 robot = UnitreeGo2(ip=robot_ip,
                   ros_control=UnitreeROSControl(),
                   skills=MyUnitreeSkills())
 
 # Initialize master planning agent
-agent = OpenAIAgent(
+planner = PlanningAgent(
             dev_name="UnitreePlanningAgent",
+            input_query_stream=web_interface.query_stream, # Takes user input from dimOS interface
             skills=robot.get_skills(),
-            system_query="Jump when you see a human! Front flip when you see a dog!"
+            model_name="gpt-4o",
         )
+
+# Initialize execution agent
+executor = OpenAIAgent(
+            dev_name="UnitreeExecutionAgent",
+            input_query_stream=planner.get_response_observable(), # Takes planner output as input
+            skills=robot.get_skills(),
+            model_name="gpt-4o",
+            system_query="""
+            You are a robot execution agent that can execute tasks on a virtual
+            robot. ONLY OUTPUT THE SKILLS TO EXECUTE.
+            """
+        )
+
+while True: # keep process running
+  time.sleep(1)
+```
+
 
 
 ## Documentation
