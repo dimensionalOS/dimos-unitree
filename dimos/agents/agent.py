@@ -338,6 +338,8 @@ class LLMAgent(Agent):
                 response_message_2 = self._handle_tooling(
                     response_message, messages)
                 final_msg = response_message_2 if response_message_2 is not None else response_message
+                if isinstance(final_msg, BaseModel): # TODO: Test
+                    final_msg = str(final_msg.content)
                 observer.on_next(final_msg)
                 self.response_subject.on_next(final_msg)
             observer.on_completed()

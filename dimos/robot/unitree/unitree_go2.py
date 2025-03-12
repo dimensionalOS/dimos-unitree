@@ -50,6 +50,7 @@ class UnitreeGo2(Robot):
             disable_video_stream: bool = False,
             mock_connection: bool = False,
             skills: Optional[Union[MyUnitreeSkills, AbstractSkill]] = None):
+
         """Initialize the UnitreeGo2 robot.
         
         Args:
