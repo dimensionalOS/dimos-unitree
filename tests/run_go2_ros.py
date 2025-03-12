@@ -1,9 +1,9 @@
-import cv2
-from dimos.robot.unitree.unitree_go2 import UnitreeGo2, WebRTCConnectionMethod
 import os
 import time
+import cv2
+
+from dimos.robot.unitree.unitree_go2 import UnitreeGo2, WebRTCConnectionMethod
 from dimos.robot.unitree.unitree_ros_control import UnitreeROSControl
-import math
 
 def get_env_var(var_name, default=None, required=False):
     """Get environment variable with validation."""
@@ -84,7 +84,6 @@ if __name__ == "__main__":
 
         def handle_completion():
             print("Stream completed")
-            cv2.destroyAllWindows()
 
         # Subscribe to the stream
         print("Creating subscription...")
@@ -149,7 +148,6 @@ if __name__ == "__main__":
         print("\nStopping perception...")
         if 'subscription' in locals():
             subscription.dispose()
-        cv2.destroyAllWindows()
     except Exception as e:
         print(f"Error in main loop: {e}")
     finally:
@@ -157,6 +155,5 @@ if __name__ == "__main__":
         print("Cleaning up resources...")
         if 'subscription' in locals():
             subscription.dispose()
-        cv2.destroyAllWindows()
         del robot
         print("Cleanup complete.")
