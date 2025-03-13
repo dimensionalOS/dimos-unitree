@@ -22,6 +22,27 @@ type CommandResult = string | {
   initialMessage: string;
 };
 
+// Function to fetch available text stream keys
+async function fetchTextStreamKeys(): Promise<string[]> {
+  try {
+    const response = await fetch('http://localhost:5555/text_streams');
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+    const data = await response.json();
+    return data.streams;
+  } catch (error) {
+    console.error('Failed to fetch text stream keys:', error);
+    return [];
+  }
+}
+
+// Cache the text stream keys
+let textStreamKeys: string[] = [];
+fetchTextStreamKeys().then(keys => {
+  textStreamKeys = keys;
+});
+
 export const commands: Record<string, (args: string[]) => Promise<CommandResult> | CommandResult> = {
   help: () => 'Available commands: ' + Object.keys(commands).join(', '),
   hostname: () => hostname,
@@ -302,6 +323,15 @@ Type 'help' to see list of available commands.
       const commandText = args.slice(1).join(' ');
       
       try {
+        // Ensure we have the text stream keys
+        if (textStreamKeys.length === 0) {
+          textStreamKeys = await fetchTextStreamKeys();
+        }
+        
+        if (textStreamKeys.length === 0) {
+          throw new Error('No text streams available');
+        }
+
         const response = await fetch('/unitree/command', {
           method: 'POST',
           headers: {
@@ -317,7 +347,7 @@ Type 'help' to see list of available commands.
 
         return {
           type: 'STREAM_START' as const,
-          streamKey: 'planner_responses',
+          streamKey: textStreamKeys[0], // Using the first available text stream
           initialMessage: `Command sent: ${commandText}\nWaiting for output...`
         };
         
