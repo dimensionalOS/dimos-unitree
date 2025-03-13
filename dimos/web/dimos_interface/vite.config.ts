@@ -44,6 +44,21 @@ export default defineConfig({
           });
         },
       },
+      '/text_streams': {
+        target: 'http://localhost:5555',
+        changeOrigin: true,
+        configure: (proxy, _options) => {
+          proxy.on('error', (err, _req, _res) => {
+            console.log('text streams proxy error', err);
+          });
+          proxy.on('proxyReq', (proxyReq, req, _res) => {
+            console.log('Sending Text Streams Request:', req.method, req.url);
+          });
+          proxy.on('proxyRes', (proxyRes, req, _res) => {
+            console.log('Received Text Streams Response:', proxyRes.statusCode, req.url);
+          });
+        },
+      },
       '/simulation': {
         target: '',  // Will be set dynamically
         changeOrigin: true,

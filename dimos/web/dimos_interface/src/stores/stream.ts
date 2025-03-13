@@ -1,5 +1,6 @@
-import { writable, derived } from 'svelte/store';
+import { writable, derived, get } from 'svelte/store';
 import { simulationManager, simulationStore } from '../utils/simulation';
+import { history } from './history';
 
 interface StreamState {
   isVisible: boolean;
@@ -8,6 +9,13 @@ interface StreamState {
   error: string | null;
   streamKey: string | null;
   availableStreams: string[];
+}
+
+interface TextStreamState {
+  isStreaming: boolean;
+  messages: string[];
+  currentStream: EventSource | null;
+  streamKey: string | null;
 }
 
 const initialState: StreamState = {
@@ -19,7 +27,15 @@ const initialState: StreamState = {
   availableStreams: []
 };
 
+const initialTextState: TextStreamState = {
+  isStreaming: false,
+  messages: [],
+  currentStream: null,
+  streamKey: null
+};
+
 export const streamStore = writable<StreamState>(initialState);
+export const textStreamStore = writable<TextStreamState>(initialTextState);
 // Derive stream state from both stores
 export const combinedStreamState = derived(
   [streamStore, simulationStore],
@@ -73,7 +89,7 @@ export const showStream = async (streamKey?: string) => {
       streamKey,
       isLoading: false,
       error: null,
-      availableStreams: (await fetchAvailableStreams())
+      availableStreams: (await fetchAvailableStreams()),
     });
 
   } catch (error) {
@@ -91,3 +107,53 @@ export const hideStream = async () => {
   await simulationManager.stopSimulation();
   streamStore.set(initialState);
 };
+
+// Simple store to track active event sources
+const textEventSources: Record<string, EventSource> = {};
+
+export const connectTextStream = (key: string): void => {
+  // Close existing stream if any
+  if (textEventSources[key]) {
+    textEventSources[key].close();
+    delete textEventSources[key];
+  }
+
+  // Create new EventSource
+  const eventSource = new EventSource(`http://localhost:5555/text_stream/${key}`);
+  textEventSources[key] = eventSource;
+  // Handle incoming messages
+  eventSource.addEventListener('message', (event) => {
+    // Append message to the last history entry
+    history.update(h => {
+      const lastEntry = h[h.length - 1];
+      const newEntry = {
+        ...lastEntry,
+        outputs: [...lastEntry.outputs, event.data]
+      };
+      return [
+        ...h.slice(0, -1),
+        newEntry
+      ];
+    });
+  });
+
+  // Handle errors
+  eventSource.onerror = (error) => {
+    console.error('Stream error details:', {
+      key,
+      error,
+      readyState: eventSource.readyState,
+      url: eventSource.url
+    });
+    eventSource.close();
+    delete textEventSources[key];
+  };
+};
+
+export const disconnectTextStream = (key: string): void => {
+  if (textEventSources[key]) {
+    textEventSources[key].close();
+    delete textEventSources[key];
+  }
+};
+
