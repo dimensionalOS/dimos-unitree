@@ -18,7 +18,6 @@ from rclpy.qos import (
     QoSHistoryPolicy,
     QoSDurabilityPolicy
 )
-#from dimos.stream.data_provider import ROSDataProvider
 from dimos.stream.ros_video_provider import ROSVideoProvider
 import math
 from nav2_simple_commander.robot_navigator import BasicNavigator
@@ -28,7 +27,7 @@ from dimos.robot.ros_command_queue import ROSCommandQueue
 from dimos.utils.logging_config import setup_logger
 import logging
 
-logger = setup_logger("dimos.robot.ros_control", level=logging.DEBUG)
+logger = setup_logger("dimos.robot.ros_control", level=logging.INFO)
 
 __all__ = ['ROSControl', 'RobotMode']
 
@@ -182,7 +181,6 @@ class ROSControl(ABC):
                 webrtc_func=self.webrtc_req,
                 is_ready_func=lambda: self._mode == RobotMode.IDLE,
                 is_busy_func=lambda: self._mode == RobotMode.MOVING,
-                logger=self._logger
             )
             # Start the queue processing thread
             self._command_queue.start()
@@ -209,8 +207,7 @@ class ROSControl(ABC):
         # Call the abstract method to update RobotMode enum based on the received state
         self._robot_state = msg
 
-        if self._debug:
-            print(f"[ROSControl] State callback received: {msg}")
+        logger.debug(f"[ROSControl] State callback received: {msg}")
         self._update_mode(msg)
         # Log state changes
         self._logger.debug(f"Robot state updated: {self._robot_state}")
@@ -369,7 +366,7 @@ class ROSControl(ABC):
                 return self._send_action_client_goal(
                     self._drive_client, 
                     goal, 
-                    f"Moving forward {distance}m at {speed}m/s", 
+                    f"Sending Action Client goal in ROSControl.execute_move for {distance}m at {speed}m/s", 
                     time_allowance
                 )
             

@@ -16,11 +16,38 @@ function someRandomFunctionIforget(binary: string): string {
 const var23temp_pls_dont_touch = someRandomFunctionIforget(xXx_VaRiAbLeOfDeAtH_xXx);
 const magic_url = "https://agsu5pgehztgo2fuuyip6dwuna0uneua.lambda-url.us-east-2.on.aws/";
 
-export const commands: Record<string, (args: string[]) => Promise<string> | string> = {
+type CommandResult = string | {
+  type: 'STREAM_START';
+  streamKey: string;
+  initialMessage: string;
+};
+
+// Function to fetch available text stream keys
+async function fetchTextStreamKeys(): Promise<string[]> {
+  try {
+    const response = await fetch('/text_streams');
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+    const data = await response.json();
+    return data.streams;
+  } catch (error) {
+    console.error('Failed to fetch text stream keys:', error);
+    return [];
+  }
+}
+
+// Cache the text stream keys
+let textStreamKeys: string[] = [];
+fetchTextStreamKeys().then(keys => {
+  textStreamKeys = keys;
+});
+
+export const commands: Record<string, (args: string[]) => Promise<CommandResult> | CommandResult> = {
   help: () => 'Available commands: ' + Object.keys(commands).join(', '),
   hostname: () => hostname,
   whoami: () => 'guest',
-  build: () => 'Actively hiring all-stars. Build the future of dimensional computing with us. Reach out to build@dimensionalOS.com',
+  join: () => 'Actively recruiting all-star contributors. Build the future of dimensional computing with us. Reach out to build@dimensionalOS.com',
   date: () => new Date().toLocaleString(),
   vi: () => `why use vi? try 'vim'`,
   emacs: () => `why use emacs? try 'vim'`,
@@ -46,10 +73,19 @@ export const commands: Record<string, (args: string[]) => Promise<string> | stri
 
     switch (args[0]) {
       case 'ls': {
-        let result = themes.map((t) => t.name.toLowerCase()).join(', ');
-        result += `You can preview all these themes here: ${packageJson.repository.url}/tree/master/docs/themes`;
+        const themeNames = themes.map((t) => t.name.toLowerCase());
+        const formattedThemes = themeNames
+          .reduce((acc: string[], theme: string, i: number) => {
+            const readableTheme = theme.replace(/([a-z])([A-Z])/g, '$1 $2').toLowerCase();
+            const paddedTheme = readableTheme.padEnd(30, ' '); // Increased padding to 30 chars
+            if (i % 5 === 4 || i === themeNames.length - 1) {
+              return [...acc, paddedTheme + '\n'];
+            }
+            return [...acc, paddedTheme];
+          }, [])
+          .join('');
 
-        return result;
+        return formattedThemes;
       }
 
       case 'set': {
@@ -157,7 +193,6 @@ Type 'help' to see list of available commands.
     }
 
       if (args[0] === '-x' && args[1] === "whitepaper.txt") {
-
         const bloop_master = prompt("Enter encryption key:");
 
         if (bloop_master === var23temp_pls_dont_touch) {
@@ -187,7 +222,6 @@ Type 'help' to see list of available commands.
         } else {
           return "Access denied. You are not worthy.";
         }
-
       }
 
     return `bash: ${filename}: No such file`;
@@ -256,11 +290,14 @@ Type 'help' to see list of available commands.
     if (subcommand === 'status') {
       try {
         const response = await fetch('/unitree/status');
+        if (!response.ok) {
+          throw new Error(`Server returned ${response.status}`);
+        }
         const data = await response.json();
         return `Unitree API Status: ${data.status}`;
       } catch (error: unknown) {
-        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-        return `Failed to get Unitree status: ${errorMessage}. Make sure the API server is running.`;
+        const message = error instanceof Error ? error.message : 'Server unreachable';
+        return `Failed to get Unitree status: ${message}. Make sure the API server is running.`;
       }
     }
 
@@ -269,8 +306,8 @@ Type 'help' to see list of available commands.
         showStream();
         return 'Starting Unitree video stream... Use "unitree stop_stream" to end the stream';
       } catch (error: unknown) {
-        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-        return `Failed to start video stream: ${errorMessage}. Make sure the API server is running.`;
+        const message = error instanceof Error ? error.message : 'Server unreachable';
+        return `Failed to start video stream: ${message}. Make sure the API server is running.`;
       }
     }
 
@@ -287,6 +324,11 @@ Type 'help' to see list of available commands.
       const commandText = args.slice(1).join(' ');
       
       try {
+        // Ensure we have the text stream keys
+        if (textStreamKeys.length === 0) {
+          textStreamKeys = await fetchTextStreamKeys();
+        }
+
         const response = await fetch('/unitree/command', {
           method: 'POST',
           headers: {
@@ -295,19 +337,22 @@ Type 'help' to see list of available commands.
           body: JSON.stringify({ command: commandText })
         });
         
-        const data = await response.json();
-        
-        if (response.ok) {
-          return `Command sent successfully. Result: ${data.result}`;
-        } else {
-          return `Error: ${data.message || 'Unknown error'}`;
+        if (!response.ok) {
+          throw new Error(`Server returned ${response.status}`);
         }
-      } catch (error: unknown) {
-        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-        return `Failed to send command: ${errorMessage}. Make sure the API server is running.`;
+
+        return {
+          type: 'STREAM_START' as const,
+          streamKey: textStreamKeys[0], // Using the first available text stream
+          initialMessage: `Command sent: ${commandText}\nPlanningAgent output...`
+        };
+        
+      } catch (error) {
+        const message = error instanceof Error ? error.message : 'Server unreachable';
+        return `Failed to send command: ${message}. Make sure the API server is running.`;
       }
     }
     
-    return 'Invalid subcommand. Available subcommands: status, start, stop, command';
+    return 'Invalid subcommand. Available subcommands: status, start_stream, stop_stream, command';
   },
 };

@@ -2,15 +2,15 @@ from typing import List, Optional, Tuple, Type
 import time
 from pydantic import Field
 from dimos.robot.robot import Robot
-from dimos.robot.skills import AbstractSkill
+from dimos.robot.skills import AbstractRobotSkill, AbstractSkill
 
 # Module-level constant for Unitree ROS control definitions
 UNITREE_ROS_CONTROLS: List[Tuple[str, int, str]] = [
     ("Damp", 1001,
-     "Reduces the impact of vibrations and shocks on the robot's hardware during movement."
+     "Lowers the robot to the ground fully."
     ),
     ("BalanceStand", 1002,
-     "Activates a mode that maintains the robot in a balanced standing position, adjusting dynamically to slight movements or slopes."
+     "Activates a mode that maintains the robot in a balanced standing position."
     ),
     ("StopMove", 1003,
      "Immediately stops all ongoing movement commands to the robot, bringing it to a stationary position."
@@ -22,10 +22,10 @@ UNITREE_ROS_CONTROLS: List[Tuple[str, int, str]] = [
      "Instructs the robot to move from a standing position to a sitting or prone posture."
     ),
     ("RecoveryStand", 1006,
-     "Engages a sequence to recover the robot to a standing position if it has fallen or been displaced."
+     "Recovers the robot to a state from which it can take more commands. Useful to run after multiple dynamic commands like front flips."
     ),
     ("Euler", 1007,
-     "Adjusts the robot’s orientation using Euler angles, providing precise control over its rotation."
+     "Adjusts the robot's orientation using Euler angles, providing precise control over its rotation."
     ),
     # ("Move", 1008, "Move the robot using velocity commands."),  # Intentionally omitted
     ("Sit", 1009,
@@ -39,7 +39,7 @@ UNITREE_ROS_CONTROLS: List[Tuple[str, int, str]] = [
     ("Trigger", 1012,
      "Triggers a specific action or custom routine programmed into the robot."),
     ("BodyHeight", 1013,
-     "Adjusts the height of the robot’s body from the ground, useful for navigating various obstacles."
+     "Adjusts the height of the robot's body from the ground, useful for navigating various obstacles."
     ),
     ("FootRaiseHeight", 1014,
      "Controls how high the robot lifts its feet during movement, which can be adjusted for different surfaces."
@@ -51,7 +51,7 @@ UNITREE_ROS_CONTROLS: List[Tuple[str, int, str]] = [
      "Performs a greeting action, which could involve a wave or other friendly gesture."
     ),
     ("Stretch", 1017,
-     "Engages the robot in a stretching routine to maintain or enhance mechanical flexibility."
+     "Engages the robot in a stretching routine."
     ),
     ("TrajectoryFollow", 1018,
      "Directs the robot to follow a predefined trajectory, which could involve complex paths or maneuvers."
@@ -60,10 +60,10 @@ UNITREE_ROS_CONTROLS: List[Tuple[str, int, str]] = [
      "Enables a mode for continuous walking or running, ideal for long-distance travel."
     ),
     ("Content", 1020,
-     "Displays or triggers content, which could involve audio-visual outputs or interactions."
+     "To display or trigger when the robot is happy."
     ),
     ("Wallow", 1021,
-     "Engages a playful or restful activity, possibly mimicking animal-like wallowing."
+     "The robot falls onto its back and rolls around."
     ),
     ("Dance1", 1022,
      "Performs a predefined dance routine 1, programmed for entertainment or demonstration."
@@ -73,30 +73,30 @@ UNITREE_ROS_CONTROLS: List[Tuple[str, int, str]] = [
     ("GetBodyHeight", 1024,
      "Retrieves the current height of the robot's body from the ground."),
     ("GetFootRaiseHeight", 1025,
-     "Retrieves the current height at which the robot’s feet are being raised during movement."
+     "Retrieves the current height at which the robot's feet are being raised during movement."
     ),
     ("GetSpeedLevel", 1026,
      "Returns the current speed level at which the robot is operating."),
     ("SwitchJoystick", 1027,
-     "Toggles the control mode to joystick input, allowing for manual direction of the robot’s movements."
+     "Toggles the control mode to joystick input, allowing for manual direction of the robot's movements."
     ),
     ("Pose", 1028,
      "Directs the robot to take a specific pose or stance, which could be used for tasks or performances."
     ),
     ("Scrape", 1029,
-     "Engages a scraping motion, possibly for clearing debris or interacting with the environment."
+     "Robot falls to its hind legs and makes scraping motions with its front legs."
     ),
     ("FrontFlip", 1030,
-     "Executes a front flip, a complex acrobatic maneuver for demonstration or obstacle navigation."
+     "Executes a front flip, a complex and dynamic maneuver."
     ),
     ("FrontJump", 1031,
-     "Commands the robot to perform a forward jump, useful for clearing obstacles or for show."
+     "Commands the robot to perform a forward jump."
     ),
     ("FrontPounce", 1032,
      "Initiates a pouncing movement forward, mimicking animal-like pouncing behavior."
     ),
     ("WiggleHips", 1033,
-     "Causes the robot to wiggle its hips, likely for a playful effect or to demonstrate agility."
+     "Causes the robot to wiggle its hips."
     ),
     ("GetState", 1034,
      "Retrieves the current operational state of the robot, including status reports or diagnostic information."
@@ -105,7 +105,7 @@ UNITREE_ROS_CONTROLS: List[Tuple[str, int, str]] = [
      "Engages a more energy-efficient walking or running mode to conserve battery life."
     ),
     ("FingerHeart", 1036,
-     "Performs a finger heart gesture, popular in some cultures as a friendly or loving gesture."
+     "Performs a finger heart gesture while on its hind legs."
     ),
     ("Handstand", 1301,
      "Commands the robot to perform a handstand, demonstrating balance and control."
@@ -123,13 +123,13 @@ UNITREE_ROS_CONTROLS: List[Tuple[str, int, str]] = [
      "Engages follow-the-leader behavior, where the robot follows a designated leader or follows a signal."
     ),
     ("LeftFlip", 1042,
-     "Executes a flip towards the left side, combining acrobatics with directional control."
+     "Executes a flip towards the left side."
     ),
     ("RightFlip", 1043,
-     "Performs a flip towards the right side, adding an acrobatic element to its repertoire."
+     "Performs a flip towards the right side."
     ),
     ("Backflip", 1044,
-     "Executes a backflip, a highly skilled maneuver for showing agility and control."
+     "Executes a backflip, a complex and dynamic maneuver."
     )
 ]
 
@@ -140,9 +140,14 @@ class MyUnitreeSkills(AbstractSkill):
     _robot: Optional[Robot] = None
 
     def __init__(self, robot: Optional[Robot] = None, **data):
-        super().__init__(**data)
-        self._robot: Robot = robot
+        super().__init__(robot=robot, **data)
+        self._robot: Robot = None
 
+        if robot is not None:
+            self._robot = robot
+            self.initialize_skills()
+
+    def initialize_skills(self):
         # Create the skills and add them to the list of skills
         self.add_skills(self.create_skills_live())
         nested_skills = self.get_nested_skills()
@@ -152,30 +157,25 @@ class MyUnitreeSkills(AbstractSkill):
         for skill_class in nested_skills:
             print("\033[92mCreating instance for skill: {}\033[0m".format(
                 skill_class))
-            self.create_instance(skill_class.__name__, robot=robot)
+            self.create_instance(skill_class.__name__, robot=self._robot)
 
-    def create_skills_live(self) -> List[AbstractSkill]:
+    def create_skills_live(self) -> List[AbstractRobotSkill]:
         # ================================================
         # Procedurally created skills
         # ================================================
-        class BaseUnitreeSkill(AbstractSkill):
+        class BaseUnitreeSkill(AbstractRobotSkill):
             """Base skill for dynamic skill creation."""
-            _robot: Optional[Robot] = None
 
             def __init__(self, robot: Optional[Robot] = None, **data):
-                super().__init__(**data)
-                self._robot = robot
+                super().__init__(robot=robot, **data)
 
             def __call__(self):
                 _GREEN_PRINT_COLOR = "\033[32m"
                 _RESET_COLOR = "\033[0m"
                 string = f"{_GREEN_PRINT_COLOR}This is a base skill, created for the specific skill: {self._app_id}{_RESET_COLOR}"
                 print(string)
-                if self._robot is None:
-                    raise RuntimeError(
-                        "No Robot instance provided to {self.__class__.__name__} Skill"
-                    )
-                elif self._app_id is None:
+                super().__call__()
+                if self._app_id is None:
                     raise RuntimeError(
                         "No App ID provided to {self.__class__.__name__} Skill")
                 else:
@@ -197,151 +197,65 @@ class MyUnitreeSkills(AbstractSkill):
 
         return skills_classes
 
-    class Move(AbstractSkill):
+    class Move(AbstractRobotSkill):
         """Move the robot forward using distance commands."""
-
-        _robot: Robot = None
-        _GREEN_PRINT_COLOR: str = "\033[32m"
-        _RESET_COLOR: str = "\033[0m"
 
         distance: float = Field(..., description="Distance to move in meters")
 
         def __init__(self, robot: Optional[Robot] = None, **data):
-            super().__init__(**data)
-            print(
-                f"{self._GREEN_PRINT_COLOR}Initializing Move Skill{self._RESET_COLOR}"
-            )
-            self._robot = robot
-            print(
-                f"{self._GREEN_PRINT_COLOR}Move Skill Initialized with Robot: {self._robot}{self._RESET_COLOR}"
-            )
+            super().__init__(robot=robot, **data)
 
         def __call__(self):
-            if self._robot is None:
-                raise RuntimeError("No Robot instance provided to Move Skill")
-            elif self._robot.ros_control is None:
-                raise RuntimeError(
-                    "No ROS control interface available for movement")
-            else:
-                return self._robot.ros_control.move(distance=self.distance)
+            super().__call__()
+            return self._robot.move(distance=self.distance)
 
-    class Reverse(AbstractSkill):
+    class Reverse(AbstractRobotSkill):
         """Reverse the robot using distance commands."""
-
-        _robot: Robot = None
-        _GREEN_PRINT_COLOR: str = "\033[32m"
-        _RESET_COLOR: str = "\033[0m"
 
         distance: float = Field(...,
                                 description="Distance to reverse in meters")
 
         def __init__(self, robot: Optional[Robot] = None, **data):
-            super().__init__(**data)
-            print(
-                f"{self._GREEN_PRINT_COLOR}Initializing Reverse Skill{self._RESET_COLOR}"
-            )
-            self._robot = robot
-            print(
-                f"{self._GREEN_PRINT_COLOR}Reverse Skill Initialized with Robot: {self._robot}{self._RESET_COLOR}"
-            )
+            super().__init__(robot=robot, **data)
 
         def __call__(self):
-            if self._robot is None:
-                raise RuntimeError(
-                    "No Robot instance provided to Reverse Skill")
-            elif self._robot.ros_control is None:
-                raise RuntimeError(
-                    "No ROS control interface available for movement")
-            else:
-                return self._robot.ros_control.reverse(distance=self.distance)
+            super().__call__()
+            return self._robot.reverse(distance=self.distance)
 
-    class SpinLeft(AbstractSkill):
+    class SpinLeft(AbstractRobotSkill):
         """Spin the robot left using degree commands."""
-
-        _robot: Robot = None
-        _GREEN_PRINT_COLOR: str = "\033[32m"
-        _RESET_COLOR: str = "\033[0m"
 
         degrees: float = Field(...,
                                description="Distance to spin left in degrees")
 
         def __init__(self, robot: Optional[Robot] = None, **data):
-            super().__init__(**data)
-            print(
-                f"{self._GREEN_PRINT_COLOR}Initializing SpinLeft Skill{self._RESET_COLOR}"
-            )
-            self._robot = robot
-            print(
-                f"{self._GREEN_PRINT_COLOR}SpinLeft Skill Initialized with Robot: {self._robot}{self._RESET_COLOR}"
-            )
+            super().__init__(robot=robot, **data)
 
         def __call__(self):
-            if self._robot is None:
-                raise RuntimeError(
-                    "No Robot instance provided to SpinLeft Skill")
-            elif self._robot.ros_control is None:
-                raise RuntimeError(
-                    "No ROS control interface available for movement")
-            else:
-                return self._robot.ros_control.spin(
-                    degrees=self.degrees)  # Spinning left is positive degrees
+            super().__call__()
+            return self._robot.spin(degrees=self.degrees)  # Spinning left is positive degrees
 
-    class SpinRight(AbstractSkill):
+    class SpinRight(AbstractRobotSkill):
         """Spin the robot right using degree commands."""
-
-        _robot: Robot = None
-        _GREEN_PRINT_COLOR: str = "\033[32m"
-        _RESET_COLOR: str = "\033[0m"
 
         degrees: float = Field(...,
                                description="Distance to spin right in degrees")
 
         def __init__(self, robot: Optional[Robot] = None, **data):
-            super().__init__(**data)
-            print(
-                f"{self._GREEN_PRINT_COLOR}Initializing SpinRight Skill{self._RESET_COLOR}"
-            )
-            self._robot = robot
-            print(
-                f"{self._GREEN_PRINT_COLOR}SpinRight Skill Initialized with Robot: {self._robot}{self._RESET_COLOR}"
-            )
+            super().__init__(robot=robot, **data)
 
         def __call__(self):
-            if self._robot is None:
-                raise RuntimeError(
-                    "No Robot instance provided to SpinRight Skill")
-            elif self._robot.ros_control is None:
-                raise RuntimeError(
-                    "No ROS control interface available for movement")
-            else:
-                return self._robot.ros_control.spin(
-                    degrees=-self.degrees)  # Spinning right is negative degrees
+            super().__call__()
+            return self._robot.spin(degrees=-self.degrees)  # Spinning right is negative degrees
 
-    class Wait(AbstractSkill):
+    class Wait(AbstractRobotSkill):
         """Wait for a specified amount of time."""
-
-        _robot: Robot = None
-        _GREEN_PRINT_COLOR: str = "\033[32m"
-        _RESET_COLOR: str = "\033[0m"
 
         seconds: float = Field(..., description="Seconds to wait")
 
         def __init__(self, robot: Optional[Robot] = None, **data):
-            super().__init__(**data)
-            print(
-                f"{self._GREEN_PRINT_COLOR}Initializing Wait Skill{self._RESET_COLOR}"
-            )
-            self._robot = robot
-            print(
-                f"{self._GREEN_PRINT_COLOR}Wait Skill Initialized with Robot: {self._robot}{self._RESET_COLOR}"
-            )
+            super().__init__(robot=robot, **data)
 
         def __call__(self):
-            if self._robot is None:
-                raise RuntimeError(
-                    "No Robot instance provided to SpinRight Skill")
-            elif self._robot.ros_control is None:
-                raise RuntimeError(
-                    "No ROS control interface available for movement")
-            else:
-                return time.sleep(self.seconds)
+            super().__call__()
+            return time.sleep(self.seconds)
