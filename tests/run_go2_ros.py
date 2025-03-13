@@ -1,16 +1,15 @@
-#!/usr/bin/env python3
-
-import cv2
-from dimos.robot.unitree.unitree_go2 import UnitreeGo2, WebRTCConnectionMethod
 import os
 import time
-from dimos.robot.unitree.unitree_ros_control import UnitreeROSControl
-import math
+import cv2
 
+from dimos.robot.unitree.unitree_go2 import UnitreeGo2, WebRTCConnectionMethod
+from dimos.robot.unitree.unitree_ros_control import UnitreeROSControl
 
 def get_env_var(var_name, default=None, required=False):
     """Get environment variable with validation."""
     value = os.getenv(var_name, default)
+    if value == '':
+        value = default
     if required and not value:
         raise ValueError(f"{var_name} environment variable is required")
     return value
@@ -37,9 +36,7 @@ if __name__ == "__main__":
     print(f"Configuration:")
     print(f"  IP: {robot_ip}")
     print(f"  Connection Method: {connection_method}")
-    print(
-        f"  Serial Number: {serial_number if serial_number else 'Not provided'}"
-    )
+    print(f"  Serial Number: {serial_number if serial_number else 'Not provided'}")
     print(f"  Output Directory: {output_dir}")
 
     if use_ros:
@@ -72,8 +69,8 @@ if __name__ == "__main__":
             frame_count += 1
 
             try:
-                # TODO: add debug frame logging mode for reactiveX debugging
-                # Save frame to output directory
+                # Save frame to output directory if desired for debugging frame streaming
+                # MAKE SURE TO CHANGE OUTPUT DIR depending on if running in ROS or local
                 #frame_path = os.path.join(output_dir, f"frame_{frame_count:04d}.jpg")
                 #success = cv2.imwrite(frame_path, frame)
                 #print(f"Frame #{frame_count} {'saved successfully' if success else 'failed to save'} to {frame_path}")
@@ -89,7 +86,6 @@ if __name__ == "__main__":
 
         def handle_completion():
             print("Stream completed")
-            cv2.destroyAllWindows()
 
         # Subscribe to the stream
         print("Creating subscription...")
@@ -109,55 +105,51 @@ if __name__ == "__main__":
         robot.webrtc_req(api_id=1006)  # RecoveryStand
 
         # Queue 20 WebRTC requests back-to-back
-        print("\n🤖 QUEUEING 20 COMMANDS BACK-TO-BACK 🤖\n")
+        print("\n🤖 QUEUEING WEBRTC COMMANDS BACK-TO-BACK FOR TESTING UnitreeGo2🤖\n")
 
         # Dance 1
-        robot.webrtc_req(api_id=1033)  # Dance1
-        print("Queued: Dance1 (1022)")
-
-        robot.reverse(distance=0.5, speed=0.5)
-
-        # Wiggle Hips
-        robot.webrtc_req(api_id=1033)  # WiggleHips
+        robot.webrtc_req(api_id=1033)  
         print("Queued: WiggleHips (1033)")
 
-        robot.move(distance=1.0, speed=0.5)
+        robot.reverse(distance=0.2, speed=0.5)
+        print("Queued: Reverse 0.5m at 0.5m/s")
 
-        # Stretch
-        robot.webrtc_req(api_id=1017)  # Stretch
+        # Wiggle Hips
+        robot.webrtc_req(api_id=1033)  
+        print("Queued: WiggleHips (1033)")
+
+        robot.move(distance=0.2, speed=0.5)
+        print("Queued: Move forward 1.0m at 0.5m/s")
+
+        robot.webrtc_req(api_id=1017) 
         print("Queued: Stretch (1017)")
 
-        robot.move(distance=1.0, speed=0.5)
+        robot.move(distance=0.2, speed=0.5)
+        print("Queued: Move forward 1.0m at 0.5m/s")
 
-        robot.webrtc_req(api_id=1017)  # Dance1
+        robot.webrtc_req(api_id=1017)  
+        print("Queued: Stretch (1017)")
 
-        robot.reverse(distance=0.5, speed=0.5)
+        robot.reverse(distance=0.2, speed=0.5)
+        print("Queued: Reverse 0.5m at 0.5m/s")
 
-        # Keep the original movement sequence and timing
-        # time.sleep(5)
-        # print("\nExecuting movement sequence...")
-        # print("Moving forward...")
-        # robot.move(distance=1.0, speed=0.5)
+        robot.webrtc_req(api_id=1017)  
+        print("Queued: Stretch (1017)")\
+        
+        robot.spin(degrees=-90.0, speed=45.0)
+        print("Queued: Spin right 90 degrees at 45 degrees/s")
 
-        # time.sleep(3)
-        # robot.reverse(distance=2.0, speed=0.5)
+        robot.spin(degrees=90.0, speed=45.0)    
+        print("Queued: Spin left 90 degrees at 45 degrees/s")
 
-        # time.sleep(3)
-        # robot.spin(degrees=-90.0, speed=45.0)
-
-        # time.sleep(3)
-        # robot.spin(degrees=90.0, speed=45.0)
-
-        #     print("\nMonitoring agent outputs (Press Ctrl+C to stop)...")
+        # To prevent termination
         while True:
             time.sleep(0.1)
-            # robot.read_agent_outputs()
 
     except KeyboardInterrupt:
         print("\nStopping perception...")
         if 'subscription' in locals():
             subscription.dispose()
-        cv2.destroyAllWindows()
     except Exception as e:
         print(f"Error in main loop: {e}")
     finally:
@@ -165,6 +157,5 @@ if __name__ == "__main__":
         print("Cleaning up resources...")
         if 'subscription' in locals():
             subscription.dispose()
-        cv2.destroyAllWindows()
         del robot
         print("Cleanup complete.")

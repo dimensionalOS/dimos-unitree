@@ -7,10 +7,10 @@ from dimos.robot.skills import AbstractSkill
 # Module-level constant for Unitree ROS control definitions
 UNITREE_ROS_CONTROLS: List[Tuple[str, int, str]] = [
     ("Damp", 1001,
-     "Reduces the impact of vibrations and shocks on the robot's hardware during movement."
+     "Lowers the robot to the ground fully."
     ),
     ("BalanceStand", 1002,
-     "Activates a mode that maintains the robot in a balanced standing position, adjusting dynamically to slight movements or slopes."
+     "Activates a mode that maintains the robot in a balanced standing position."
     ),
     ("StopMove", 1003,
      "Immediately stops all ongoing movement commands to the robot, bringing it to a stationary position."
@@ -22,7 +22,7 @@ UNITREE_ROS_CONTROLS: List[Tuple[str, int, str]] = [
      "Instructs the robot to move from a standing position to a sitting or prone posture."
     ),
     ("RecoveryStand", 1006,
-     "Engages a sequence to recover the robot to a standing position if it has fallen or been displaced."
+     "Recovers the robot to a state from which it can take more commands. Useful to run after multiple dynamic commands like front flips."
     ),
     ("Euler", 1007,
      "Adjusts the robot’s orientation using Euler angles, providing precise control over its rotation."
@@ -51,7 +51,7 @@ UNITREE_ROS_CONTROLS: List[Tuple[str, int, str]] = [
      "Performs a greeting action, which could involve a wave or other friendly gesture."
     ),
     ("Stretch", 1017,
-     "Engages the robot in a stretching routine to maintain or enhance mechanical flexibility."
+     "Engages the robot in a stretching routine."
     ),
     ("TrajectoryFollow", 1018,
      "Directs the robot to follow a predefined trajectory, which could involve complex paths or maneuvers."
@@ -60,10 +60,10 @@ UNITREE_ROS_CONTROLS: List[Tuple[str, int, str]] = [
      "Enables a mode for continuous walking or running, ideal for long-distance travel."
     ),
     ("Content", 1020,
-     "Displays or triggers content, which could involve audio-visual outputs or interactions."
+     "To display or trigger when the robot is happy."
     ),
     ("Wallow", 1021,
-     "Engages a playful or restful activity, possibly mimicking animal-like wallowing."
+     "The robot falls onto its back and rolls around."
     ),
     ("Dance1", 1022,
      "Performs a predefined dance routine 1, programmed for entertainment or demonstration."
@@ -84,19 +84,19 @@ UNITREE_ROS_CONTROLS: List[Tuple[str, int, str]] = [
      "Directs the robot to take a specific pose or stance, which could be used for tasks or performances."
     ),
     ("Scrape", 1029,
-     "Engages a scraping motion, possibly for clearing debris or interacting with the environment."
+     "Robot falls to its hind legs and makes scraping motions with its front legs."
     ),
     ("FrontFlip", 1030,
-     "Executes a front flip, a complex acrobatic maneuver for demonstration or obstacle navigation."
+     "Executes a front flip, a complex and dynamic maneuver."
     ),
     ("FrontJump", 1031,
-     "Commands the robot to perform a forward jump, useful for clearing obstacles or for show."
+     "Commands the robot to perform a forward jump."
     ),
     ("FrontPounce", 1032,
      "Initiates a pouncing movement forward, mimicking animal-like pouncing behavior."
     ),
     ("WiggleHips", 1033,
-     "Causes the robot to wiggle its hips, likely for a playful effect or to demonstrate agility."
+     "Causes the robot to wiggle its hips."
     ),
     ("GetState", 1034,
      "Retrieves the current operational state of the robot, including status reports or diagnostic information."
@@ -105,7 +105,7 @@ UNITREE_ROS_CONTROLS: List[Tuple[str, int, str]] = [
      "Engages a more energy-efficient walking or running mode to conserve battery life."
     ),
     ("FingerHeart", 1036,
-     "Performs a finger heart gesture, popular in some cultures as a friendly or loving gesture."
+     "Performs a finger heart gesture while on its hind legs."
     ),
     ("Handstand", 1301,
      "Commands the robot to perform a handstand, demonstrating balance and control."
@@ -123,13 +123,13 @@ UNITREE_ROS_CONTROLS: List[Tuple[str, int, str]] = [
      "Engages follow-the-leader behavior, where the robot follows a designated leader or follows a signal."
     ),
     ("LeftFlip", 1042,
-     "Executes a flip towards the left side, combining acrobatics with directional control."
+     "Executes a flip towards the left side."
     ),
     ("RightFlip", 1043,
-     "Performs a flip towards the right side, adding an acrobatic element to its repertoire."
+     "Performs a flip towards the right side."
     ),
     ("Backflip", 1044,
-     "Executes a backflip, a highly skilled maneuver for showing agility and control."
+     "Executes a backflip, a complex and dynamic maneuver."
     )
 ]
 
