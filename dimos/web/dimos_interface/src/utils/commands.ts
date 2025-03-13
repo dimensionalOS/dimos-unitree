@@ -25,7 +25,7 @@ type CommandResult = string | {
 // Function to fetch available text stream keys
 async function fetchTextStreamKeys(): Promise<string[]> {
   try {
-    const response = await fetch('http://localhost:5555/text_streams');
+    const response = await fetch('/text_streams');
     if (!response.ok) {
       throw new Error(`HTTP error! status: ${response.status}`);
     }
@@ -193,7 +193,6 @@ Type 'help' to see list of available commands.
     }
 
       if (args[0] === '-x' && args[1] === "whitepaper.txt") {
-
         const bloop_master = prompt("Enter encryption key:");
 
         if (bloop_master === var23temp_pls_dont_touch) {
@@ -223,7 +222,6 @@ Type 'help' to see list of available commands.
         } else {
           return "Access denied. You are not worthy.";
         }
-
       }
 
     return `bash: ${filename}: No such file`;
@@ -292,11 +290,14 @@ Type 'help' to see list of available commands.
     if (subcommand === 'status') {
       try {
         const response = await fetch('/unitree/status');
+        if (!response.ok) {
+          throw new Error(`Server returned ${response.status}`);
+        }
         const data = await response.json();
         return `Unitree API Status: ${data.status}`;
       } catch (error: unknown) {
-        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-        return `Failed to get Unitree status: ${errorMessage}. Make sure the API server is running.`;
+        const message = error instanceof Error ? error.message : 'Server unreachable';
+        return `Failed to get Unitree status: ${message}. Make sure the API server is running.`;
       }
     }
 
@@ -305,8 +306,8 @@ Type 'help' to see list of available commands.
         showStream();
         return 'Starting Unitree video stream... Use "unitree stop_stream" to end the stream';
       } catch (error: unknown) {
-        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-        return `Failed to start video stream: ${errorMessage}. Make sure the API server is running.`;
+        const message = error instanceof Error ? error.message : 'Server unreachable';
+        return `Failed to start video stream: ${message}. Make sure the API server is running.`;
       }
     }
 
@@ -327,10 +328,6 @@ Type 'help' to see list of available commands.
         if (textStreamKeys.length === 0) {
           textStreamKeys = await fetchTextStreamKeys();
         }
-        
-        if (textStreamKeys.length === 0) {
-          throw new Error('No text streams available');
-        }
 
         const response = await fetch('/unitree/command', {
           method: 'POST',
@@ -341,24 +338,21 @@ Type 'help' to see list of available commands.
         });
         
         if (!response.ok) {
-          const error = await response.text();
-          throw new Error(`Server error: ${response.status} - ${error}`);
+          throw new Error(`Server returned ${response.status}`);
         }
 
         return {
           type: 'STREAM_START' as const,
           streamKey: textStreamKeys[0], // Using the first available text stream
-          initialMessage: `Command sent: ${commandText}\nWaiting for output...`
+          initialMessage: `Command sent: ${commandText}\nPlanningAgent output...`
         };
         
       } catch (error) {
-        if (error instanceof Error) {
-          return `Failed to send command: ${error.message}. Make sure the API server is running.`;
-        }
-        return 'Failed to send command: Unknown error occurred.';
+        const message = error instanceof Error ? error.message : 'Server unreachable';
+        return `Failed to send command: ${message}. Make sure the API server is running.`;
       }
     }
     
-    return 'Invalid subcommand. Available subcommands: status, start, stop, command';
+    return 'Invalid subcommand. Available subcommands: status, start_stream, stop_stream, command';
   },
 };

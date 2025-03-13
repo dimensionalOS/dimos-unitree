@@ -174,11 +174,12 @@ class FastAPIServer(EdgeIO):
                     try:
                         text = self.text_queues[key].get(timeout=1)
                         if text is not None:
-                            yield {
+                            event_data = {
                                 "event": "message",
                                 "id": key,
                                 "data": text
                             }
+                            yield event_data
                     except Empty:
                         # Send a keep-alive comment
                         yield {
@@ -187,7 +188,7 @@ class FastAPIServer(EdgeIO):
                         }
                 await asyncio.sleep(0.1)
         finally:
-            self.text_clients.remove(client_id)            
+            self.text_clients.remove(client_id)
 
     def setup_routes(self):
         """Set up FastAPI routes."""
@@ -196,6 +197,11 @@ class FastAPIServer(EdgeIO):
         async def get_streams():
             """Get list of available video streams"""
             return {"streams": list(self.streams.keys())}
+
+        @self.app.get("/text_streams")
+        async def get_text_streams():
+            """Get list of available text streams"""
+            return {"streams": list(self.text_streams.keys())}
 
         @self.app.get("/", response_class=HTMLResponse)
         async def index(request: Request):

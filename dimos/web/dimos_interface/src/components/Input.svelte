@@ -45,7 +45,6 @@
             // Add initial message to history
             $history = [...$history, { command, outputs: [output.initialMessage] }];
             // Connect to text stream
-            console.log('Connecting to stream:', output.streamKey); // Debug
             connectTextStream(output.streamKey);
           } else {
             $history = [...$history, { command, outputs: [output] }];
