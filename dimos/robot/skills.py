@@ -130,3 +130,18 @@ class AbstractSkill(BaseModel):
 
     def get_list_of_skills_as_json(self, list_of_skills: list["AbstractSkill"]) -> list[str]:
         return list(map(pydantic_function_tool, list_of_skills))
+
+class AbstractRobotSkill(AbstractSkill):
+
+    _robot: Robot = None
+    _GREEN_PRINT_COLOR: str = "\033[32m"
+    _RESET_COLOR: str = "\033[0m"
+    
+    def __init__(self, *args, robot: Optional[Robot] = None, **kwargs):
+        super().__init__(*args, robot=robot, **kwargs)
+        self._robot = robot
+        print(f"{self._GREEN_PRINT_COLOR}Robot Skill Initialized with Robot: {robot}{self._RESET_COLOR}")
+
+    def __call__(self):
+        if self._robot is None:
+            raise RuntimeError(f"No Robot instance provided to Robot Skill: {self.__class__.__name__}")
