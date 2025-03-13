@@ -119,7 +119,7 @@ export const connectTextStream = (key: string): void => {
   }
 
   // Create new EventSource
-  const eventSource = new EventSource(`http://localhost:5555/text_stream/${key}`);
+  const eventSource = new EventSource(`http://0.0.0.0:5555/text_stream/${key}`);
   textEventSources[key] = eventSource;
   // Handle incoming messages
   eventSource.addEventListener('message', (event) => {

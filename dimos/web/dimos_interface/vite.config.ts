@@ -45,7 +45,7 @@ export default defineConfig({
         },
       },
       '/text_streams': {
-        target: 'http://localhost:5555',
+        target: 'http://0.0.0.0:5555',
         changeOrigin: true,
         configure: (proxy, _options) => {
           proxy.on('error', (err, _req, _res) => {
