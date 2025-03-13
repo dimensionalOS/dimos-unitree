@@ -140,9 +140,14 @@ class MyUnitreeSkills(AbstractSkill):
     _robot: Optional[Robot] = None
 
     def __init__(self, robot: Optional[Robot] = None, **data):
-        super().__init__(**data)
-        self._robot: Robot = robot
+        super().__init__(robot=robot, **data)
+        self._robot: Robot = None
 
+        if robot is not None:
+            self._robot = robot
+            self.initialize_skills()
+
+    def initialize_skills(self):
         # Create the skills and add them to the list of skills
         self.add_skills(self.create_skills_live())
         nested_skills = self.get_nested_skills()
@@ -152,7 +157,7 @@ class MyUnitreeSkills(AbstractSkill):
         for skill_class in nested_skills:
             print("\033[92mCreating instance for skill: {}\033[0m".format(
                 skill_class))
-            self.create_instance(skill_class.__name__, robot=robot)
+            self.create_instance(skill_class.__name__, robot=self._robot)
 
     def create_skills_live(self) -> List[AbstractSkill]:
         # ================================================
@@ -223,7 +228,7 @@ class MyUnitreeSkills(AbstractSkill):
                 raise RuntimeError(
                     "No ROS control interface available for movement")
             else:
-                return self._robot.ros_control.move(distance=self.distance)
+                return self._robot.move(distance=self.distance)
 
     class Reverse(AbstractSkill):
         """Reverse the robot using distance commands."""
@@ -253,7 +258,7 @@ class MyUnitreeSkills(AbstractSkill):
                 raise RuntimeError(
                     "No ROS control interface available for movement")
             else:
-                return self._robot.ros_control.reverse(distance=self.distance)
+                return self._robot.reverse(distance=self.distance)
 
     class SpinLeft(AbstractSkill):
         """Spin the robot left using degree commands."""
@@ -283,8 +288,7 @@ class MyUnitreeSkills(AbstractSkill):
                 raise RuntimeError(
                     "No ROS control interface available for movement")
             else:
-                return self._robot.ros_control.spin(
-                    degrees=self.degrees)  # Spinning left is positive degrees
+                return self._robot.spin(degrees=self.degrees)  # Spinning left is positive degrees
 
     class SpinRight(AbstractSkill):
         """Spin the robot right using degree commands."""
@@ -314,8 +318,8 @@ class MyUnitreeSkills(AbstractSkill):
                 raise RuntimeError(
                     "No ROS control interface available for movement")
             else:
-                return self._robot.ros_control.spin(
-                    degrees=-self.degrees)  # Spinning right is negative degrees
+                return self._robot.spin(degrees=-self.degrees)  # Spinning right is negative degrees
+
 
     class Wait(AbstractSkill):
         """Wait for a specified amount of time."""

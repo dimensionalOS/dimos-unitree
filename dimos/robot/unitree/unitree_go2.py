@@ -1,11 +1,10 @@
 import multiprocessing
-from typing import Optional
+from typing import Optional, Union
 import cv2
 from dimos.robot.robot import Robot
 from dimos.robot.unitree.unitree_skills import MyUnitreeSkills
 from dimos.hardware.interface import HardwareInterface
 from dimos.agents.agent import Agent, OpenAIAgent, OpenAIAgent
-from dimos.agents.agent_config import AgentConfig
 from dimos.robot.skills import AbstractSkill
 from dimos.stream.frame_processor import FrameProcessor
 from dimos.stream.video_provider import VideoProvider
@@ -37,12 +36,10 @@ logger = setup_logger("dimos.robot.unitree.unitree_go2", level=logging.DEBUG)
 UNITREE_GO2_PRINT_COLOR = "\033[35m"
 UNITREE_GO2_RESET_COLOR = "\033[0m"
 
-
 class UnitreeGo2(Robot):
 
     def __init__(
             self,
-            agent_config: AgentConfig = None,
             ros_control: Optional[UnitreeROSControl] = None,
             ip=None,
             connection_method: WebRTCConnectionMethod = WebRTCConnectionMethod.LocalSTA,
@@ -51,11 +48,12 @@ class UnitreeGo2(Robot):
             use_ros: bool = True,
             use_webrtc: bool = False,
             disable_video_stream: bool = False,
-            mock_connection: bool = False):
+            mock_connection: bool = False,
+            skills: Optional[Union[MyUnitreeSkills, AbstractSkill]] = None):
+
         """Initialize the UnitreeGo2 robot.
         
         Args:
-            agent_config: Configuration for the agents
             ros_control: ROS control interface, if None a new one will be created
             ip: IP address of the robot (for LocalSTA connection)
             connection_method: WebRTC connection method (LocalSTA or LocalAP)
@@ -65,6 +63,7 @@ class UnitreeGo2(Robot):
             use_webrtc: Whether to use WebRTC video provider ONLY
             disable_video_stream: Whether to disable the video stream
             mock_connection: Whether to mock the connection to the robot
+            skills: Skills instance. Can be MyUnitreeSkills for full functionality or any AbstractSkill for custom development..
         """
         print(f"Initializing UnitreeGo2 with use_ros: {use_ros} and use_webrtc: {use_webrtc}")
         if not (use_ros ^ use_webrtc):  # XOR operator ensures exactly one is True
@@ -77,7 +76,12 @@ class UnitreeGo2(Robot):
                 use_raw=True,
                 disable_video_stream=disable_video_stream,
                 mock_connection=mock_connection)
-        super().__init__(agent_config=agent_config, ros_control=ros_control)
+
+        super().__init__(ros_control=ros_control, output_dir=output_dir, skills=skills)
+
+        # Unitree specific skill initialization
+        if skills is not None:
+            self.initialize_skills(skills)
 
         # Initialize UnitreeGo2-specific attributes
         self.output_dir = output_dir

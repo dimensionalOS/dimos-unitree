@@ -15,11 +15,13 @@ import cv2
 from dimos.web.edge_io import EdgeIO
 from fastapi import FastAPI, Request, Response, Form, HTTPException
 from fastapi.responses import HTMLResponse, StreamingResponse, JSONResponse
+from sse_starlette.sse import EventSourceResponse
 from fastapi.templating import Jinja2Templates
 import uvicorn
 from threading import Lock
 from pathlib import Path
 from queue import Queue, Empty
+import asyncio
 
 from reactivex.disposable import SingleAssignmentDisposable
 from reactivex import operators as ops
@@ -38,6 +40,7 @@ class FastAPIServer(EdgeIO):
                  edge_type="Bidirectional",
                  host="0.0.0.0",
                  port=5555,
+                 text_streams=None,
                  **streams):
         print("Starting FastAPIServer initialization...")  # Debug print
         super().__init__(dev_name, edge_type)
@@ -63,6 +66,12 @@ class FastAPIServer(EdgeIO):
         self.stream_queues = {}
         self.stream_disposables = {}
 
+        # Initialize text streams
+        self.text_streams = text_streams or {}
+        self.text_queues = {}
+        self.text_disposables = {}
+        self.text_clients = set()
+
         # Create a Subject for text queries
         self.query_subject = rx.subject.Subject()
         self.query_stream = self.query_subject.pipe(ops.share())
@@ -71,6 +80,19 @@ class FastAPIServer(EdgeIO):
             if self.streams[key] is not None:
                 self.active_streams[key] = self.streams[key].pipe(
                     ops.map(self.process_frame_fastapi), ops.share())
+
+        # Set up text stream subscriptions
+        for key, stream in self.text_streams.items():
+            if stream is not None:
+                self.text_queues[key] = Queue(maxsize=100)
+                disposable = stream.subscribe(
+                    lambda text, k=key: self.text_queues[k].put(text) 
+                    if text is not None else None,
+                    lambda e, k=key: self.text_queues[k].put(None),
+                    lambda k=key: self.text_queues[k].put(None)
+                )
+                self.text_disposables[key] = disposable
+                self.disposables.add(disposable)
 
         print("Setting up routes...")  # Debug print
         self.setup_routes()
@@ -141,6 +163,32 @@ class FastAPIServer(EdgeIO):
 
         return video_feed
 
+    async def text_stream_generator(self, key):
+        """Generate SSE events for text stream."""
+        client_id = id(object())
+        self.text_clients.add(client_id)
+        
+        try:
+            while True:
+                if key in self.text_queues:
+                    try:
+                        text = self.text_queues[key].get(timeout=1)
+                        if text is not None:
+                            yield {
+                                "event": "message",
+                                "id": key,
+                                "data": text
+                            }
+                    except Empty:
+                        # Send a keep-alive comment
+                        yield {
+                            "event": "ping",
+                            "data": ""
+                        }
+                await asyncio.sleep(0.1)
+        finally:
+            self.text_clients.remove(client_id)            
+
     def setup_routes(self):
         """Set up FastAPI routes."""
 
@@ -152,9 +200,11 @@ class FastAPIServer(EdgeIO):
         @self.app.get("/", response_class=HTMLResponse)
         async def index(request: Request):
             stream_keys = list(self.streams.keys())
+            text_stream_keys = list(self.text_streams.keys())
             return self.templates.TemplateResponse("index_fastapi.html", {
                 "request": request,
-                "stream_keys": stream_keys
+                "stream_keys": stream_keys,
+                "text_stream_keys": text_stream_keys
             })
                     
         @self.app.post("/submit_query")
@@ -214,6 +264,13 @@ class FastAPIServer(EdgeIO):
                         "message": f"Error processing command: {str(e)}"
                     }
                 )
+
+        @self.app.get("/text_stream/{key}")
+        async def text_stream(key: str):
+            if key not in self.text_streams:
+                raise HTTPException(status_code=404, detail=f"Text stream '{key}' not found")
+            return EventSourceResponse(self.text_stream_generator(key))
+
 
         for key in self.streams:
             self.app.get(f"/video_feed/{key}")(

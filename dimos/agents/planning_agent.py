@@ -15,7 +15,7 @@ from pydantic import BaseModel, Field
 # For response validation
 class PlanningAgentResponse(BaseModel):
     type: Literal["dialogue", "plan"]
-    content: Union[str, List[str]]
+    content: List[str]
     needs_confirmation: bool
 
 class PlanningAgent(OpenAIAgent):
@@ -102,7 +102,7 @@ class PlanningAgent(OpenAIAgent):
             agent_type="Planning",
             query="",  # Will be set by process_user_input
             model_name=model_name,
-            input_query_stream=None,  # We'll handle query processing ourselves
+            input_query_stream=input_query_stream,
             system_query=system_query,
             max_output_tokens_per_request=1000,
             response_model=PlanningAgentResponse
@@ -111,33 +111,37 @@ class PlanningAgent(OpenAIAgent):
 
         # Set up terminal mode if requested
         self.use_terminal = use_terminal
+        use_terminal = False
         if use_terminal:
             # Start terminal interface in a separate thread
             self.logger.info("Starting terminal interface in a separate thread")
             terminal_thread = threading.Thread(target=self.start_terminal_interface, daemon=True)
             terminal_thread.start()
-        
-        # Set up query stream if provided
-        if input_query_stream:
-            self.logger.info("Setting up query stream subscription")
-            self.disposables.add(self.subscribe_to_query_processing(input_query_stream))
             
-    def _handle_response(self, response: dict) -> None:
+    def _handle_response(self, response) -> None:
         """Handle the agent's response and update state.
         
         Args:
-            response: Parsed response dictionary
+            response: ParsedChatCompletionMessage containing PlanningAgentResponse
         """
-        # Add to conversation history
-        self.conversation_history.append(response)
+        print("handle response", response)
+        print("handle response type", type(response))
+        
+        # Extract the PlanningAgentResponse from parsed field if available
+        planning_response = response.parsed if hasattr(response, 'parsed') else response
+        print("planning response", planning_response)
+        print("planning response type", type(planning_response))
+        # Convert to dict for storage in conversation history
+        response_dict = planning_response.model_dump()
+        self.conversation_history.append(response_dict)
         
         # If it's a plan, update current plan
-        if response["type"] == "plan":
-            self.logger.info(f"Updating current plan: {response['content']}")
-            self.current_plan = response["content"]
+        if planning_response.type == "plan":
+            self.logger.info(f"Updating current plan: {planning_response.content}")
+            self.current_plan = planning_response.content
             
         # Store latest response
-        self.latest_response = response
+        self.latest_response = response_dict
             
 
     def _stream_plan(self) -> None:
@@ -158,7 +162,7 @@ class PlanningAgent(OpenAIAgent):
         self.logger.info("Plan streaming completed")
         self.response_subject.on_completed()
     
-    def _send_query(self, messages: list) -> dict:
+    def _send_query(self, messages: list) -> PlanningAgentResponse:
         """Send query to OpenAI and parse the response.
         
         Extends OpenAIAgent's _send_query to handle planning-specific response formats.
@@ -167,20 +171,18 @@ class PlanningAgent(OpenAIAgent):
             messages: List of message dictionaries
             
         Returns:
-            dict: Parsed response with type, content, and needs_confirmation
+            PlanningAgentResponse: Validated response with type, content, and needs_confirmation
         """
+        
         try:
-            response_message = super()._send_query(messages)
-            response_text = response_message.content
-            # Parse JSON and validate
-            try:
-                parsed_json = json.loads(response_text)
-                return PlanningAgentResponse(**parsed_json).dict()
-            except:
-                self.logger.error(f"WARNING: Invalid PlanningAgentResponse response: {response_text}")
-                
+            return super()._send_query(messages)
         except Exception as e:
-            return PlanningAgentResponse(content=f"Error: {str(e)}").dict()
+            self.logger.error(f"Caught exception in _send_query: {str(e)}")
+            return PlanningAgentResponse(
+                type="dialogue",
+                content=f"Error: {str(e)}",
+                needs_confirmation=False
+            )
 
     def process_user_input(self, user_input: str) -> None:
         """Process user input and generate appropriate response.
@@ -195,11 +197,12 @@ class PlanningAgent(OpenAIAgent):
         if self.current_plan and user_input.lower() in ["yes", "y", "confirm"]:
             self.logger.info("Plan confirmation received")
             self.plan_confirmed = True
-            confirmation_msg = {
-                "type": "dialogue",
-                "content": "Plan confirmed! Streaming steps to execution...",
-                "needs_confirmation": False
-            }
+            # Create a proper PlanningAgentResponse with content as a list
+            confirmation_msg = PlanningAgentResponse(
+                type="dialogue",
+                content="Plan confirmed! Streaming steps to execution...",
+                needs_confirmation=False
+            )
             self._handle_response(confirmation_msg)
             self._stream_plan()
             return
@@ -269,3 +272,31 @@ class PlanningAgent(OpenAIAgent):
             except Exception as e:
                 print(f"\nError: {e}")
                 break
+    
+    def get_response_observable(self) -> Observable:
+        """Gets an observable that emits responses from this agent.
+
+        This method processes the response stream from the parent class,
+        extracting content from `PlanningAgentResponse` objects and flattening
+        any lists of plan steps for emission.
+        
+        Returns:
+            Observable: An observable that emits plan steps from the agent.
+        """
+        def extract_content(response) -> List[str]:
+            if isinstance(response, PlanningAgentResponse):
+                if response.type == "plan":
+                    return response.content  # List of steps to be emitted individually
+                else:  # dialogue type
+                    return [response.content]  # Wrap single dialogue message in a list
+            else:
+                return [str(response)]  # Wrap non-PlanningAgentResponse in a list
+
+        # Get base observable from parent class
+        base_observable = super().get_response_observable()
+
+        # Process the stream: extract content and flatten plan lists
+        return base_observable.pipe(
+            ops.map(extract_content),
+            ops.flat_map(lambda items: items)  # Flatten the list of items
+        )

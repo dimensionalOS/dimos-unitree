@@ -18,6 +18,7 @@ reactivex
 
 # Web Extensions
 fastapi>=0.115.6
+sse-starlette>=2.2.1
 uvicorn>=0.34.0
 
 # Agent Memory 
