@@ -66,6 +66,7 @@ DISPLAY=:0
 xhost +local:root # If running locally and desire RVIZ GUI
 docker compose -f docker/unitree/ros_agents/docker-compose.yml up --build # TODO: change docker path
 ```
+**Interface will start at http://localhost:3000**
 
 ## Python Quick Start 🐍
 
