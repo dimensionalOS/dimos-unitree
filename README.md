@@ -39,26 +39,8 @@ We are shipping a first look at the DIMOS x Unitree Go2 integration, allowing fo
 - **DimOS Interface / Development Tools**
   - Local development interface to control your robot, orchestrate agents, visualize camera/lidar streams, and debug your dimensional agentive application.  
 
-
-## Installation
-
-```bash
-# Clone the repository
-git clone https://github.com/dimensionalOS/dimos-unitree.git
-cd dimos-unitree
-
-# Create and activate virtual environment
-python -m venv venv
-source venv/bin/activate 
-
-# Install dependencies
-pip install -r requirements.txt
-
-# Copy and configure environment variables
-cp default.env .env
-```
-
-## Quick Start 🚀
+## Docker Quick Start 🚀
+> **⚠️ Recommended to start**
 
 ### Prerequisites
 
@@ -77,15 +59,92 @@ CONN_TYPE=webrtc
 WEBRTC_SERVER_HOST=0.0.0.0
 WEBRTC_SERVER_PORT=9991
 DISPLAY=:0
-
-# Optional
-DIMOS_MAX_WORKERS=
 ```
 
-### Run via Docker 
+### Run docker compose 
 ```bash
 xhost +local:root # If running locally and desire RVIZ GUI
 docker compose -f docker/unitree/ros_agents/docker-compose.yml up --build # TODO: change docker path
+```
+
+## Run via Python 🐍
+
+### Prerequisites
+
+- A Unitree Go2 robot accessible on your network
+- The robot's IP address
+- OpenAI API Key
+
+### Python Installation
+
+```bash
+# Clone the repository
+git clone https://github.com/dimensionalOS/dimos-unitree.git
+cd dimos-unitree
+
+# Create and activate virtual environment
+python -m venv venv
+source venv/bin/activate 
+
+# Install dependencies
+pip install -r requirements.txt
+
+# Copy and configure environment variables
+cp default.env .env
+```
+
+### ROS2 Unitree Go2 SDK Installation 
+
+#### System Requirements
+- Ubuntu 22.04 
+- ROS2 Distros: Iron, Humble, Rolling
+
+See [Unitree Go2 ROS2 SDK](https://github.com/abizovnuralem/go2_ros2_sdk) for additional installation instructions.
+
+```bash
+mkdir -p ros2_ws
+cd ros2_ws
+git clone --recurse-submodules https://github.com/abizovnuralem/go2_ros2_sdk.git src
+sudo apt install ros-$ROS_DISTRO-image-tools
+sudo apt install ros-$ROS_DISTRO-vision-msgs
+
+sudo apt install python3-pip clang portaudio19-dev
+cd src
+pip install -r requirements.txt
+cd ..
+
+# Ensure clean python install before running
+source /opt/ros/$ROS_DISTRO/setup.bash
+rosdep install --from-paths src --ignore-src -r -y
+colcon build
+```
+
+### Run the test application
+
+#### ROS2 Terminal: 
+```bash
+# Change path to your Go2 ROS2 SDK installation
+source /ros2_ws/install/setup.bash
+source /opt/ros/$ROS_DISTRO/setup.bash
+
+export ROBOT_IP="robot_ip" #for muliple robots, just split by ,
+export CONN_TYPE="webrtc"
+ros2 launch go2_robot_sdk robot.launch.py
+
+```
+
+#### Python Terminal: 
+```bash
+# Change path to your Go2 ROS2 SDK installation
+source /ros2_ws/install/setup.bash
+python test/test_planning_agent_web_interface.py
+```
+
+#### DimOS Interface:
+```bash
+cd dimos/web/dimos_interface
+yarn install 
+yarn dev # you may need to run sudo if previously built via Docker
 ```
 
 ### Project Structure 
@@ -108,7 +167,6 @@ Non-production directories excluded
 ```
 
 ## Building
-
 
 ### Simple DimOS Application
 
@@ -139,7 +197,7 @@ while True: # keep process running
 
 ### DimOS Application with Agent chaining
 
-Let's build a simple DimOS application with Agent chaining. We define a ```planner``` as a ```PlanningAgent``` that takes in user input to devise a complex multi-step plan. This plan is passed step-by-step to an ```executor``` agent that can queue ```AbstractSkill``` commands to the ```ROSCommandQueue```. 
+Let's build a simple DimOS application with Agent chaining. We define a ```planner``` as a ```PlanningAgent``` that takes in user input to devise a complex multi-step plan. This plan is passed step-by-step to an ```executor``` agent that can queue ```AbstractRobotSkill``` commands to the ```ROSCommandQueue```. 
 
 Our reactive Pub/Sub data streaming architecture allows for chaining of ```Agent_0 --> Agent_1 --> ... --> Agent_n``` via the ```input_query_stream``` parameter in each which takes an ```Observable``` input from the previous Agent in the chain. 
 
@@ -193,33 +251,29 @@ robot.move(distance=1.0, speed=0.5)
 
 ### Creating Custom Skills (non-unitree specific)
 
-#### Create basic custom skills by inheriting from ```AbstractSkill``` and implementing the ```__call__``` method.
+#### Create basic custom skills by inheriting from ```AbstractRobotSkill``` and implementing the ```__call__``` method.
 
 ```python
-class Flip(AbstractSkill):
-    def __call__(self, robot):
-      return self.robot.flip(robot)
+class Move(AbstractRobotSkill):
+    distance: float = Field(...,description="Distance to reverse in meters")
+    def __init__(self, robot: Optional[Robot] = None, **data):
+        super().__init__(robot=robot, **data)
+    def __call__(self):
+        super().__call__()
+        return self._robot.move(distance=self.distance)
 ```
 
 #### Chain together skills to create recursive skill trees
 
 ```python
-class Jump(AbstractSkill):
+class JumpAndFlip(AbstractRobotSkill):
+    def __init__(self, robot: Optional[Robot] = None, **data):
+        super().__init__(robot=robot, **data)
     def __call__(self):
-      return self.robot.jump()
-
-class Flip(AbstractSkill):
-    def __call__(self):
-      return self.robot.flip()
-
-class JumpAndFlip(AbstractSkill):
-    def __init__(self, robot):
-        super().__init__(robot)
-        self.jump = Jump(robot)
-        self.flip = Flip(robot)
-
-    def __call__(self):
-        return [self.jump(), self.flip()]
+        super().__call__()
+        jump = Jump(robot=self._robot)
+        flip = Flip(robot=self._robot)
+        return (jump() and flip())
 ```
 
 ## Documentation
