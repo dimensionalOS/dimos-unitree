@@ -17,6 +17,6 @@ class RobotWebInterface(FastAPIServer):
             edge_type="Bidirectional",
             host="0.0.0.0",
             port=port,
-            text_streams=text_streams,  # Initialize with at least one text stream
+            text_streams=text_streams,
             **streams
         ) 
