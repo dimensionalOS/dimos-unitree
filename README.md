@@ -7,7 +7,7 @@
 
 Dimensional is an open-source framework for building agentive generalist robots. DimOS allows off-the-shelf Agents to call tools/functions and read sensor/state data directly from ROS. 
 
-The framework enables orchestration of Agents() as generalized spatial planners and robot skills/action primitives as functions. 
+The framework enables neurosymbolic orchestration of Agents() as generalized spatial planners and robot skills/action primitives as functions. 
 
 The result: cross-embodied *"Dimensional Applications"* exceptional at generalization and robust at symbolic action execution. 
 
@@ -67,7 +67,7 @@ xhost +local:root # If running locally and desire RVIZ GUI
 docker compose -f docker/unitree/ros_agents/docker-compose.yml up --build # TODO: change docker path
 ```
 
-## Run via Python 🐍
+## Python Quick Start 🐍
 
 ### Prerequisites
 
@@ -301,3 +301,6 @@ Huge thanks to!
 - GitHub Issues: For bug reports and feature requests
 - Email: [build@dimensionalOS.com](mailto:build@dimensionalOS.com)
 
+## Known Issues
+- Agent() failure to execute Nav2 action primitives (move, reverse, spinLeft, spinRight) is almost always due to the internal ROS2 collision avoidance, which will sometimes incorrectly display obstacles or be overly sensitive. Look for ```[behavior_server]: Collision Ahead - Exiting DriveOnHeading``` in the ROS logs. Reccomend restarting ROS2 or moving robot from objects to resolve. 
+- ```docker-compose up --build``` does not fully initialize the ROS2 environment due to ```std::bad_alloc``` errors. This will occur during continuous docker development if the ```docker-compose down``` is not run consistently before rebuilding and/or you are on a machine with less RAM, as ROS is very memory intensive. Reccomend running to clear your docker cache/images/containers with ```docker system prune``` and rebuild.
