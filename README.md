@@ -76,13 +76,13 @@ docker compose -f docker/unitree/agents_interface/docker-compose.yml up --build
 - The robot's IP address
 - OpenAI API Key
 
-### Python Installation
+### Python Installation (Ubuntu 22.04)
 
 ```bash
 sudo apt install python3-venv
 
 # Clone the repository
-git clone https://github.com/dimensionalOS/dimos-unitree.git
+git clone --recurse-submodules https://github.com/dimensionalOS/dimos-unitree.git
 cd dimos-unitree
 
 # Create and activate virtual environment
