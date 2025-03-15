@@ -8,10 +8,7 @@
         <p align="center"><em>A simple two-shot PlanningAgent</em></p>
       </td>
       <td width="20%">
-        <video width="100%" controls>
-          <source src="./assets/simple_demo.mp4" type="video/mp4">
-          Your browser does not support the video tag.
-        </video>
+        <img src="./assets/simple_demo_small.gif" alt="3rd person POV" width="100%">
         <p align="center"><em>3rd person POV</em></p>
       </td>
     </tr>
