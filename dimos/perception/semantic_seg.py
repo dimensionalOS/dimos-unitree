@@ -28,6 +28,7 @@ class SemanticSegmentationStream:
         model_path: str = "FastSAM-s.pt",
         device: str = "cuda",
         enable_depth: bool = False,
+        enable_rich_labeling: bool = True,
         camera_params: dict = None
     ):
         """
@@ -37,6 +38,7 @@ class SemanticSegmentationStream:
             model_path: Path to the FastSAM model file
             device: Computation device ("cuda" or "cpu")
             enable_depth: Whether to enable depth processing
+            enable_rich_labeling: Whether to enable rich labeling
             camera_params: Dictionary containing either:
                 - Direct intrinsics: [fx, fy, cx, cy]
                 - Physical parameters: resolution, focal_length, sensor_size
@@ -46,7 +48,8 @@ class SemanticSegmentationStream:
             device=device,
             min_analysis_interval=5.0,
             use_tracker=True,
-            use_analyzer=True
+            use_analyzer=True,
+            use_rich_labeling=enable_rich_labeling
         )
         
         self.enable_depth = enable_depth
@@ -120,16 +123,9 @@ class SemanticSegmentationStream:
                 names
             )
             
-            # Create metadata dictionary
-            metadata = {
-                "viz_frame": viz_frame,
-                "bboxes": bboxes,
-                "target_ids": target_ids,
-                "probs": probs,
-                "names": names
-            }
-            
             # Process depth if enabled
+            depth_viz = None
+            object_depths = []
             if self.enable_depth:
                 # Get depth map
                 depth_map = self.depth_model.infer_depth(frame)
@@ -164,8 +160,32 @@ class SemanticSegmentationStream:
                     cv2.putText(viz_frame, depth_text,
                               (x1, y2 - 5),
                               cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 2)
+            
+            # Create metadata in the new requested format
+            objects = []
+            for i in range(len(bboxes)):
+                obj_data = {
+                    "object_id": target_ids[i] if i < len(target_ids) else None,
+                    "bbox": bboxes[i],
+                    "prob": probs[i] if i < len(probs) else None,
+                    "label": names[i] if i < len(names) else None,
+                }
                 
-                metadata["depths"] = object_depths
+                # Add depth if available
+                if self.enable_depth and i < len(object_depths):
+                    obj_data["depth"] = object_depths[i]
+                    
+                objects.append(obj_data)
+                
+            # Create the new metadata dictionary
+            metadata = {
+                "frame": frame,
+                "viz_frame": viz_frame,
+                "objects": objects
+            }
+            
+            # Add depth visualization if available
+            if depth_viz is not None:
                 metadata["depth_viz"] = depth_viz
             
             # Convert masks to numpy arrays if they aren't already
