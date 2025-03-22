@@ -1,6 +1,6 @@
 opencv-python
 python-dotenv
-openai
+openai>=1.61.0
 numpy
 colorlog==6.9.0
 yapf==0.40.2
@@ -43,4 +43,15 @@ sounddevice
 pyaudio
 requests
 wasmtime
+
+# Perception Dependencies
+ultralytics>=8.3.70
+filterpy>=1.4.5
+scipy>=1.15.1
+torch==2.0.1
+torchvision==0.15.2
+scikit-learn
+Pillow
+mmengine>=0.10.3
+-e ./dimos/perception/external/vector_perception
 
