@@ -1,6 +1,6 @@
 opencv-python
 python-dotenv
-openai>=1.61.0
+openai
 numpy
 colorlog==6.9.0
 yapf==0.40.2

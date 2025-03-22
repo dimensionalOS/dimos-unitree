@@ -28,7 +28,7 @@ def main():
     seg_stream = SemanticSegmentationStream(enable_mono_depth=True, camera_params=camera_params, gt_depth_scale=512.0)
     
     # Create streams
-    video_stream = video_provider.capture_video_as_observable(fps=5)
+    video_stream = video_provider.capture_video_as_observable(realtime=False, fps=5)
     segmentation_stream = seg_stream.create_stream(video_stream)
     
     # Define callbacks for the segmentation stream
