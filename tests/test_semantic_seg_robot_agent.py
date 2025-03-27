@@ -81,7 +81,7 @@ def main():
     segmentation_agent = OpenAIAgent(
         dev_name="SemanticSegmentationAgent",
         model_name="gpt-4o",
-        system_query="You are a helpful assistant that can help with tasks related to semantic segmentation. You will get a list of objects as input, reprint them out to me in a list. Your task will be to execute the MOVE() skill towards the box on the ground in front of you",
+        system_query="You are a helpful assistant that can control a virtual robot with semantic segmentation / distnace data as a guide. Only output skill calls, no other text",
         input_query_stream=enriched_query_stream,
         process_all_inputs=False,
         pool_scheduler=get_scheduler(),
