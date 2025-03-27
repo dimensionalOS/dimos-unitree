@@ -49,8 +49,8 @@ wasmtime
 ultralytics>=8.3.70
 filterpy>=1.4.5
 scipy>=1.15.1
-torch==2.0.1
-torchvision==0.15.2
+torch>=2.0.1
+torchvision>=0.15.2
 scikit-learn
 Pillow
 mmengine>=0.10.3

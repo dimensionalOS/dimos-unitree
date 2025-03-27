@@ -36,7 +36,7 @@ def main():
     robot = UnitreeGo2(ip=os.getenv('ROBOT_IP'),
                         ros_control=UnitreeROSControl(),)
             
-    seg_stream = SemanticSegmentationStream(enable_mono_depth=True, camera_params=camera_params, gt_depth_scale=512.0)
+    seg_stream = SemanticSegmentationStream(enable_mono_depth=False, camera_params=camera_params, gt_depth_scale=512.0)
     
     # Create streams
     video_stream = robot.get_ros_video_stream(fps=5)
