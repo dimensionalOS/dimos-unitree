@@ -63,8 +63,8 @@ class VolumeMonitorNode(AbstractAudioConsumer, AbstractTextEmitter):
 
         # Format the text
         percentage = int(volume * 100)
-        activity = "ACTIVE" if active else "silent"
-        return f"[{bar}] {percentage:3d}% {activity}"
+        activity = "active" if active else "silent"
+        return f"{bar} {percentage:3d}% {activity}"
 
     def consume_audio(self, audio_observable: Observable) -> 'VolumeMonitorNode':
         """
