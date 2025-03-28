@@ -6,7 +6,7 @@ import logging
 import sounddevice as sd
 from reactivex import Observable, create, disposable
 
-from audio.abstract import AbstractAudioTransform, AudioEvent
+from dimos.stream.audio.sound_processing.abstract import AbstractAudioTransform, AudioEvent
 
 # Set up logging
 logging.basicConfig(level=logging.INFO)
@@ -155,9 +155,9 @@ class SounddeviceAudioOutput(AbstractAudioTransform):
 
 
 if __name__ == "__main__":
-    from audio.node_microphone import SounddeviceAudioSource
-    from audio.node_normalizer import AudioNormalizer
-    from utils import keepalive
+    from dimos.stream.audio.sound_processing.node_microphone import SounddeviceAudioSource
+    from dimos.stream.audio.sound_processing.node_normalizer import AudioNormalizer
+    from dimos.stream.audio.utils import keepalive
 
     # Create microphone source, normalizer and audio output
     mic = SounddeviceAudioSource()

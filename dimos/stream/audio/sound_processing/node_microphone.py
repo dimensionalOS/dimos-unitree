@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-from audio.abstract import AbstractAudioEmitter, AudioEvent
+from dimos.stream.audio.sound_processing.abstract import AbstractAudioEmitter, AudioEvent
 import numpy as np
 from typing import Optional, List, Dict, Any
 from reactivex import Observable, create, disposable
@@ -107,7 +107,7 @@ class SounddeviceAudioSource(AbstractAudioEmitter):
 
 
 if __name__ == "__main__":
-    from audio.node_volume_monitor import monitor
-    from utils import keepalive
+    from dimos.stream.audio.sound_processing.node_volume_monitor import monitor
+    from dimos.stream.audio.utils import keepalive
     monitor(SounddeviceAudioSource().emit_audio())
     keepalive()

@@ -11,8 +11,8 @@ import io
 import soundfile as sf
 from openai import OpenAI
 
-from text.abstract import AbstractTextConsumer, AbstractTextEmitter
-from audio.abstract import AbstractAudioEmitter, AudioEvent
+from dimos.stream.audio.text.abstract import AbstractTextConsumer, AbstractTextEmitter
+from dimos.stream.audio.sound_processing.abstract import AbstractAudioEmitter, AudioEvent
 
 # Set up logging
 logging.basicConfig(level=logging.INFO)
@@ -205,10 +205,10 @@ class OpenAITTSNode(AbstractTextConsumer, AbstractAudioEmitter, AbstractTextEmit
 
 if __name__ == "__main__":
     import time
-    from utils import keepalive
+    from dimos.stream.audio.utils import keepalive
     from reactivex import Subject
-    from audio.node_output import SounddeviceAudioOutput
-    from text.node_stdout import TextPrinterNode
+    from dimos.stream.audio.sound_processing.node_output import SounddeviceAudioOutput
+    from dimos.stream.audio.text.node_stdout import TextPrinterNode
 
     # Create a simple text subject that we can push values to
     text_subject = Subject()

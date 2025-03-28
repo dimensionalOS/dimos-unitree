@@ -5,11 +5,11 @@ import logging
 from typing import Optional, Callable
 from reactivex import Observable, create, disposable
 
-from audio.abstract import AudioEvent, AbstractAudioConsumer, AbstractAudioEmitter
-from text.abstract import AbstractTextEmitter
-from text.node_stdout import TextPrinterNode
+from dimos.stream.audio.sound_processing.abstract import AudioEvent, AbstractAudioConsumer, AbstractAudioEmitter
+from dimos.stream.audio.text.abstract import AbstractTextEmitter
+from dimos.stream.audio.text.node_stdout import TextPrinterNode
 
-from audio.volume import calculate_peak_volume
+from dimos.stream.audio.sound_processing.volume import calculate_peak_volume
 
 
 # Set up logging

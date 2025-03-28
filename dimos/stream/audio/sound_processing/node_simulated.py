@@ -1,4 +1,4 @@
-from audio.abstract import AbstractAudioEmitter, AudioEvent
+from dimos.stream.audio.sound_processing.abstract import AbstractAudioEmitter, AudioEvent
 import numpy as np
 from reactivex import Observable, create, disposable
 from typing import Dict, List, Optional, Union, Any
@@ -210,9 +210,9 @@ class SimulatedAudioSource(AbstractAudioEmitter):
 
 
 if __name__ == "__main__":
-    from utils import keepalive
-    from audio.node_volume_monitor import monitor
-    from audio.node_output import SounddeviceAudioOutput
+    from dimos.stream.audio.utils import keepalive
+    from dimos.stream.audio.sound_processing.node_volume_monitor import monitor
+    from dimos.stream.audio.sound_processing.node_output import SounddeviceAudioOutput
 
     source = SimulatedAudioSource()
     speaker = SounddeviceAudioOutput()

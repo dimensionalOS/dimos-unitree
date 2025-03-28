@@ -5,7 +5,7 @@ from typing import Optional
 from reactivex import Observable, Subject, disposable
 import pyttsx3
 
-from text.abstract import AbstractTextTransform
+from dimos.stream.audio.text.abstract import AbstractTextTransform
 
 # Set up logging
 logging.basicConfig(level=logging.INFO)
@@ -105,7 +105,7 @@ if __name__ == "__main__":
     tts_node.consume_text(text_subject)
     
     # Optional: Connect to the output to demonstrate it's a transform
-    from text.node_stdout import TextPrinterNode
+    from dimos.stream.audio.text.node_stdout import TextPrinterNode
     printer = TextPrinterNode(prefix="[Spoken Text] ")
     printer.consume_text(tts_node.emit_text())
     

@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-
 import logging
 import time
 import io
@@ -11,8 +10,8 @@ from reactivex.subject import BehaviorSubject
 import soundfile as sf
 import whisper
 
-from audio.abstract import AbstractAudioConsumer, AudioEvent
-from text.abstract import AbstractTextEmitter
+from dimos.stream.audio.sound_processing.abstract import AbstractAudioConsumer, AudioEvent
+from dimos.stream.audio.text.abstract import AbstractTextEmitter
 
 # Set up logging
 logging.basicConfig(level=logging.INFO)
@@ -34,7 +33,7 @@ class WhisperSTTNode(AbstractAudioConsumer, AbstractTextEmitter):
         buffer_duration: float = 3.0,
         silence_threshold: float = 0.01,
         silence_duration: float = 0.7,
-        device: Optional[str] = None,
+        device: Optional[str] = 'cpu',
     ):
         """
         Initialize WhisperSTTNode.
@@ -57,6 +56,7 @@ class WhisperSTTNode(AbstractAudioConsumer, AbstractTextEmitter):
         print(whisper)
         # Initialize model
         logger.info(f"Loading Whisper model: {model_name}")
+
         self.model = whisper.load_model(model_name, device=device)
 
         # Initialize buffers and state
@@ -183,7 +183,7 @@ class WhisperSTTNode(AbstractAudioConsumer, AbstractTextEmitter):
                 audio_data = audio_data / np.abs(audio_data).max()
 
             # Transcribe with Whisper
-            transcribe_options = {}
+            transcribe_options = { "fp16": False }
             if self.language:
                 transcribe_options["language"] = self.language
 
@@ -232,8 +232,8 @@ class WhisperSTTNode(AbstractAudioConsumer, AbstractTextEmitter):
 
 if __name__ == "__main__":
     import time
-    from audio.node_microphone import SounddeviceAudioSource
-    from text.node_stdout import TextPrinterNode
+    from dimos.stream.audio.sound_processing.node_microphone import SounddeviceAudioSource
+    from dimos.stream.audio.text.node_stdout import TextPrinterNode
 
     # Create a simulated audio source
     audio_source = SounddeviceAudioSource()

@@ -3,7 +3,7 @@ import logging
 from typing import Optional
 from reactivex import Observable, disposable
 
-from text.abstract import AbstractTextConsumer
+from dimos.stream.audio.text.abstract import AbstractTextConsumer
 
 # Set up logging
 logging.basicConfig(level=logging.INFO)

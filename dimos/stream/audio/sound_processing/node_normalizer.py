@@ -4,8 +4,8 @@ from reactivex import Observable, create, disposable
 from typing import Optional, Dict, Any, Callable
 import logging
 import time
-from audio.volume import calculate_rms_volume, calculate_peak_volume
-from audio.abstract import AbstractAudioTransform, AudioEvent
+from dimos.stream.audio.sound_processing.volume import calculate_rms_volume, calculate_peak_volume
+from dimos.stream.audio.sound_processing.abstract import AbstractAudioTransform, AudioEvent
 
 # Set up logging
 logging.basicConfig(level=logging.INFO)
@@ -149,11 +149,11 @@ class AudioNormalizer(AbstractAudioTransform):
 
 if __name__ == "__main__":
     import sys
-    from audio.node_microphone import SounddeviceAudioSource
-    from audio.node_simulated import SimulatedAudioSource
-    from audio.node_volume_monitor import monitor
-    from audio.node_output import SounddeviceAudioOutput
-    from utils import keepalive
+    from dimos.stream.audio.sound_processing.node_microphone import SounddeviceAudioSource
+    from dimos.stream.audio.sound_processing.node_simulated import SimulatedAudioSource
+    from dimos.stream.audio.sound_processing.node_volume_monitor import monitor
+    from dimos.stream.audio.sound_processing.node_output import SounddeviceAudioOutput
+    from dimos.stream.audio.utils import keepalive
 
     # Parse command line arguments
     volume_method = "peak"  # Default to peak
