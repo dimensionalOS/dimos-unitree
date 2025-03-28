@@ -8,7 +8,7 @@ def normalize_angle(angle):
 # PID Controller Class
 # ----------------------------
 class PIDController:
-    def __init__(self, kp, ki=0.0, kd=0.0, output_limits=(None, None), integral_limit=None, deadband=0.0, output_deadband=0.0):
+    def __init__(self, kp, ki=0.0, kd=0.0, output_limits=(None, None), integral_limit=None, deadband=0.0, output_deadband=0.0, inverse_output=False):
         """
         Initialize the PID controller.
         
@@ -19,6 +19,8 @@ class PIDController:
             output_limits (tuple): (min_output, max_output). Use None for no limit.
             integral_limit (float): Maximum absolute value for the integral term (anti-windup).
             deadband (float): Size of the deadband region. Error smaller than this will be compensated.
+            output_deadband (float): Deadband applied to the output to overcome physical system deadband.
+            inverse_output (bool): When True, the output will be multiplied by -1.
         """
         self.kp = kp
         self.ki = ki
@@ -29,6 +31,7 @@ class PIDController:
         self.deadband = deadband
         self.integral = 0.0
         self.prev_error = 0.0
+        self.inverse_output = inverse_output
 
     def update(self, error, dt):
         """Compute the PID output with anti-windup, output deadband compensation and output saturation."""
@@ -58,6 +61,8 @@ class PIDController:
             output = max(self.min_output, output)
         
         self.prev_error = error
+        if self.inverse_output:
+            return -output
         return output
     
     def _apply_output_deadband_compensation(self, output):

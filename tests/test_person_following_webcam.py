@@ -61,7 +61,7 @@ def main():
     )
     
     # Track if we have selected a person to follow
-    selected_bbox = None
+    selected_point = None
     tracking_active = False
     
     # Define callbacks for the tracking stream
@@ -97,27 +97,13 @@ def main():
     
     # Mouse callback for selecting a person to track
     def mouse_callback(event, x, y, flags, param):
-        nonlocal selected_bbox, tracking_active
+        nonlocal selected_point, tracking_active
         
         if event == cv2.EVENT_LBUTTONDOWN:
-            # Try to get the latest result
-            try:
-                result = result_queue.get_nowait()
-                targets = result.get("targets", [])
-                
-                # Find if we clicked on any detected person
-                for target in targets:
-                    bbox = target.get("bbox")
-                    if bbox:
-                        x1, y1, x2, y2 = bbox
-                        if x1 <= x <= x2 and y1 <= y <= y2:
-                            # Found a person at click position
-                            selected_bbox = bbox
-                            tracking_active = False  # Will be set to True if start_tracking succeeds
-                            print(f"Selected person with bbox: {bbox}")
-                            break
-            except queue.Empty:
-                pass
+            # Store the clicked point
+            selected_point = (x, y)
+            tracking_active = False  # Will be set to True if start_tracking succeeds
+            print(f"Selected point: {selected_point}")
     
     # Start the subscription
     subscription = None
@@ -143,14 +129,14 @@ def main():
                 # Get frame with timeout (allows checking stop_event periodically)
                 frame = frame_queue.get(timeout=1.0)
                 
-                # Call the visual servoing if we have a selected person
-                if selected_bbox is not None:
+                # Call the visual servoing if we have a selected point
+                if selected_point is not None:
                     # If not actively tracking, try to start tracking
                     if not tracking_active:
-                        tracking_active = visual_servoing.start_tracking(selected_bbox)
+                        tracking_active = visual_servoing.start_tracking(selected_point)
                         if not tracking_active:
                             print("Failed to start tracking")
-                            selected_bbox = None
+                            selected_point = None
                     
                     # If tracking is active, update tracking
                     if tracking_active:
@@ -171,9 +157,9 @@ def main():
                         cv2.putText(frame, f"Tracking: {'ON' if running else 'OFF'}", (10, 90),
                                     cv2.FONT_HERSHEY_SIMPLEX, 0.7, status_color, 2)
                         
-                        # If tracking is lost, reset selected_bbox and tracking_active
+                        # If tracking is lost, reset selected_point and tracking_active
                         if not running:
-                            selected_bbox = None
+                            selected_point = None
                             tracking_active = False
                 
                 # Display the frame in main thread

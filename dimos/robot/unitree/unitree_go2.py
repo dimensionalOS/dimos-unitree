@@ -159,7 +159,7 @@ class UnitreeGo2(Robot):
                 x_vel = output.get("linear_vel")
                 z_vel = output.get("angular_vel")
                 logger.debug(f"Following human: x_vel: {x_vel}, z_vel: {z_vel}")
-                # self.move_vel(x=x_vel, y=0, yaw=z_vel)
+                #self.ros_control.move_vel_command(x=x_vel, y=0, yaw=z_vel)
             self.visual_servoing.stop_tracking()
             return success
         else:

@@ -14,7 +14,7 @@
 
 import time
 import threading
-from typing import Dict, Optional, List
+from typing import Dict, Optional, List, Tuple
 import logging
 import numpy as np
 
@@ -49,7 +49,7 @@ class VisualServoing:
     """
     
     def __init__(self, tracking_stream=None, max_linear_speed=0.5, max_angular_speed=0.75,
-                 desired_distance=1.0, max_lost_frames=20, iou_threshold=0.6):
+                 desired_distance=1.0, max_lost_frames=100, iou_threshold=0.6):
         """Initialize the visual servoing.
         
         Args:
@@ -88,6 +88,7 @@ class VisualServoing:
             0.3,    # integral_limit: Prevent windup
             0.05,   # deadband: Small deadband for angle control
             0.1,    # output_deadband: Minimum output to overcome friction
+            True,  # Invert output for angular control
         )
         
         # Initialize the visual servoing controller
@@ -111,16 +112,15 @@ class VisualServoing:
         # Subscribe to the tracking stream
         self._subscribe_to_tracking_stream()
         
-    def start_tracking(self, bbox: Optional[list] = None, timeout_wait_for_target: float = 10.0) -> bool:
+    def start_tracking(self, point: Tuple[int, int] = None, timeout_wait_for_target: float = 10.0) -> bool:
         """
         Start tracking a human target using visual servoing.
         
         Args:
-            bbox: Optional bounding box [x1, y1, x2, y2] of target to track.
-                 If provided, finds the closest target by IOU and tracks it.
-                 If None, tracks the closest person in the image stream.
-            timeout_wait_for_target: Maximum time in seconds to wait for a target to appear.
-                 
+            point: Optional tuple of (x, y) coordinates in image space. If provided,
+                  will find the target whose bounding box contains this point.
+                  If None, will track the closest person.
+        
         Returns:
             bool: True if tracking was successfully started, False otherwise
         """
@@ -140,9 +140,9 @@ class VisualServoing:
             targets = result.get("targets")
             
             # If bbox is provided, find matching target based on IOU
-            if bbox is not None and not self.running:
+            if point is not None and not self.running:
                 # Find the target with highest IOU to the provided bbox
-                best_target = self._find_best_target_by_iou(bbox, targets)
+                best_target = self._find_target_by_point(point, targets)
             # If no bbox is provided, find the closest person
             elif not self.running:
                 if timeout_wait_for_target > 0.0 and len(targets) == 0:
@@ -174,8 +174,8 @@ class VisualServoing:
                 self._compute_control(distance, angle)
                 return True
             else:
-                if bbox is not None:
-                    logger.warning("No matching target found using IOU")
+                if point is not None:
+                    logger.warning("No matching target found")
                 else:
                     logger.warning("No suitable target found for tracking")
                 self.running = False
@@ -184,6 +184,27 @@ class VisualServoing:
             logger.error(f"Error starting tracking: {e}")
             self.running = False
             return False
+    
+    def _find_target_by_point(self, point, targets):
+        """Find the target whose bounding box contains the given point.
+        
+        Args:
+            point: Tuple of (x, y) coordinates in image space
+            targets: List of target dictionaries
+            
+        Returns:
+            dict: The target whose bbox contains the point, or None if no match
+        """
+        x, y = point
+        for target in targets:
+            bbox = target.get("bbox")
+            if not bbox:
+                continue
+                
+            x1, y1, x2, y2 = bbox
+            if x1 <= x <= x2 and y1 <= y <= y2:
+                return target
+        return None
     
     def updateTracking(self) -> Dict[str, any]:
         """
