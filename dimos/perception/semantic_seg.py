@@ -126,7 +126,7 @@ class SemanticSegmentationStream:
                     object_depth = depth_map[mask_np > 0.5]
                     # Calculate average depth (in meters)
                     avg_depth = np.mean(object_depth) if len(object_depth) > 0 else 0
-                    object_depths.append(avg_depth)
+                    object_depths.append(avg_depth/1000)
                 
                 # Create colorized depth visualization
                 depth_viz = self._create_depth_visualization(depth_map)
