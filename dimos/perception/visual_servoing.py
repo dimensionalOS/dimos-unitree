@@ -48,8 +48,8 @@ class VisualServoing:
     appropriate velocity commands to track the target.
     """
     
-    def __init__(self, tracking_stream=None, max_linear_speed=0.5, max_angular_speed=0.75,
-                 desired_distance=1.0, max_lost_frames=100, iou_threshold=0.6):
+    def __init__(self, tracking_stream=None, max_linear_speed=0.5, max_angular_speed=1.5,
+                 desired_distance=1.5, max_lost_frames=100, iou_threshold=0.6):
         """Initialize the visual servoing.
         
         Args:
@@ -81,12 +81,12 @@ class VisualServoing:
         
         # Angle PID: (kp, ki, kd, output_limits, integral_limit, deadband, output_deadband)
         angle_pid_params = (
-            0.9,    # kp: Higher proportional gain for responsive turning
+            1.2,    # kp: Higher proportional gain for responsive turning
             0.1,    # ki: Small integral gain
             0.05,   # kd: Light damping to prevent oscillation
             (-self.max_angular_speed, self.max_angular_speed),  # output_limits
             0.3,    # integral_limit: Prevent windup
-            0.05,   # deadband: Small deadband for angle control
+            0.1,   # deadband: Small deadband for angle control
             0.1,    # output_deadband: Minimum output to overcome friction
             True,  # Invert output for angular control
         )
@@ -112,7 +112,7 @@ class VisualServoing:
         # Subscribe to the tracking stream
         self._subscribe_to_tracking_stream()
         
-    def start_tracking(self, point: Tuple[int, int] = None, timeout_wait_for_target: float = 10.0) -> bool:
+    def start_tracking(self, point: Tuple[int, int] = None, timeout_wait_for_target: float = 20.0) -> bool:
         """
         Start tracking a human target using visual servoing.
         

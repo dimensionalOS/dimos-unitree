@@ -152,6 +152,7 @@ class UnitreeGo2(Robot):
 
     def follow_human(self, timeout: float = 20.0):
         if self.enable_visual_servoing:
+            logger.warning(f"Following human for {timeout} seconds...")
             start_time = time.time()
             success = self.visual_servoing.start_tracking()
             while self.visual_servoing.running and time.time() - start_time < timeout:
@@ -159,16 +160,13 @@ class UnitreeGo2(Robot):
                 x_vel = output.get("linear_vel")
                 z_vel = output.get("angular_vel")
                 logger.debug(f"Following human: x_vel: {x_vel}, z_vel: {z_vel}")
-                #self.ros_control.move_vel_command(x=x_vel, y=0, yaw=z_vel)
+                self.ros_control.move_vel_command(x=x_vel, y=0, yaw=z_vel)
+                time.sleep(0.05)
             self.visual_servoing.stop_tracking()
             return success
         else:
             logger.warning("Visual servoing is disabled, cannot follow human")
             return False
-
-        
-
-        
 
     def do(self, *args, **kwargs):
         pass
