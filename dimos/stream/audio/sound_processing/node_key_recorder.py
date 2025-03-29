@@ -107,7 +107,9 @@ class KeyTriggeredAudioRecorder(AbstractAudioTransform):
 
     def _input_monitor(self):
         """Monitor for key presses to toggle recording."""
+        print('------------------------------------------------------------')
         print("Press Enter to start/stop recording...")
+        print('------------------------------------------------------------')
         
         while self._running:
             # Check if there's input available
