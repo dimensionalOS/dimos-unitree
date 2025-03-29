@@ -44,3 +44,7 @@ pyaudio
 requests
 wasmtime
 
+# Audio
+openai-whisper
+soundfile
+

@@ -259,6 +259,8 @@ if __name__ == "__main__":
     # Monitor the volume of completed recordings
     print("Recording playback monitoring:")
 
+    print("------------------------------------------------------------")
     print("\nPress Enter to start recording, press Enter again to stop and play back.")
+    print("------------------------------------------------------------")
 
     keepalive()
