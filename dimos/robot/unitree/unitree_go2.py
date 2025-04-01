@@ -87,7 +87,6 @@ class UnitreeGo2(Robot):
         if ros_control is None and use_ros:
             ros_control = UnitreeROSControl(
                 node_name="unitree_go2",
-                use_raw=True,
                 disable_video_stream=disable_video_stream,
                 mock_connection=mock_connection)
 
