@@ -59,7 +59,6 @@ class ROSControl(ABC):
     def __init__(self, 
                  node_name: str,
                  camera_topics: Dict[str, str] = None,
-                 use_compressed_video: bool = False,
                  max_linear_velocity: float = 1.0,
                  mock_connection: bool = False,
                  max_angular_velocity: float = 2.0,
@@ -78,7 +77,6 @@ class ROSControl(ABC):
         Args:
             node_name: Name for the ROS node
             camera_topics: Dictionary of camera topics
-            use_compressed_video: Whether to use compressed video
             max_linear_velocity: Maximum linear velocity (m/s)
             max_angular_velocity: Maximum angular velocity (rad/s)
             state_topic: Topic name for robot state (optional)
@@ -140,9 +138,11 @@ class ROSControl(ABC):
             self._video_provider = ROSVideoProvider(dev_name=f"{node_name}_video")
             
             # Create subscribers for each topic with sensor QoS
-            msg_type = CompressedImage if use_compressed_video else Image
-            for topic in camera_topics.values():
-                logger.info(f"Subscribing to {topic} with BEST_EFFORT QoS")
+            for camera_config in camera_topics.values():
+                topic = camera_config['topic']
+                msg_type = camera_config['type']
+                
+                logger.info(f"Subscribing to {topic} with BEST_EFFORT QoS using message type {msg_type.__name__}")
                 _camera_subscription = self._node.create_subscription(
                     msg_type,
                     topic,
@@ -287,7 +287,7 @@ class ROSControl(ABC):
             try:
                 if isinstance(msg, CompressedImage):
                     frame = self._bridge.compressed_imgmsg_to_cv2(msg)
-                else:
+                elif isinstance(msg, Image):
                     frame = self._bridge.imgmsg_to_cv2(msg, "bgr8")
                 self._video_provider.push_data(frame)
             except Exception as e:
@@ -697,4 +697,34 @@ class ROSControl(ABC):
 
         except Exception as e:
             self._logger.error(f"Failed to send movement command: {e}")
+            return False
+
+    def move_vel_command(self, x: float, y: float, yaw: float) -> bool:
+        """
+        Send a single velocity command without duration handling.
+        
+        Args:
+            x: Forward/backward velocity (m/s)
+            y: Left/right velocity (m/s)
+            yaw: Rotational velocity (rad/s)
+            
+        Returns:
+            bool: True if command was sent successfully
+        """
+        # Clamp velocities to safe limits
+        x = self._clamp_velocity(x, self.MAX_LINEAR_VELOCITY)
+        y = self._clamp_velocity(y, self.MAX_LINEAR_VELOCITY)
+        yaw = self._clamp_velocity(yaw, self.MAX_ANGULAR_VELOCITY)
+
+        # Create and send command
+        cmd = Twist()
+        cmd.linear.x = float(x)
+        cmd.linear.y = float(y)
+        cmd.angular.z = float(yaw)
+
+        try:
+            self._move_vel_pub.publish(cmd)
+            return True
+        except Exception as e:
+            logger.error(f"Failed to send velocity command: {e}")
             return False

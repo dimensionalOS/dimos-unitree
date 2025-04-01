@@ -19,7 +19,7 @@ import threading
 import time
 from typing import Optional, Tuple, Dict, Any, Type
 from abc import ABC, abstractmethod
-
+from sensor_msgs.msg import Image, CompressedImage, CameraInfo
 from dimos.robot.ros_control import ROSControl, RobotMode
 from dimos.utils.logging_config import setup_logger
 
@@ -30,11 +30,19 @@ class UnitreeROSControl(ROSControl):
     
     # ROS Camera Topics
     CAMERA_TOPICS = {
-        'raw': 'camera/image_raw',
-        'compressed': 'camera/compressed',
-        'info': 'camera/camera_info'
+        'raw': {
+            'topic': 'camera/image_raw',
+            'type': Image
+        },
+        'compressed': {
+            'topic': 'camera/compressed',
+            'type': CompressedImage
+        },
+        'info': {
+            'topic': 'camera/camera_info',
+            'type': CameraInfo
+        }
     }
-    
     # Hard coded ROS Message types and Topic names for Unitree Go2
     DEFAULT_STATE_MSG_TYPE = Go2State
     DEFAULT_IMU_MSG_TYPE = IMU
@@ -61,8 +69,7 @@ class UnitreeROSControl(ROSControl):
                  webrtc_msg_type: Type = None,
                  max_linear_velocity: float = None,
                  max_angular_velocity: float = None,
-                 use_compressed: bool = False,
-                 use_raw: bool = True,
+                 use_raw: bool = False,
                  debug: bool = False,
                  disable_video_stream: bool = False,
                  mock_connection: bool = False):
@@ -80,8 +87,7 @@ class UnitreeROSControl(ROSControl):
             webrtc_msg_type: ROS message type for webrtc data (defaults to DEFAULT_WEBRTC_MSG_TYPE)
             max_linear_velocity: Maximum linear velocity in m/s (defaults to DEFAULT_MAX_LINEAR_VELOCITY)
             max_angular_velocity: Maximum angular velocity in rad/s (defaults to DEFAULT_MAX_ANGULAR_VELOCITY)
-            use_compressed: Whether to use compressed video
-            use_raw: Whether to use raw camera topics
+            use_raw: Whether to use raw camera topics (defaults to False)
             debug: Whether to enable debug logging
             disable_video_stream: Whether to run without video stream for testing.
             mock_connection: Whether to run without active ActionClient servers for testing. 
@@ -110,7 +116,6 @@ class UnitreeROSControl(ROSControl):
         super().__init__(
             node_name=node_name,
             camera_topics=active_camera_topics,
-            use_compressed_video=use_compressed,
             mock_connection=mock_connection,
             state_topic=state_topic,
             imu_topic=imu_topic,
