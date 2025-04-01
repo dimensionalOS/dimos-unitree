@@ -289,6 +289,9 @@ class ROSControl(ABC):
                     frame = self._bridge.compressed_imgmsg_to_cv2(msg)
                 elif isinstance(msg, Image):
                     frame = self._bridge.imgmsg_to_cv2(msg, "bgr8")
+                else:
+                    logger.error(f"Unsupported image message type: {type(msg)}")
+                    return
                 self._video_provider.push_data(frame)
             except Exception as e:
                 logger.error(f"Error converting image: {e}")
@@ -697,34 +700,4 @@ class ROSControl(ABC):
 
         except Exception as e:
             self._logger.error(f"Failed to send movement command: {e}")
-            return False
-
-    def move_vel_command(self, x: float, y: float, yaw: float) -> bool:
-        """
-        Send a single velocity command without duration handling.
-        
-        Args:
-            x: Forward/backward velocity (m/s)
-            y: Left/right velocity (m/s)
-            yaw: Rotational velocity (rad/s)
-            
-        Returns:
-            bool: True if command was sent successfully
-        """
-        # Clamp velocities to safe limits
-        x = self._clamp_velocity(x, self.MAX_LINEAR_VELOCITY)
-        y = self._clamp_velocity(y, self.MAX_LINEAR_VELOCITY)
-        yaw = self._clamp_velocity(yaw, self.MAX_ANGULAR_VELOCITY)
-
-        # Create and send command
-        cmd = Twist()
-        cmd.linear.x = float(x)
-        cmd.linear.y = float(y)
-        cmd.angular.z = float(yaw)
-
-        try:
-            self._move_vel_pub.publish(cmd)
-            return True
-        except Exception as e:
-            logger.error(f"Failed to send velocity command: {e}")
             return False
