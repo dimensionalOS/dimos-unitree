@@ -59,7 +59,6 @@ class ROSControl(ABC):
     def __init__(self, 
                  node_name: str,
                  camera_topics: Dict[str, str] = None,
-                 use_compressed_video: bool = False,
                  max_linear_velocity: float = 1.0,
                  mock_connection: bool = False,
                  max_angular_velocity: float = 2.0,
@@ -78,7 +77,6 @@ class ROSControl(ABC):
         Args:
             node_name: Name for the ROS node
             camera_topics: Dictionary of camera topics
-            use_compressed_video: Whether to use compressed video
             max_linear_velocity: Maximum linear velocity (m/s)
             max_angular_velocity: Maximum angular velocity (rad/s)
             state_topic: Topic name for robot state (optional)
@@ -140,9 +138,11 @@ class ROSControl(ABC):
             self._video_provider = ROSVideoProvider(dev_name=f"{node_name}_video")
             
             # Create subscribers for each topic with sensor QoS
-            msg_type = CompressedImage if use_compressed_video else Image
-            for topic in camera_topics.values():
-                logger.info(f"Subscribing to {topic} with BEST_EFFORT QoS")
+            for camera_config in camera_topics.values():
+                topic = camera_config['topic']
+                msg_type = camera_config['type']
+                
+                logger.info(f"Subscribing to {topic} with BEST_EFFORT QoS using message type {msg_type.__name__}")
                 _camera_subscription = self._node.create_subscription(
                     msg_type,
                     topic,
@@ -287,8 +287,11 @@ class ROSControl(ABC):
             try:
                 if isinstance(msg, CompressedImage):
                     frame = self._bridge.compressed_imgmsg_to_cv2(msg)
-                else:
+                elif isinstance(msg, Image):
                     frame = self._bridge.imgmsg_to_cv2(msg, "bgr8")
+                else:
+                    logger.error(f"Unsupported image message type: {type(msg)}")
+                    return
                 self._video_provider.push_data(frame)
             except Exception as e:
                 logger.error(f"Error converting image: {e}")
