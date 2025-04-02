@@ -14,7 +14,7 @@ services:
       - "5555:5555"
     environment:
       - PYTHONUNBUFFERED=1
-    # command: [ "python", "-m", "tests.test_agent" ] 
+    command: [ "python", "-m", "tests.test_agent" ] 
     # ^^ Working Sanity Test Cases - Expand to Agent Class
     #
     # command: [ "python", "-m", "tests.stream.video_operators" ] 
@@ -62,7 +62,7 @@ services:
     # command: [ "python", "-m", "tests.test_video_rtsp" ]
     # ^^ WIP
 
-    command: [ "python", "-m", "tests.test_video_agent_threading" ]
+    # command: [ "python", "-m", "tests.test_move_vel_unitree" ]
     # ^^ WIP
 
     # command: ["tail", "-f", "/dev/null"]

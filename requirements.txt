@@ -49,3 +49,5 @@ wasmtime
 openai-whisper
 soundfile
 
+#Hugging Face
+transformers[torch]==4.49.0

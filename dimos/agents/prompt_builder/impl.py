@@ -14,6 +14,7 @@
 
 
 from textwrap import dedent
+from typing import Optional
 from dimos.agents.tokenizer.openai_impl import AbstractTokenizer, OpenAI_Tokenizer
 
 # TODO: Make class more generic when implementing other tokenizers. Presently its OpenAI specific.
@@ -36,7 +37,7 @@ class PromptBuilder():
     - Maintain a professional and informative tone in your response.
     """)
     
-    def __init__(self, model_name='gpt-4o', max_tokens=128000, tokenizer: AbstractTokenizer = None):
+    def __init__(self, model_name='gpt-4o', max_tokens=128000, tokenizer: Optional[AbstractTokenizer] = None):
         """
         Initialize the prompt builder.
         Args:
