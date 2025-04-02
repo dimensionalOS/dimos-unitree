@@ -47,7 +47,8 @@ from reactivex.subject import Subject
 from dimos.agents.memory.base import AbstractAgentSemanticMemory
 from dimos.agents.memory.chroma_impl import AgentSemanticMemory
 from dimos.agents.prompt_builder.impl import PromptBuilder
-from dimos.agents.tokenizer.openai_impl import AbstractTokenizer, OpenAI_Tokenizer
+from dimos.agents.tokenizer.base import AbstractTokenizer
+from dimos.agents.tokenizer.openai_tokenizer import OpenAITokenizer
 from dimos.robot.skills import AbstractSkill
 from dimos.stream.frame_processor import FrameProcessor
 from dimos.stream.video_operators import Operators as MyOps, VideoOperators as MyVidOps
@@ -689,7 +690,7 @@ class OpenAIAgent(LLMAgent):
 
         self.response_model = response_model if response_model is not None else NOT_GIVEN
         self.model_name = model_name
-        self.tokenizer = tokenizer or OpenAI_Tokenizer(
+        self.tokenizer = tokenizer or OpenAITokenizer(
             model_name=self.model_name)
         self.prompt_builder = prompt_builder or PromptBuilder(
             self.model_name, tokenizer=self.tokenizer)

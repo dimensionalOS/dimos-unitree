@@ -31,10 +31,8 @@ from transformers import AutoModelForCausalLM, AutoTokenizer
 from dimos.agents.agent import LLMAgent
 from dimos.agents.memory.base import AbstractAgentSemanticMemory
 from dimos.agents.prompt_builder.impl import PromptBuilder
-from dimos.agents.tokenizer.openai_impl import (
-    AbstractTokenizer,
-    HuggingFace_Tokenizer,
-)
+from dimos.agents.tokenizer.base import AbstractTokenizer
+from dimos.agents.tokenizer.huggingface_tokenizer import HuggingFaceTokenizer
 from dimos.utils.logging_config import setup_logger
 
 # Initialize environment variables
@@ -93,7 +91,7 @@ class HuggingFaceLocalAgent(LLMAgent):
         print(f"Device: {self.device}")
         self.prompt_builder = prompt_builder or PromptBuilder(
             self.model_name,
-            tokenizer=tokenizer or HuggingFace_Tokenizer(self.model_name)
+            tokenizer=tokenizer or HuggingFaceTokenizer(self.model_name)
         )
 
 

@@ -12,35 +12,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from abc import ABC, abstractmethod
 import tiktoken
+from dimos.agents.tokenizer.base import AbstractTokenizer
 from dimos.utils.logging_config import setup_logger
 
-# TODO: Add a class for specific tokenizer exceptions
-# TODO: Build out testing and logging
-# TODO: Create proper doc strings after multiple tokenizers are implemented
-
-
-class AbstractTokenizer(ABC):
-
-    @abstractmethod
-    def tokenize_text(self, text):
-        pass
-
-    @abstractmethod
-    def detokenize_text(self, tokenized_text):
-        pass
-
-    @abstractmethod
-    def token_count(self, text):
-        pass
-
-    @abstractmethod
-    def image_token_count(self, image_width, image_height, image_detail="low"):
-        pass
-
-
-class OpenAI_Tokenizer(AbstractTokenizer):
+class OpenAITokenizer(AbstractTokenizer):
 
     def __init__(self, model_name: str = "gpt-4o", **kwargs):
         super().__init__(**kwargs)
@@ -81,7 +57,7 @@ class OpenAI_Tokenizer(AbstractTokenizer):
         Calculate the number of tokens in an image. Low detail is 85 tokens, high detail is 170 tokens per 512x512 square.
         """
         logger = setup_logger(
-            "dimos.agents.tokenizer.OpenAI_Tokenizer.image_token_count")
+            "dimos.agents.tokenizer.openai.image_token_count")
 
         if image_detail == "low":
             return 85
@@ -113,3 +89,5 @@ class OpenAI_Tokenizer(AbstractTokenizer):
         else:
             raise ValueError(
                 "Detail specification of image is not 'low' or 'high'")
+        
+
