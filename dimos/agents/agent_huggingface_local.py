@@ -15,6 +15,7 @@
 from __future__ import annotations
 
 # Standard library imports
+import json
 import logging
 import os
 from typing import Any, Optional
@@ -87,8 +88,12 @@ class HuggingFaceLocalAgent(LLMAgent):
         self.device = device
         if self.device == "auto":
             self.device = "cuda" if torch.cuda.is_available() else "cpu"
-
+            if self.device == "cuda":
+                print(f"Using GPU: {torch.cuda.get_device_name(0)}")
+            else:
+                print("GPU not available, using CPU")
         print(f"Device: {self.device}")
+
         self.prompt_builder = prompt_builder or PromptBuilder(
             self.model_name,
             tokenizer=tokenizer or HuggingFaceTokenizer(self.model_name)
@@ -116,17 +121,23 @@ class HuggingFaceLocalAgent(LLMAgent):
             )
 
         if self.input_video_stream is not None:
-            self.logger.info("Subscribing to input video stream...")
+            logger.info("Subscribing to input video stream...")
             self.disposables.add(
                 self.subscribe_to_image_processing(self.input_video_stream))
         if self.input_query_stream is not None:
-            self.logger.info("Subscribing to input query stream...")
+            logger.info("Subscribing to input query stream...")
             self.disposables.add(
                 self.subscribe_to_query_processing(self.input_query_stream))
 
 
     def _send_query(self, messages: list) -> Any:
         try:
+
+            _GREEN_PRINT_COLOR: str = "\033[32m"
+            _BLUE_PRINT_COLOR: str = "\033[34m"
+            _RESET_COLOR: str = "\033[0m"
+            print(f"{_BLUE_PRINT_COLOR}Messages: {str(messages)}{_RESET_COLOR}")
+
             print("Applying chat template...")
             prompt_text = self.tokenizer.apply_chat_template(
                 conversation=[{"role": "user", "content": str(messages)}],
@@ -159,7 +170,7 @@ class HuggingFaceLocalAgent(LLMAgent):
             print("Response batch decoded.")
             return response
         except Exception as e:
-            self.logger.error(f"Error during HuggingFace query: {e}")
+            logger.error(f"Error during HuggingFace query: {e}")
             return "Error processing request."
 
     def stream_query(self, query_text: str) -> Subject:

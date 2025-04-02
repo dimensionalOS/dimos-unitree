@@ -58,7 +58,8 @@ class HuggingFaceRemoteAgent(LLMAgent):
                  tokenizer: Optional[AbstractTokenizer] = None,
                  image_detail: str = "low",
                  pool_scheduler: Optional[ThreadPoolScheduler] = None,
-                 process_all_inputs: Optional[bool] = None,):
+                 process_all_inputs: Optional[bool] = None,
+                 api_key: Optional[str] = None):
 
         # Determine appropriate default for process_all_inputs if not provided
         if process_all_inputs is None:
@@ -91,7 +92,7 @@ class HuggingFaceRemoteAgent(LLMAgent):
 
         self.max_output_tokens_per_request = max_output_tokens_per_request
 
-        self.api_key = os.getenv('HUGGINGFACE_ACCESS_TOKEN')
+        self.api_key = api_key or os.getenv('HUGGINGFACE_API_KEY')
         self.client = InferenceClient(
             provider="hf-inference",
             api_key=self.api_key,
@@ -109,11 +110,11 @@ class HuggingFaceRemoteAgent(LLMAgent):
             )
 
         if self.input_video_stream is not None:
-            self.logger.info("Subscribing to input video stream...")
+            logger.info("Subscribing to input video stream...")
             self.disposables.add(
                 self.subscribe_to_image_processing(self.input_video_stream))
         if self.input_query_stream is not None:
-            self.logger.info("Subscribing to input query stream...")
+            logger.info("Subscribing to input query stream...")
             self.disposables.add(
                 self.subscribe_to_query_processing(self.input_query_stream))
 
@@ -128,7 +129,7 @@ class HuggingFaceRemoteAgent(LLMAgent):
 
             return (completion.choices[0].message)
         except Exception as e:
-            self.logger.error(f"Error during HuggingFace query: {e}")
+            logger.error(f"Error during HuggingFace query: {e}")
             return "Error processing request."
 
     def stream_query(self, query_text: str) -> Subject:

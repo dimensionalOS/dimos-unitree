@@ -27,6 +27,7 @@ like OpenAIAgent that connect to specific LLM providers.
 from __future__ import annotations
 
 # Standard library imports
+import ast
 import json
 import os
 import threading
@@ -344,7 +345,12 @@ class LLMAgent(Agent):
                 final_msg = (response_message.parsed
                              if hasattr(response_message, 'parsed') and
                              response_message.parsed else
-                             response_message.content)
+                             (response_message.content if hasattr(response_message, 'content') else None))
+                # HuggingFace Local returns a string, not a BaseModel
+                if final_msg is None:
+                    s_fixed = response_message.replace("'", '"')
+                    s = ast.literal_eval(s_fixed)
+                    final_msg = s[0]['content']
                 observer.on_next(final_msg)
                 self.response_subject.on_next(final_msg)
             else:

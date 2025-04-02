@@ -17,7 +17,7 @@ import tests.test_header
 import os
 import time
 
-from dimos.agents.agent import HuggingFaceLocalAgent, HuggingFaceRemoteAgent
+from dimos.agents.agent_huggingface_local import HuggingFaceLocalAgent
 from dimos.stream.data_provider import QueryDataProvider
 
 class HuggingFaceLLMAgentDemo:
@@ -68,6 +68,7 @@ class HuggingFaceLLMAgentDemo:
         self.HuggingFaceLLMAgent = HuggingFaceLocalAgent(
             dev_name="HuggingFaceLLMAgent",
             model_name= "Qwen/Qwen2.5-3B",
+            # model_name= "NousResearch/Hermes-2-Pro-Llama-3-8B-GGUF",
             agent_type="HF-LLM",
             input_query_stream=query_provider.data_stream,
             process_all_inputs=False,
