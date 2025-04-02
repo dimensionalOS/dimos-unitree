@@ -62,7 +62,7 @@ services:
     # command: [ "python", "-m", "tests.test_video_rtsp" ]
     # ^^ WIP
 
-    # command: [ "python", "-m", "tests.test_move_vel_unitree" ]
+    # command: [ "python", "-m", "tests.test_video_agent_threading" ]
     # ^^ WIP
 
     # command: ["tail", "-f", "/dev/null"]
