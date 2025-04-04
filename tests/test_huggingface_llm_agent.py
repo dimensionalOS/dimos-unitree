@@ -56,23 +56,13 @@ class HuggingFaceLLMAgentDemo:
 
         print("Starting HuggingFace LLM Agent")
 
-        # Check for NVIDIA GPU availability
-        import torch
-        device = "cuda" if torch.cuda.is_available() else "cpu"
-        if device == "cuda":
-            print(f"Using GPU: {torch.cuda.get_device_name(0)}")
-        else:
-            print("GPU not available, using CPU")
-
         # TESTING LOCAL AGENT
         self.HuggingFaceLLMAgent = HuggingFaceLocalAgent(
             dev_name="HuggingFaceLLMAgent",
             model_name= "Qwen/Qwen2.5-3B",
-            # model_name= "NousResearch/Hermes-2-Pro-Llama-3-8B-GGUF",
             agent_type="HF-LLM",
             input_query_stream=query_provider.data_stream,
             process_all_inputs=False,
-            device=device,
             # output_dir=self.output_dir,
             # skills=skills_instance,
             # frame_processor=frame_processor,

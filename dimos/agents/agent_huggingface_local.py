@@ -94,18 +94,18 @@ class HuggingFaceLocalAgent(LLMAgent):
                 print("GPU not available, using CPU")
         print(f"Device: {self.device}")
 
+        self.tokenizer = tokenizer or HuggingFaceTokenizer(self.model_name)
+
         self.prompt_builder = prompt_builder or PromptBuilder(
             self.model_name,
-            tokenizer=tokenizer or HuggingFaceTokenizer(self.model_name)
+            tokenizer=self.tokenizer
         )
-
 
         self.model = AutoModelForCausalLM.from_pretrained(
             model_name,
             torch_dtype=torch.float16 if self.device == "cuda" else torch.float32,
             device_map=self.device
         )
-        self.tokenizer = AutoTokenizer.from_pretrained(model_name)
 
         self.max_output_tokens_per_request = max_output_tokens_per_request
 
@@ -131,47 +131,90 @@ class HuggingFaceLocalAgent(LLMAgent):
 
 
     def _send_query(self, messages: list) -> Any:
+        _BLUE_PRINT_COLOR: str = "\033[34m"
+        _RESET_COLOR: str = "\033[0m"
+        
         try:
-
-            _GREEN_PRINT_COLOR: str = "\033[32m"
-            _BLUE_PRINT_COLOR: str = "\033[34m"
-            _RESET_COLOR: str = "\033[0m"
+            # Log the incoming messages
             print(f"{_BLUE_PRINT_COLOR}Messages: {str(messages)}{_RESET_COLOR}")
-
-            print("Applying chat template...")
-            prompt_text = self.tokenizer.apply_chat_template(
-                conversation=[{"role": "user", "content": str(messages)}],
-                tokenize=False,
-                add_generation_prompt=True
-            )
-            print("Chat template applied.")
-            print(f"Prompt text: {prompt_text}")
-
-            print("Preparing model inputs...")
-            model_inputs = self.tokenizer([prompt_text], return_tensors="pt").to(self.model.device)
-            print("Model inputs prepared.")
-
-            print("Generating response...")
+            
+            # Process with chat template
+            try:
+                print("Applying chat template...")
+                prompt_text = self.tokenizer.tokenizer.apply_chat_template(
+                    conversation=[{"role": "user", "content": str(messages)}],
+                    tokenize=False,
+                    add_generation_prompt=True
+                )
+                print("Chat template applied.")
+                
+                # Tokenize the prompt
+                print("Preparing model inputs...")
+                model_inputs = self.tokenizer.tokenizer([prompt_text], return_tensors="pt").to(self.model.device)
+                print("Model inputs prepared.")
+                
+                # Generate the response
+                print("Generating response...")
+                generated_ids = self.model.generate(
+                    **model_inputs,
+                    max_new_tokens=self.max_output_tokens_per_request
+                )
+                
+                # Extract the generated tokens (excluding the input prompt tokens)
+                print("Processing generated output...")
+                generated_ids = [
+                    output_ids[len(input_ids):]
+                    for input_ids, output_ids in zip(model_inputs.input_ids, generated_ids)
+                ]
+                
+                # Convert tokens back to text
+                response = self.tokenizer.tokenizer.batch_decode(generated_ids, skip_special_tokens=True)[0]
+                print("Response successfully generated.")
+                
+                return response
+                
+            except AttributeError as e:
+                # Handle case where tokenizer doesn't have the expected methods
+                logger.warning(f"Chat template not available: {e}. Using simple format.")
+                # Continue with execution and use simple format
+                
+            except Exception as e:
+                # Log any other errors but continue execution
+                logger.warning(f"Error in chat template processing: {e}. Falling back to simple format.")
+            
+            # Fallback approach for models without chat template support
+            # This code runs if the try block above raises an exception
+            print("Using simple prompt format...")
+            
+            # Convert messages to a simple text format
+            if isinstance(messages, list) and messages and isinstance(messages[0], dict) and "content" in messages[0]:
+                prompt_text = messages[0]["content"]
+            else:
+                prompt_text = str(messages)
+                
+            # Tokenize the prompt
+            model_inputs = self.tokenizer.tokenize_text(prompt_text)
+            model_inputs = torch.tensor([model_inputs], device=self.model.device)
+            
+            # Generate the response
             generated_ids = self.model.generate(
-                **model_inputs,
+                input_ids=model_inputs,
                 max_new_tokens=self.max_output_tokens_per_request
             )
-            print("Response generated.")
-
-            print("Decoding generated IDs...")
-            generated_ids = [
-                output_ids[len(input_ids):]
-                for input_ids, output_ids in zip(model_inputs.input_ids, generated_ids)
-            ]
-            print("Generated IDs decoded.")
-
-            print("Batch decoding response...")
-            response = self.tokenizer.batch_decode(generated_ids, skip_special_tokens=True)[0]
-            print("Response batch decoded.")
+            
+            # Extract the generated tokens
+            generated_ids = generated_ids[0][len(model_inputs[0]):]
+            
+            # Convert tokens back to text
+            response = self.tokenizer.detokenize_text(generated_ids.tolist())
+            print("Response generated using simple format.")
+            
             return response
+            
         except Exception as e:
-            logger.error(f"Error during HuggingFace query: {e}")
-            return "Error processing request."
+            # Catch all other errors
+            logger.error(f"Error during query processing: {e}", exc_info=True)
+            return f"Error processing request. Please try again."
 
     def stream_query(self, query_text: str) -> Subject:
         """
