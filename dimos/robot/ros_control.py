@@ -706,7 +706,7 @@ class ROSControl(ABC):
             self._logger.error(f"Failed to send movement command: {e}")
             return False
 
-    def move_vel_command(self, x: float, y: float, yaw: float) -> bool:
+    def move_vel_control(self, x: float, y: float, yaw: float) -> bool:
         """
         Send a single velocity command without duration handling.
         
