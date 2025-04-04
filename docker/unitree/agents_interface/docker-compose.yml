@@ -8,13 +8,8 @@ services:
     env_file:
       - ../../../.env
     environment:
-      PYTHONUNBUFFERED: 1
-      ROBOT_IP: ${ROBOT_IP} 
-      CONN_TYPE: ${CONN_TYPE}
-      WEBRTC_SERVER_HOST: 0.0.0.0  # Listen on all interfaces
-      WEBRTC_SERVER_PORT: ${WEBRTC_SERVER_PORT:-9991}
-      DISPLAY: ${DISPLAY:-}  # For GUI applications like rviz2
-      ROS_OUTPUT_DIR: /app/assets/output/ros  # Change output directory
+      - PYTHONUNBUFFERED=1
+      - ROS_OUTPUT_DIR=/app/assets/output/ros  # Change output directory
       # DIMOS_MAX_WORKERS: ${DIMOS_MAX_WORKERS}
       # TODO: ipc: host
     volumes:
