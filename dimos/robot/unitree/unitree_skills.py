@@ -12,10 +12,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import List, Optional, Tuple, Type
+from __future__ import annotations
+
+from typing import TYPE_CHECKING, List, Optional, Tuple, Type
 import time
 from pydantic import Field
-from dimos.robot.robot import Robot
+
+if TYPE_CHECKING:
+    from dimos.robot.robot import Robot
 from dimos.robot.skills import AbstractRobotSkill, AbstractSkill
 
 # Module-level constant for Unitree ROS control definitions
@@ -288,3 +292,13 @@ class MyUnitreeSkills(AbstractSkill):
         def __call__(self):
             super().__call__()
             return time.sleep(self.seconds)
+
+    class FollowHuman(AbstractRobotSkill):
+        """Follow a human using a camera."""
+
+        def __init__(self, robot: Optional[Robot] = None, **data):
+            super().__init__(robot=robot, **data)
+
+        def __call__(self):
+            super().__call__()
+            return self._robot.follow_human()

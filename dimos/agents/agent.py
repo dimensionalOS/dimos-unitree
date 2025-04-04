@@ -27,6 +27,7 @@ like OpenAIAgent that connect to specific LLM providers.
 from __future__ import annotations
 
 # Standard library imports
+import ast
 import json
 import os
 import threading
@@ -47,7 +48,8 @@ from reactivex.subject import Subject
 from dimos.agents.memory.base import AbstractAgentSemanticMemory
 from dimos.agents.memory.chroma_impl import AgentSemanticMemory
 from dimos.agents.prompt_builder.impl import PromptBuilder
-from dimos.agents.tokenizer.openai_impl import AbstractTokenizer, OpenAI_Tokenizer
+from dimos.agents.tokenizer.base import AbstractTokenizer
+from dimos.agents.tokenizer.openai_tokenizer import OpenAITokenizer
 from dimos.robot.skills import AbstractSkill
 from dimos.stream.frame_processor import FrameProcessor
 from dimos.stream.video_operators import Operators as MyOps, VideoOperators as MyVidOps
@@ -145,7 +147,9 @@ class LLMAgent(Agent):
                  agent_memory: Optional[AbstractAgentSemanticMemory] = None,
                  pool_scheduler: Optional[ThreadPoolScheduler] = None, 
                  process_all_inputs: bool = False,
-                 system_query: Optional[str] = None):
+                 system_query: Optional[str] = None,
+                 max_output_tokens_per_request: int = 16384,
+                 max_input_tokens_per_request: int = 128000):
         """
         Initializes a new instance of the LLMAgent.
 
@@ -166,8 +170,8 @@ class LLMAgent(Agent):
         self.skills: Optional[AbstractSkill] = None
         self.system_query: Optional[str] = system_query
         self.image_detail: str = "low"
-        self.max_input_tokens_per_request: int = 128000
-        self.max_output_tokens_per_request: int = 16384
+        self.max_input_tokens_per_request: int = max_input_tokens_per_request
+        self.max_output_tokens_per_request: int = max_output_tokens_per_request
         self.max_tokens_per_request: int = (self.max_input_tokens_per_request +
                                             self.max_output_tokens_per_request)
         self.rag_query_n: int = 4
@@ -343,7 +347,7 @@ class LLMAgent(Agent):
                 final_msg = (response_message.parsed
                              if hasattr(response_message, 'parsed') and
                              response_message.parsed else
-                             response_message.content)
+                             (response_message.content if hasattr(response_message, 'content') else response_message))
                 observer.on_next(final_msg)
                 self.response_subject.on_next(final_msg)
             else:
@@ -631,7 +635,8 @@ class OpenAIAgent(LLMAgent):
                  frame_processor: Optional[FrameProcessor] = None,
                  image_detail: str = "low",
                  pool_scheduler: Optional[ThreadPoolScheduler] = None,
-                 process_all_inputs: Optional[bool] = None):
+                 process_all_inputs: Optional[bool] = None,
+                 openai_client: Optional[OpenAI] = None):
         """
         Initializes a new instance of the OpenAIAgent.
 
@@ -659,6 +664,8 @@ class OpenAIAgent(LLMAgent):
                 If None, the global scheduler from get_scheduler() will be used.
             process_all_inputs (bool): Whether to process all inputs or skip when busy.
                 If None, defaults to True for text queries, False for video streams.
+            openai_client (OpenAI): The OpenAI client to use. This can be used to specify
+                a custom OpenAI client if targetting another provider.
         """
         # Determine appropriate default for process_all_inputs if not provided
         if process_all_inputs is None:
@@ -676,7 +683,7 @@ class OpenAIAgent(LLMAgent):
             process_all_inputs=process_all_inputs,
             system_query=system_query
         )
-        self.client = OpenAI()
+        self.client = openai_client or OpenAI()
         self.query = query
         self.output_dir = output_dir
         os.makedirs(self.output_dir, exist_ok=True)
@@ -686,9 +693,10 @@ class OpenAIAgent(LLMAgent):
 
         self.response_model = response_model if response_model is not None else NOT_GIVEN
         self.model_name = model_name
-        self.prompt_builder = prompt_builder or PromptBuilder(self.model_name)
-        self.tokenizer = tokenizer or OpenAI_Tokenizer(
+        self.tokenizer = tokenizer or OpenAITokenizer(
             model_name=self.model_name)
+        self.prompt_builder = prompt_builder or PromptBuilder(
+            self.model_name, tokenizer=self.tokenizer)
         self.rag_query_n = rag_query_n
         self.rag_similarity_threshold = rag_similarity_threshold
         self.image_detail = image_detail
