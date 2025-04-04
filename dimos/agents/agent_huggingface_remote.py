@@ -59,7 +59,9 @@ class HuggingFaceRemoteAgent(LLMAgent):
                  image_detail: str = "low",
                  pool_scheduler: Optional[ThreadPoolScheduler] = None,
                  process_all_inputs: Optional[bool] = None,
-                 api_key: Optional[str] = None):
+                 api_key: Optional[str] = None,
+                 hf_provider: Optional[str] = None,
+                 hf_base_url: Optional[str] = None):
 
         # Determine appropriate default for process_all_inputs if not provided
         if process_all_inputs is None:
@@ -92,9 +94,12 @@ class HuggingFaceRemoteAgent(LLMAgent):
 
         self.max_output_tokens_per_request = max_output_tokens_per_request
 
-        self.api_key = api_key or os.getenv('HUGGINGFACE_API_KEY')
+        self.api_key = api_key or os.getenv('HF_TOKEN')
+        self.provider = hf_provider or "hf-inference"
+        self.base_url = hf_base_url or os.getenv('HUGGINGFACE_PRV_ENDPOINT')
         self.client = InferenceClient(
-            provider="hf-inference",
+            provider=self.provider,
+            base_url=self.base_url,
             api_key=self.api_key,
         )
 

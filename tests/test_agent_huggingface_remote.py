@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from dimos.stream.data_provider import QueryDataProvider
 import tests.test_header
 
 import os
@@ -22,28 +23,40 @@ from dimos.agents.agent_huggingface_remote import HuggingFaceRemoteAgent
 from dimos.robot.unitree.unitree_skills import MyUnitreeSkills
 
 # Initialize video stream
-video_stream = VideoProvider(
-    dev_name="VideoProvider",
-    # video_source=f"{os.getcwd()}/assets/framecount.mp4",
-    video_source=f"{os.getcwd()}/assets/trimmed_video_office.mov",
-    pool_scheduler=get_scheduler(),
-).capture_video_as_observable(realtime=False, fps=1)
+# video_stream = VideoProvider(
+#     dev_name="VideoProvider",
+#     # video_source=f"{os.getcwd()}/assets/framecount.mp4",
+#     video_source=f"{os.getcwd()}/assets/trimmed_video_office.mov",
+#     pool_scheduler=get_scheduler(),
+# ).capture_video_as_observable(realtime=False, fps=1)
 
 # Initialize Unitree skills
-myUnitreeSkills = MyUnitreeSkills()
-myUnitreeSkills.initialize_skills()
+# myUnitreeSkills = MyUnitreeSkills()
+# myUnitreeSkills.initialize_skills()
+
+# Initialize query stream
+query_provider = QueryDataProvider()
 
 # Initialize agent
 agent = HuggingFaceRemoteAgent(
             dev_name="HuggingFaceRemoteAgent",
-            model_name="Qwen/Qwen2.5-3B",
-            tokenizer=HuggingFaceTokenizer(model_name="Qwen/Qwen2.5-3B"),
+            model_name="meta-llama/Meta-Llama-3-8B-Instruct",
+            tokenizer=HuggingFaceTokenizer(model_name="meta-llama/Meta-Llama-3-8B-Instruct"),
             max_output_tokens_per_request=8192,
-            input_video_stream=video_stream,
-            # system_query="Tell me the number in the video. Find me the center of the number spotted, and print the coordinates to the console using an appropriate function call. Then provide me a deep history of the number in question and its significance in history. Additionally, tell me what model and version of language model you are.",
-            system_query="Tell me about any objects seen. Print the coordinates for center of the objects seen to the console using an appropriate function call. Then provide me a deep history of the number in question and its significance in history. Additionally, tell me what model and version of language model you are.",
-            # skills=myUnitreeSkills,
+            input_query_stream=query_provider.data_stream,
+            # input_video_stream=video_stream,
+            system_query="You are a helpful assistant that can answer questions and help with tasks.",
         )
+
+# Start the query stream.
+# Queries will be pushed every 1 second, in a count from 100 to 5000.
+query_provider.start_query_stream(
+    query_template=
+    "{query}; Denote the number at the beginning of this query before the semicolon as the 'reference number'. Provide the reference number, without any other text in your response.",
+    frequency=5,
+    start_count=1,
+    end_count=10000,
+    step=1)
 
 try:
     input("Press ESC to exit...")
