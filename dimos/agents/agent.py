@@ -348,7 +348,6 @@ class LLMAgent(Agent):
                              if hasattr(response_message, 'parsed') and
                              response_message.parsed else
                              (response_message.content if hasattr(response_message, 'content') else response_message))
-                
                 observer.on_next(final_msg)
                 self.response_subject.on_next(final_msg)
             else:

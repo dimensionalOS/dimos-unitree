@@ -292,3 +292,13 @@ class MyUnitreeSkills(AbstractSkill):
         def __call__(self):
             super().__call__()
             return time.sleep(self.seconds)
+
+    class FollowHuman(AbstractRobotSkill):
+        """Follow a human using a camera."""
+
+        def __init__(self, robot: Optional[Robot] = None, **data):
+            super().__init__(robot=robot, **data)
+
+        def __call__(self):
+            super().__call__()
+            return self._robot.follow_human()

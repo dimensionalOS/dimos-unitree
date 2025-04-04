@@ -36,7 +36,7 @@ from dimos.stream.ros_video_provider import ROSVideoProvider
 import math
 from nav2_simple_commander.robot_navigator import BasicNavigator
 from builtin_interfaces.msg import Duration
-from geometry_msgs.msg import Point
+from geometry_msgs.msg import Point, Vector3
 from dimos.robot.ros_command_queue import ROSCommandQueue
 from dimos.utils.logging_config import setup_logger
 import logging
@@ -70,6 +70,7 @@ class ROSControl(ABC):
                  webrtc_api_topic: str = None,
                  webrtc_msg_type: Type = None,
                  move_vel_topic: str = None,
+                 pose_topic: str = None,
                  debug: bool = False):
       
         """
@@ -189,6 +190,9 @@ class ROSControl(ABC):
         # Publishers
         self._move_vel_pub = self._node.create_publisher(
             Twist, move_vel_topic, command_qos)
+        self._pose_pub = self._node.create_publisher(
+            Vector3, pose_topic, command_qos)
+            
         if webrtc_msg_type:
             self._webrtc_pub = self._node.create_publisher(
                 webrtc_msg_type, webrtc_topic, qos_profile=command_qos)
@@ -700,4 +704,60 @@ class ROSControl(ABC):
 
         except Exception as e:
             self._logger.error(f"Failed to send movement command: {e}")
+            return False
+
+    def move_vel_control(self, x: float, y: float, yaw: float) -> bool:
+        """
+        Send a single velocity command without duration handling.
+        
+        Args:
+            x: Forward/backward velocity (m/s)
+            y: Left/right velocity (m/s)
+            yaw: Rotational velocity (rad/s)
+            
+        Returns:
+            bool: True if command was sent successfully
+        """
+        # Clamp velocities to safe limits
+        x = self._clamp_velocity(x, self.MAX_LINEAR_VELOCITY)
+        y = self._clamp_velocity(y, self.MAX_LINEAR_VELOCITY)
+        yaw = self._clamp_velocity(yaw, self.MAX_ANGULAR_VELOCITY)
+
+        # Create and send command
+        cmd = Twist()
+        cmd.linear.x = float(x)
+        cmd.linear.y = float(y)
+        cmd.angular.z = float(yaw)
+
+        try:
+            self._move_vel_pub.publish(cmd)
+            return True
+        except Exception as e:
+            logger.error(f"Failed to send velocity command: {e}")
+            return False
+
+    def pose_command(self, roll: float, pitch: float, yaw: float) -> bool:
+        """
+        Send a pose command to the robot to adjust its body orientation
+        
+        Args:
+            roll: Roll angle in radians
+            pitch: Pitch angle in radians
+            yaw: Yaw angle in radians
+            
+        Returns:
+            bool: True if command was sent successfully
+        """
+        # Create the pose command message
+        cmd = Vector3()
+        cmd.x = float(roll)   # Roll
+        cmd.y = float(pitch)  # Pitch
+        cmd.z = float(yaw)    # Yaw
+
+        try:
+            self._pose_pub.publish(cmd)
+            logger.debug(f"Sent pose command: roll={roll}, pitch={pitch}, yaw={yaw}")
+            return True
+        except Exception as e:
+            logger.error(f"Failed to send pose command: {e}")
             return False
