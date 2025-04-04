@@ -52,8 +52,8 @@ soundfile
 #Hugging Face
 transformers[torch]==4.49.0
 
-# CTransforms GGUF
-ctransformers==0.2.27
+# CTransforms GGUF - GPU required
+ctransformers[cuda]==0.2.27
 
 # Perception Dependencies
 ultralytics>=8.3.70
