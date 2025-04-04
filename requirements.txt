@@ -51,3 +51,6 @@ soundfile
 
 #Hugging Face
 transformers[torch]==4.49.0
+
+# CTransforms GGUF
+ctransformers==0.2.27

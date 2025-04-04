@@ -97,7 +97,7 @@ class CTransformersGGUFAgent(LLMAgent):
                  input_video_stream: Optional[Observable] = None,
                  output_dir: str = os.path.join(os.getcwd(), "assets", "agent"),
                  agent_memory: Optional[AbstractAgentSemanticMemory] = None,
-                 system_query: Optional[str] = "You are a robot with the following functions. Move(), Reverse(), Left(), Right(), Stop(). Given the following command return the correct function. ONLY RETURN THE FUNCTION NAME, NOTHING ELSE.",
+                 system_query: Optional[str] = "You are a helpful assistant.",
                  max_output_tokens_per_request: int = 10,
                  max_input_tokens_per_request: int = 250,
                  prompt_builder: Optional[PromptBuilder] = None,
