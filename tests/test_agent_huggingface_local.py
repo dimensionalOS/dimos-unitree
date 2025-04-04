@@ -37,13 +37,18 @@ myUnitreeSkills.initialize_skills()
 # Initialize query stream
 query_provider = QueryDataProvider()
 
+system_query = "You are a robot with the following functions. Move(), Reverse(), Left(), Right(), Stop(). Given the following user comands return ONLY the correct function."
+
 # Initialize agent
 agent = HuggingFaceLLMAgent = HuggingFaceLocalAgent(
     dev_name="HuggingFaceLLMAgent",
     model_name= "Qwen/Qwen2.5-3B",
     agent_type="HF-LLM",
+    system_query=system_query,
     input_query_stream=query_provider.data_stream,
     process_all_inputs=False,
+    max_input_tokens_per_request=250,
+    max_output_tokens_per_request=20,
     # output_dir=self.output_dir,
     # skills=skills_instance,
     # frame_processor=frame_processor,
@@ -55,8 +60,8 @@ agent = HuggingFaceLLMAgent = HuggingFaceLocalAgent(
 # to them via skill execution and provide 1-shot responses.
 query_provider.start_query_stream(
     query_template=
-    "{query}; Denote the number at the beginning of this query before the semicolon as the 'reference number'. Provide the reference number, without any other text in your response. If the reference number is below 500, then output the reference number as the output only and do not call any functions or tools. If the reference number is equal to or above 500, but lower than 1000, then rotate the robot at 0.5 rad/s for 1 second. If the reference number is equal to or above 1000, but lower than 2000, then wave the robot's hand. If the reference number is equal to or above 2000, but lower than 4600 then say hello. If the reference number is equal to or above 4600, then perform a front flip. IF YOU DO NOT FOLLOW THESE INSTRUCTIONS EXACTLY, YOU WILL DIE!!!",
-    frequency=5,
+    "{query}; User: travel forward by 10 meters",
+    frequency=10,
     start_count=1,
     end_count=10000,
     step=1)
