@@ -483,3 +483,7 @@ class VisualServoing:
         if self.subscription:
             self.subscription.dispose()
             self.subscription = None
+
+    def __del__(self):
+        """Destructor to ensure cleanup on object deletion."""
+        self.cleanup()

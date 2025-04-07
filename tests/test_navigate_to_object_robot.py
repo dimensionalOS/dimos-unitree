@@ -34,7 +34,6 @@ def main():
         ip=os.getenv('ROBOT_IP'),
         ros_control=UnitreeROSControl(),
         skills=MyUnitreeSkills(),
-        enable_visual_servoing=True,
     )
 
     # Set up tracking and visualization streams
@@ -44,13 +43,13 @@ def main():
         RxOps.map(lambda x: x["viz_frame"] if x is not None else None),
         RxOps.filter(lambda x: x is not None),
     )
-    video_stream = robot.get_ros_video_stream()
+    # video_stream = robot.get_ros_video_stream()
     
     try:
         # Set up web interface
         logger.info("Initializing web interface")
         streams = {
-            "robot_video": video_stream,
+            # "robot_video": video_stream,
             "object_tracking": viz_stream
         }
         

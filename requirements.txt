@@ -59,6 +59,8 @@ ctransformers[cuda]==0.2.27
 ultralytics>=8.3.70
 filterpy>=1.4.5
 scipy>=1.15.1
+opencv-python==4.10.0.84
+opencv-contrib-python==4.10.0.84
 torch>=2.0.1
 torchvision>=0.15.2
 scikit-learn

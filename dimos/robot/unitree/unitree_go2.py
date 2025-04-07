@@ -69,7 +69,6 @@ class UnitreeGo2(Robot):
             use_webrtc: bool = False,
             disable_video_stream: bool = False,
             mock_connection: bool = False,
-            enable_visual_servoing: bool = False,
             skills: Optional[Union[MyUnitreeSkills, AbstractSkill]] = None):
 
         """Initialize the UnitreeGo2 robot.
@@ -140,9 +139,8 @@ class UnitreeGo2(Robot):
         else:
             self.video_stream = None
 
-        self.enable_visual_servoing = enable_visual_servoing
         # Initialize visual servoing if enabled
-        if enable_visual_servoing and self.video_stream is not None:
+        if self.video_stream is not None:
             self.video_stream_ros = self.get_ros_video_stream(fps=8)
             self.person_tracker = PersonTrackingStream(
                 camera_intrinsics=self.camera_intrinsics,
@@ -157,28 +155,26 @@ class UnitreeGo2(Robot):
             person_tracking_stream = self.person_tracker.create_stream(self.video_stream_ros)
             object_tracking_stream = self.object_tracker.create_stream(self.video_stream_ros)
 
-            self.person_visual_servoing = VisualServoing(tracking_stream=person_tracking_stream)
-            self.object_visual_servoing = VisualServoing(tracking_stream=object_tracking_stream)
             self.person_tracking_stream = person_tracking_stream
             self.object_tracking_stream = object_tracking_stream
 
     def follow_human(self, distance: int = 1.5, timeout: float = 20.0, point: Tuple[int, int] = None):
-        if self.enable_visual_servoing:
-            logger.warning(f"Following human for {timeout} seconds...")
-            start_time = time.time()
-            success = self.visual_servoing.start_tracking(point=point, desired_distance=distance)
-            while self.visual_servoing.running and time.time() - start_time < timeout:
-                output = self.visual_servoing.updateTracking()
-                x_vel = output.get("linear_vel")
-                z_vel = output.get("angular_vel")
-                logger.debug(f"Following human: x_vel: {x_vel}, z_vel: {z_vel}")
-                self.ros_control.move_vel_control(x=x_vel, y=0, yaw=z_vel)
-                time.sleep(0.05)
-            self.visual_servoing.stop_tracking()
-            return success
-        else:
-            logger.warning("Visual servoing is disabled, cannot follow human")
-            return False
+
+        person_visual_servoing = VisualServoing(tracking_stream=self.person_tracking_stream)
+    
+        logger.warning(f"Following human for {timeout} seconds...")
+        start_time = time.time()
+        success = person_visual_servoing.start_tracking(point=point, desired_distance=distance)
+        while person_visual_servoing.running and time.time() - start_time < timeout:
+            output = person_visual_servoing.updateTracking()
+            x_vel = output.get("linear_vel")
+            z_vel = output.get("angular_vel")
+            logger.debug(f"Following human: x_vel: {x_vel}, z_vel: {z_vel}")
+            self.ros_control.move_vel_control(x=x_vel, y=0, yaw=z_vel)
+            time.sleep(0.05)
+        person_visual_servoing.stop_tracking()
+        del person_visual_servoing
+        return success
         
     def navigate_to(self, object_name: str, distance: float = 1.0, timeout: float = 40.0, max_retries: int = 3):
         """
@@ -193,9 +189,7 @@ class UnitreeGo2(Robot):
         Returns:
             bool: True if navigation was successful, False otherwise
         """
-        if not self.enable_visual_servoing:
-            logger.warning("Visual servoing is disabled, cannot navigate to object")
-            return False
+        object_visual_servoing = VisualServoing(tracking_stream=self.object_tracking_stream)
             
         logger.warning(f"Navigating to {object_name} with desired distance {distance}m, timeout {timeout} seconds...")
         
@@ -227,7 +221,7 @@ class UnitreeGo2(Robot):
         self.object_tracker.track(bbox, size=object_size)
         
         # Start visual servoing to the object
-        success = self.object_visual_servoing.start_tracking(desired_distance=distance)
+        success = object_visual_servoing.start_tracking(desired_distance=distance)
         if not success:
             logger.error("Failed to start visual servoing")
             return False
@@ -236,25 +230,28 @@ class UnitreeGo2(Robot):
         start_time = time.time()
         goal_reached = False
         
-        while self.object_visual_servoing.running and time.time() - start_time < timeout:
-            output = self.object_visual_servoing.updateTracking()
+        while object_visual_servoing.running and time.time() - start_time < timeout:
+            output = object_visual_servoing.updateTracking()
             x_vel = output.get("linear_vel")
             z_vel = output.get("angular_vel")
             logger.debug(f"Navigating to object: x_vel: {x_vel}, z_vel: {z_vel}")
             self.ros_control.move_vel_control(x=x_vel, y=0, yaw=z_vel)
             time.sleep(0.05)
-            if self.object_visual_servoing.is_goal_reached():
+            if object_visual_servoing.is_goal_reached():
                 goal_reached = True
                 break
         
         # Stop the robot and tracking
         self.ros_control.stop()
-        self.object_visual_servoing.stop_tracking()
+        object_visual_servoing.stop_tracking()
         
         if goal_reached:
             logger.info(f"Successfully navigated to {object_name}")
         else:
             logger.warning(f"Failed to reach {object_name} within timeout")
+
+        # Clean up the visual servoing
+        del object_visual_servoing
             
         return goal_reached
 

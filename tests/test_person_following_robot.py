@@ -26,7 +26,6 @@ def main():
         ip=os.getenv('ROBOT_IP'),
         ros_control=UnitreeROSControl(),
         skills=MyUnitreeSkills(),
-        enable_visual_servoing=True,
     )
 
     tracking_stream = robot.person_tracking_stream
