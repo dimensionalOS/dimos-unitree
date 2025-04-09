@@ -19,7 +19,7 @@ from dimos.robot.robot import Robot
 from dimos.robot.unitree.unitree_skills import MyUnitreeSkills
 from dimos.hardware.interface import HardwareInterface
 from dimos.agents.agent import Agent, OpenAIAgent, OpenAIAgent
-from dimos.robot.skills import AbstractSkill
+from dimos.skills.skills import AbstractSkill
 from dimos.stream.frame_processor import FrameProcessor
 from dimos.stream.video_provider import VideoProvider
 from dimos.stream.video_providers.unitree import UnitreeVideoProvider
@@ -96,6 +96,7 @@ class UnitreeGo2(Robot):
         super().__init__(ros_control=ros_control, output_dir=output_dir, skills=skills)
 
         # Unitree specific skill initialization
+        self.skills = skills
         if skills is not None:
             self.initialize_skills(skills)
 

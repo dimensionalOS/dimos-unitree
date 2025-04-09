@@ -19,8 +19,15 @@ import time
 from pydantic import Field
 
 if TYPE_CHECKING:
-    from dimos.robot.robot import Robot
-from dimos.robot.skills import AbstractRobotSkill, AbstractSkill
+    from dimos.robot.robot import Robot, MockRobot
+else:
+    Robot = 'Robot'
+    MockRobot = 'MockRobot'
+
+from dimos.skills.skills import AbstractRobotSkill, AbstractSkill, SkillRegistry
+from dimos.types.constants import Colors
+from inspect import signature, Parameter
+from typing import Callable, Any, get_type_hints
 
 # Module-level constant for Unitree ROS control definitions
 UNITREE_ROS_CONTROLS: List[Tuple[str, int, str]] = [
@@ -151,31 +158,162 @@ UNITREE_ROS_CONTROLS: List[Tuple[str, int, str]] = [
     )
 ]
 
+# region Decorator
 
-class MyUnitreeSkills(AbstractSkill):
+
+def robot_skill(description: str = None):
+    """Decorator to convert a function into a robot skill and add it to MyUnitreeSkills class."""
+    def decorator(func: Callable):
+        # Get function signature and type hints
+        sig = signature(func)
+        type_hints = get_type_hints(func)
+        
+        # Extract parameter info for the Pydantic model
+        fields = {}
+        for param_name, param in sig.parameters.items():
+            if param_name == 'robot':
+                continue
+                
+            param_type = type_hints.get(param_name, Any)
+            default = ... if param.default is Parameter.empty else param.default
+            description = param.annotation if isinstance(param.annotation, str) else None
+            
+            fields[param_name] = (param_type, Field(default, description=description))
+        
+        # Create skill class dynamically
+        class DynamicSkill(AbstractRobotSkill):
+            __doc__ = description or func.__doc__
+            
+            # Add fields from our function parameters
+            for field_name, (field_type, field_info) in fields.items():
+                locals()[field_name] = field_info
+            
+            def __call__(self):
+                super().__call__()
+                # Extract parameters that match the function signature
+                params = {k: v for k, v in self.__dict__.items() 
+                         if k in sig.parameters and k != 'robot' and k != '_robot'}
+                # Call the original function with the validated parameters
+                return func(self._robot, **params)
+                
+        # Set the class name to match the function name
+        DynamicSkill.__name__ = func.__name__
+        
+        # Add the skill class as an attribute of MyUnitreeSkills
+        setattr(MyUnitreeSkills, func.__name__, DynamicSkill)
+        
+        return func  # Return the original function
+    
+    return decorator
+
+
+# endregion Decorator
+
+# region SkillGroup
+
+class SkillGroup():
+    """A group of skills."""
+
+    def __init__(self, skills: Optional[List[AbstractSkill]] = None, parent_class = None):
+        """Initialize a skill group.
+        
+        Args:
+            skills: Explicit list of skills to include in this group.
+            parent_class: A class to scan for nested AbstractSkill classes.
+                          If provided, automatically extracts skills from this class.
+                          If None, uses the class of this instance.
+        """
+        # By default, use this instance's class
+        self.parent_class = parent_class or self.__class__
+        
+        # Initialize skills collection
+        if skills is not None:
+            self.skills = skills
+        else:
+            self.skills = self.collect_skills()
+
+    def get_skills_from_class(self, cls) -> List[AbstractSkill]:
+        """Extract all AbstractSkill subclasses from a class.
+        
+        Args:
+            cls: The class to scan for skills
+            
+        Returns:
+            List of skill classes found within the class
+        """
+        skills = []
+        
+        # Loop through all attributes of the class
+        for attr_name in dir(cls):
+            # Skip special/dunder attributes
+            if attr_name.startswith('__'):
+                continue
+                
+            try:
+                attr = getattr(cls, attr_name)
+                
+                # Check if it's a class and inherits from AbstractSkill
+                if isinstance(attr, type) and issubclass(attr, AbstractSkill) and attr is not AbstractSkill:
+                    skills.append(attr)
+            except (AttributeError, TypeError):
+                # Skip attributes that can't be accessed or aren't classes
+                continue
+                
+        return skills
+    
+    def collect_skills(self) -> List[AbstractSkill]:
+        """Collect all skills from the parent class and update self.skills.
+        
+        Returns:
+            List of collected skill classes
+        """
+        self.skills = self.get_skills_from_class(self.parent_class)
+        return self.skills
+
+    @classmethod
+    def add_skills(cls, skill_classes: List[Type[AbstractSkill]]):
+        """Add multiple skill classes as class attributes.
+        
+        Args:
+            skill_classes: List of skill classes to add
+        """
+        for skill_class in skill_classes:
+            setattr(cls, skill_class.__name__, skill_class)
+
+    # ==== Tool Instance Creation ====
+    skill_registry: SkillRegistry = SkillRegistry()
+
+    def add_to_skill_registry(self, skill_class: Type[AbstractSkill]):
+        self.skill_registry.add(skill_class)
+
+# endregion SkillGroup
+
+# region MyUnitreeSkills
+
+class MyUnitreeSkills(SkillGroup):
     """My Unitree Skills."""
 
     _robot: Optional[Robot] = None
 
-    def __init__(self, robot: Optional[Robot] = None, **data):
-        super().__init__(robot=robot, **data)
+    def __init__(self, robot: Optional[Robot] = None):
+        super().__init__()
         self._robot: Robot = None
+
+        # Add dynamic skills to the class
+        self.add_skills(self.create_skills_live())
 
         if robot is not None:
             self._robot = robot
-            self.initialize_skills()
+            # self.initialize_skills()
 
     def initialize_skills(self):
         # Create the skills and add them to the list of skills
         self.add_skills(self.create_skills_live())
-        nested_skills = self.get_nested_skills()
-        self.set_list_of_skills(nested_skills)
 
         # Provide the robot instance to each skill
-        for skill_class in nested_skills:
-            print("\033[92mCreating instance for skill: {}\033[0m".format(
-                skill_class))
-            self.create_instance(skill_class.__name__, robot=self._robot)
+        for skill_class in self.collect_skills():
+            print(f"{Colors.GREEN_PRINT_COLOR}Creating instance for skill: {skill_class}{Colors.RESET_COLOR}")
+            self.skill_registry.create_instance(skill_class.__name__, robot=self._robot)
 
     def create_skills_live(self) -> List[AbstractRobotSkill]:
         # ================================================
@@ -184,21 +322,18 @@ class MyUnitreeSkills(AbstractSkill):
         class BaseUnitreeSkill(AbstractRobotSkill):
             """Base skill for dynamic skill creation."""
 
-            def __init__(self, robot: Optional[Robot] = None, **data):
-                super().__init__(robot=robot, **data)
-
             def __call__(self):
-                _GREEN_PRINT_COLOR = "\033[32m"
-                _RESET_COLOR = "\033[0m"
-                string = f"{_GREEN_PRINT_COLOR}This is a base skill, created for the specific skill: {self._app_id}{_RESET_COLOR}"
+                string = f"{Colors.GREEN_PRINT_COLOR}This is a base skill, created for the specific skill: {self._app_id}{Colors.RESET_COLOR}"
                 print(string)
                 super().__call__()
                 if self._app_id is None:
                     raise RuntimeError(
-                        "No App ID provided to {self.__class__.__name__} Skill")
+                        f"{Colors.RED_PRINT_COLOR}"
+                        f"No App ID provided to {self.__class__.__name__} Skill"
+                        f"{Colors.RESET_COLOR}")
                 else:
                     self._robot.webrtc_req(api_id=self._app_id)
-                    string = f"{_GREEN_PRINT_COLOR}{self.__class__.__name__} was successful: id={self._app_id}{_RESET_COLOR}"
+                    string = f"{Colors.GREEN_PRINT_COLOR}{self.__class__.__name__} was successful: id={self._app_id}{Colors.RESET_COLOR}"
                     print(string)
                     return string
 
@@ -215,13 +350,44 @@ class MyUnitreeSkills(AbstractSkill):
 
         return skills_classes
 
+    # region Decorated Skills
+    '''
+    @robot_skill("Move the robot forward using distance commands.")
+    def move(robot, distance: float = Field(..., description="Distance to move in meters")):
+        return robot.move(distance=distance)
+
+    @robot_skill("Reverse the robot using distance commands.")
+    def reverse(robot, distance: float = Field(..., description="Distance to reverse in meters")):
+        return robot.reverse(distance=distance)
+
+    @robot_skill("Spin the robot left using degree commands.")
+    def spin_left(robot, degrees: float = Field(..., description="Distance to spin left in degrees")):
+        return robot.spin(degrees=degrees)  # Spinning left is positive degrees
+
+    @robot_skill("Spin the robot right using degree commands.")
+    def spin_right(robot, degrees: float = Field(..., description="Distance to spin right in degrees")):
+        return robot.spin(degrees=-degrees)  # Spinning right is negative degrees
+    
+    @robot_skill("Move the robot using direct velocity commands.")
+    def move_vel(robot, x: float = Field(..., description="Forward/backward velocity (m/s)"),
+                y: float = Field(..., description="Left/right velocity (m/s)"),
+                yaw: float = Field(..., description="Rotational velocity (rad/s)"),
+                duration: float = Field(..., description="How long to move (seconds). If 0, command is continuous")):
+        return robot.move_vel(x=x, y=y, yaw=yaw, duration=duration)
+
+    @robot_skill("Wait for a specified amount of time.")
+    def wait(robot, seconds: float = Field(..., description="Seconds to wait")):
+        return time.sleep(seconds)
+    '''
+
+    # endregion Decorated Skills
+
+    # region Class-based Skills
+    
     class Move(AbstractRobotSkill):
         """Move the robot forward using distance commands."""
 
         distance: float = Field(..., description="Distance to move in meters")
-
-        def __init__(self, robot: Optional[Robot] = None, **data):
-            super().__init__(robot=robot, **data)
 
         def __call__(self):
             super().__call__()
@@ -230,12 +396,8 @@ class MyUnitreeSkills(AbstractSkill):
     class Reverse(AbstractRobotSkill):
         """Reverse the robot using distance commands."""
 
-        distance: float = Field(...,
-                                description="Distance to reverse in meters")
-
-        def __init__(self, robot: Optional[Robot] = None, **data):
-            super().__init__(robot=robot, **data)
-
+        distance: float = Field(..., description="Distance to reverse in meters")
+        
         def __call__(self):
             super().__call__()
             return self._robot.reverse(distance=self.distance)
@@ -243,11 +405,7 @@ class MyUnitreeSkills(AbstractSkill):
     class SpinLeft(AbstractRobotSkill):
         """Spin the robot left using degree commands."""
 
-        degrees: float = Field(...,
-                               description="Distance to spin left in degrees")
-
-        def __init__(self, robot: Optional[Robot] = None, **data):
-            super().__init__(robot=robot, **data)
+        degrees: float = Field(..., description="Distance to spin left in degrees")
 
         def __call__(self):
             super().__call__()
@@ -256,11 +414,7 @@ class MyUnitreeSkills(AbstractSkill):
     class SpinRight(AbstractRobotSkill):
         """Spin the robot right using degree commands."""
 
-        degrees: float = Field(...,
-                               description="Distance to spin right in degrees")
-
-        def __init__(self, robot: Optional[Robot] = None, **data):
-            super().__init__(robot=robot, **data)
+        degrees: float = Field(..., description="Distance to spin right in degrees")
 
         def __call__(self):
             super().__call__()
@@ -274,9 +428,6 @@ class MyUnitreeSkills(AbstractSkill):
         yaw: float = Field(..., description="Rotational velocity (rad/s)")
         duration: float = Field(..., description="How long to move (seconds). If 0, command is continuous")
 
-        def __init__(self, robot: Optional[Robot] = None, **data):
-            super().__init__(robot=robot, **data)
-
         def __call__(self):
             super().__call__()
             return self._robot.move_vel(x=self.x, y=self.y, yaw=self.yaw, duration=self.duration)
@@ -286,9 +437,6 @@ class MyUnitreeSkills(AbstractSkill):
 
         seconds: float = Field(..., description="Seconds to wait")
 
-        def __init__(self, robot: Optional[Robot] = None, **data):
-            super().__init__(robot=robot, **data)
-
         def __call__(self):
             super().__call__()
             return time.sleep(self.seconds)
@@ -296,9 +444,50 @@ class MyUnitreeSkills(AbstractSkill):
     class FollowHuman(AbstractRobotSkill):
         """Follow a human using a camera."""
 
-        def __init__(self, robot: Optional[Robot] = None, **data):
-            super().__init__(robot=robot, **data)
-
         def __call__(self):
             super().__call__()
             return self._robot.follow_human()
+        
+    class HelloAndStuff(AbstractRobotSkill):
+        """Prints a hello message."""
+
+        def __call__(self):
+            print("Hi there!")
+            print(f"{Colors.MAGENTA_PRINT_COLOR}self._robot: {self._robot}{Colors.RESET_COLOR}")
+            super().__call__()
+            self._robot.my_print()
+    # endregion Class-based Skills
+
+
+if __name__ == "__main__":
+    # Create a robot and skill group
+    robot = MockRobot()
+    skill_group = MyUnitreeSkills(robot=robot)
+    
+    # Print out all available skills
+    print("\nAvailable Unitree Robot Skills:")
+    for skill in skill_group.collect_skills():
+        print(f"- {skill.__name__}")
+
+    print(f"\n{Colors.RED_PRINT_COLOR}Get the skills{Colors.RESET_COLOR}")
+    for skill in skill_group.collect_skills():
+        if skill.__name__ == "HelloAndStuff":
+            print(f"{Colors.GREEN_PRINT_COLOR}Calling skill: {skill.__name__}{Colors.RESET_COLOR}")
+            skill()
+            print("Done.")
+    
+    # Initialize the skills
+    print(f"\n{Colors.RED_PRINT_COLOR}Initialize the skills{Colors.RESET_COLOR}")
+    skill_group.initialize_skills()
+
+    # Add the skills to the skill registry
+    print(f"\n{Colors.RED_PRINT_COLOR}Add the skills to the skill registry{Colors.RESET_COLOR}")
+    for skill in skill_group.collect_skills():
+        skill_group.add_to_skill_registry(skill)
+
+    # Call the skills
+    for skill in skill_group.collect_skills():
+        if skill.__name__ == "HelloAndStuff":
+            print(f"{Colors.GREEN_PRINT_COLOR}Calling skill: {skill.__name__}{Colors.RESET_COLOR}")
+            skill_group.skill_registry.call_function(skill.__name__)
+            print("Done.")

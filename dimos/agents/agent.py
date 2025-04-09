@@ -32,7 +32,7 @@ import json
 import os
 import threading
 import logging
-from typing import Any, Dict, List, Tuple, Optional
+from typing import Any, Dict, List, Tuple, Optional, Union
 
 # Third-party imports
 from dotenv import load_dotenv
@@ -50,7 +50,7 @@ from dimos.agents.memory.chroma_impl import AgentSemanticMemory
 from dimos.agents.prompt_builder.impl import PromptBuilder
 from dimos.agents.tokenizer.base import AbstractTokenizer
 from dimos.agents.tokenizer.openai_tokenizer import OpenAITokenizer
-from dimos.robot.skills import AbstractSkill
+from dimos.skills.skills import AbstractSkill, SkillRegistry
 from dimos.stream.frame_processor import FrameProcessor
 from dimos.stream.video_operators import Operators as MyOps, VideoOperators as MyVidOps
 from dimos.utils.threadpool import get_scheduler
@@ -125,7 +125,6 @@ class LLMAgent(Agent):
     Attributes:
         query (str): The current query text to process.
         prompt_builder (PromptBuilder): Handles construction of prompts.
-        skills (AbstractSkill): Available tools/functions for the agent.
         system_query (str): System prompt for RAG context situations.
         image_detail (str): Detail level for image processing ('low','high','auto').
         max_input_tokens_per_request (int): Maximum input token count.
@@ -167,7 +166,6 @@ class LLMAgent(Agent):
         # These attributes can be configured by a subclass if needed.
         self.query: Optional[str] = None
         self.prompt_builder: Optional[PromptBuilder] = None
-        self.skills: Optional[AbstractSkill] = None
         self.system_query: Optional[str] = system_query
         self.image_detail: str = "low"
         self.max_input_tokens_per_request: int = max_input_tokens_per_request
@@ -278,14 +276,14 @@ class LLMAgent(Agent):
         # TODO: Make this more generic or move implementation to OpenAIAgent.
         # This is presently OpenAI-specific.
         def _tooling_callback(message, messages, response_message,
-                              skills: AbstractSkill):
+                              skill_registry: SkillRegistry):
             has_called_tools = False
             new_messages = []
             for tool_call in message.tool_calls:
                 has_called_tools = True
                 name = tool_call.function.name
                 args = json.loads(tool_call.function.arguments)
-                result = skills.call_function(name, **args)
+                result = skill_registry.call_function(name, **args)
                 logger.info(f"Function Call Results: {result}")
                 new_messages.append({
                     "role": "tool",
@@ -340,7 +338,7 @@ class LLMAgent(Agent):
                 raise Exception("Response message does not exist.")
 
             # TODO: Make this more generic. The parsed tag and tooling handling may be OpenAI-specific.
-            # If no skills are provided or there are no tool calls, emit the response directly.
+            # If no skill registry is provided or there are no tool calls, emit the response directly.
             if (self.skills is None or
                     self.skills.get_tools() in (None, NOT_GIVEN) or
                     response_message.tool_calls is None):
@@ -630,7 +628,7 @@ class OpenAIAgent(LLMAgent):
                  tokenizer: Optional[AbstractTokenizer] = None,
                  rag_query_n: int = 4,
                  rag_similarity_threshold: float = 0.45,
-                 skills: Optional[AbstractSkill] = None,
+                 skills: Optional[Union[AbstractSkill, List[AbstractSkill], SkillRegistry]] = None,
                  response_model: Optional[BaseModel] = None,
                  frame_processor: Optional[FrameProcessor] = None,
                  image_detail: str = "low",
@@ -656,7 +654,7 @@ class OpenAIAgent(LLMAgent):
             tokenizer (AbstractTokenizer): Custom tokenizer for token counting.
             rag_query_n (int): Number of results to fetch in RAG queries.
             rag_similarity_threshold (float): Minimum similarity for RAG results.
-            skills (AbstractSkill): Skills available to the agent.
+            skills (Union[AbstractSkill, List[AbstractSkill], SkillRegistry]): Skills available to the agent.
             response_model (BaseModel): Optional Pydantic model for responses.
             frame_processor (FrameProcessor): Custom frame processor.
             image_detail (str): Detail level for images ("low", "high", "auto").
@@ -688,8 +686,18 @@ class OpenAIAgent(LLMAgent):
         self.output_dir = output_dir
         os.makedirs(self.output_dir, exist_ok=True)
 
-        # Configure skills.
+        # Configure skill registry.
         self.skills = skills
+        self.skill_registry = None
+        if isinstance(self.skills, SkillRegistry):
+            self.skill_registry = self.skills
+        elif isinstance(self.skills, List[AbstractSkill]):
+            self.skill_registry = SkillRegistry()
+            for skill in self.skills:
+                self.skill_registry.add(skill)
+        elif isinstance(self.skills, AbstractSkill):
+            self.skill_registry = SkillRegistry()
+            self.skill_registry.add(self.skills)
 
         self.response_model = response_model if response_model is not None else NOT_GIVEN
         self.model_name = model_name
@@ -773,7 +781,7 @@ class OpenAIAgent(LLMAgent):
                     model=self.model_name,
                     messages=messages,
                     response_format=self.response_model,
-                    tools=(self.skills.get_tools() if self.skills is not None else NOT_GIVEN),
+                    tools=(self.skill_registry.get_tools() if self.skill_registry is not None else NOT_GIVEN),
                     max_tokens=self.max_output_tokens_per_request,
                 )
             else:
@@ -781,8 +789,8 @@ class OpenAIAgent(LLMAgent):
                     model=self.model_name,
                     messages=messages,
                     max_tokens=self.max_output_tokens_per_request,
-                    tools=(self.skills.get_tools()
-                           if self.skills is not None else NOT_GIVEN),
+                    tools=(self.skill_registry.get_tools()
+                           if self.skill_registry is not None else NOT_GIVEN),
                 )
 
             response_message = response.choices[0].message

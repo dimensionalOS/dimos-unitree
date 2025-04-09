@@ -19,11 +19,16 @@ and simulated implementations, with common functionality for movement, control,
 and video streaming.
 """
 
-from abc import ABC, abstractmethod
-from typing import Optional, Type, TYPE_CHECKING
-from pydantic import Field
+from abc import ABC
+from typing import TYPE_CHECKING
 from dimos.hardware.interface import HardwareInterface
-from dimos.robot.ros_control import ROSControl
+
+if TYPE_CHECKING:
+    from dimos.robot.ros_control import ROSControl
+else:
+    ROSControl = 'ROSControl'
+
+from dimos.skills.skills import SkillRegistry
 from dimos.stream.frame_processor import FrameProcessor
 from dimos.stream.video_operators import VideoOperators as vops
 from reactivex import Observable, operators as ops
@@ -32,14 +37,6 @@ from reactivex.disposable import CompositeDisposable
 from reactivex.scheduler import ThreadPoolScheduler
 
 from dimos.utils.threadpool import get_scheduler
-
-# Use TYPE_CHECKING to avoid circular imports
-if TYPE_CHECKING:
-    from dimos.robot.skills import AbstractSkill
-else:
-    # Use a forward reference for runtime
-    AbstractSkill = 'AbstractSkill'
-
 
 class Robot(ABC):
     """Base class for all DIMOS robots.
@@ -55,7 +52,6 @@ class Robot(ABC):
         output_dir: Directory for storing output files.
         disposables: Collection of disposable resources for cleanup.
         pool_scheduler: Thread pool scheduler for managing concurrent operations.
-        skills: Robot skills instance for executing various robot actions.
     """
 
     def __init__(self,
@@ -63,7 +59,7 @@ class Robot(ABC):
                  ros_control: ROSControl = None,
                  output_dir: str = os.path.join(os.getcwd(), "assets", "output"),
                  pool_scheduler: ThreadPoolScheduler = None,
-                 skills: Optional[AbstractSkill] = None):
+                 skill_registry: SkillRegistry = None):
         """Initialize a Robot instance.
         
         Args:
@@ -71,28 +67,16 @@ class Robot(ABC):
             ros_control: ROS-based control system. Defaults to None.
             output_dir: Directory for storing output files. Defaults to "./assets/output".
             pool_scheduler: Thread pool scheduler. If None, one will be created.
-            skills: Robot skills instance. Defaults to None.
         """
         self.hardware_interface = hardware_interface
         self.ros_control = ros_control
         self.output_dir = output_dir
         self.disposables = CompositeDisposable()
         self.pool_scheduler = pool_scheduler if pool_scheduler else get_scheduler()
-        self.skills = None
+        self.skill_registry = skill_registry if skill_registry else SkillRegistry()
 
         # Create output directory if it doesn't exist
         os.makedirs(self.output_dir, exist_ok=True)
-
-        # Handles skills initialization in Robot(..., skills=AbstractSkill()) AND standalone 
-        # via skills_instance = AbstractSkill(robot=robot)
-        if skills is not None:
-            if hasattr(skills, '_robot') and skills._robot is not None:
-                # Skills already initialized with robot reference in AbstractSkill constructor
-                pass
-            else:
-                # New skills instance needs robot reference
-                self.skills = skills
-                self.skills.set_robot(self)
 
     def get_ros_video_stream(self, fps: int = 30) -> Observable:
         """Get the ROS video stream with rate limiting and frame processing.
@@ -247,22 +231,6 @@ class Robot(ABC):
             raise RuntimeError("No ROS control interface available for pose commands")
         return self.ros_control.pose_command(roll, pitch, yaw)
 
-    @abstractmethod
-    def do(self, *args, **kwargs):
-        """Executes motion on the robot.
-        
-        This abstract method must be implemented by concrete robot subclasses
-        to provide robot-specific motion functionality.
-        
-        Args:
-            *args: Variable length argument list.
-            **kwargs: Arbitrary keyword arguments.
-            
-        Returns:
-            Implementation-dependent.
-        """
-        pass
-
     def update_hardware_interface(self,
                                   new_hardware_interface: HardwareInterface):
         """Update the hardware interface with a new configuration.
@@ -282,26 +250,6 @@ class Robot(ABC):
             AttributeError: If hardware_interface is None.
         """
         return self.hardware_interface.get_configuration()
-
-    def initialize_skills(self, skills: Optional[AbstractSkill]):
-        """Initialize the robot's skills instance.
-        
-        Args:
-            skills: Skills instance to initialize for this robot.
-            
-        Returns:
-            The initialized skills instance.
-        """
-        if skills is not None:
-            skills.initialize_skills()
-    
-    def get_skills(self) -> Optional[AbstractSkill]:
-        """Get the robot's skills instance.
-        
-        Returns:
-            The robot's skills instance if one is set, None otherwise.
-        """
-        return None if self.skills is None else self.skills
 
     def set_hardware_configuration(self, configuration):
         """Set a new hardware configuration.
@@ -324,3 +272,13 @@ class Robot(ABC):
         if self.ros_control:
             self.ros_control.cleanup()
         self.disposables.dispose()
+
+class MockRobot(Robot):
+    def __init__(self):
+        super().__init__()
+        self.ros_control = None
+        self.hardware_interface = None
+        self.skill_registry = SkillRegistry()
+
+    def my_print(self):
+        print("Hello, world!")
