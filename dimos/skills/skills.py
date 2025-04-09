@@ -106,7 +106,7 @@ class SkillRegistry:
 
     def get_tools(self) -> Any:
         tools_json = self.get_list_of_skills_as_json(list_of_skills=self.registered_skills)
-        # print(f"Tools JSON: {tools_json}")
+        # print(f"{Colors.YELLOW_PRINT_COLOR}Tools JSON: {tools_json}{Colors.RESET_COLOR}")
         return tools_json
     
     def get_list_of_skills_as_json(self, list_of_skills: list["AbstractSkill"]) -> list[str]:
@@ -118,7 +118,6 @@ class SkillRegistry:
 
 class AbstractSkill(BaseModel):
  
-
     _skill_registry: SkillRegistry = SkillRegistry()
 
     def __init__(self, *args, **kwargs):
@@ -138,8 +137,6 @@ class AbstractSkill(BaseModel):
     #         # Instead of creating an instance, store the args for later use
     #         self._instances[key] = kwargs
     #         print(f"Stored args for later instance creation: {name} with args: {kwargs}")
-
-
 
     def clone(self) -> "AbstractSkill":
         return AbstractSkill()

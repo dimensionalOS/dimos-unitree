@@ -50,9 +50,11 @@ from dimos.agents.memory.chroma_impl import AgentSemanticMemory
 from dimos.agents.prompt_builder.impl import PromptBuilder
 from dimos.agents.tokenizer.base import AbstractTokenizer
 from dimos.agents.tokenizer.openai_tokenizer import OpenAITokenizer
+from dimos.robot.unitree.unitree_skills import SkillGroup
 from dimos.skills.skills import AbstractSkill, SkillRegistry
 from dimos.stream.frame_processor import FrameProcessor
 from dimos.stream.video_operators import Operators as MyOps, VideoOperators as MyVidOps
+from dimos.types.constants import Colors
 from dimos.utils.threadpool import get_scheduler
 from dimos.utils.logging_config import setup_logger
 
@@ -303,7 +305,7 @@ class LLMAgent(Agent):
 
         if response_message.tool_calls is not None:
             return _tooling_callback(response_message, messages,
-                                     response_message, self.skills)
+                                     response_message, self.skill_registry)
         return None
 
     def _observable_query(self,
@@ -339,8 +341,8 @@ class LLMAgent(Agent):
 
             # TODO: Make this more generic. The parsed tag and tooling handling may be OpenAI-specific.
             # If no skill registry is provided or there are no tool calls, emit the response directly.
-            if (self.skills is None or
-                    self.skills.get_tools() in (None, NOT_GIVEN) or
+            if (self.skill_registry is None or
+                    self.skill_registry.get_tools() in (None, NOT_GIVEN) or
                     response_message.tool_calls is None):
                 final_msg = (response_message.parsed
                              if hasattr(response_message, 'parsed') and
@@ -628,7 +630,7 @@ class OpenAIAgent(LLMAgent):
                  tokenizer: Optional[AbstractTokenizer] = None,
                  rag_query_n: int = 4,
                  rag_similarity_threshold: float = 0.45,
-                 skills: Optional[Union[AbstractSkill, List[AbstractSkill], SkillRegistry]] = None,
+                 skills: Optional[Union[AbstractSkill, list[AbstractSkill], SkillRegistry, SkillGroup]] = None,
                  response_model: Optional[BaseModel] = None,
                  frame_processor: Optional[FrameProcessor] = None,
                  image_detail: str = "low",
@@ -691,13 +693,16 @@ class OpenAIAgent(LLMAgent):
         self.skill_registry = None
         if isinstance(self.skills, SkillRegistry):
             self.skill_registry = self.skills
-        elif isinstance(self.skills, List[AbstractSkill]):
+        elif isinstance(self.skills, list):
             self.skill_registry = SkillRegistry()
             for skill in self.skills:
                 self.skill_registry.add(skill)
         elif isinstance(self.skills, AbstractSkill):
             self.skill_registry = SkillRegistry()
             self.skill_registry.add(self.skills)
+        elif isinstance(self.skills, SkillGroup):
+            print(f"{Colors.BLUE_PRINT_COLOR}Skill Group: {self.skills}{Colors.RESET_COLOR}")
+            self.skill_registry = self.skills.skill_registry
 
         self.response_model = response_model if response_model is not None else NOT_GIVEN
         self.model_name = model_name
