@@ -22,7 +22,7 @@ services:
       - NVIDIA_VISIBLE_DEVICES=all
       - NVIDIA_DRIVER_CAPABILITIES=all
     # command: [ "python", "-m", "tests.test_agent_alibaba" ]
-    command: [ "python", "-m", "tests.test_agent_huggingface_local.py" ]
+    command: [ "python", "-m", "tests.test_agent_huggingface_local_jetson.py" ]
     stdin_open: true
     tty: true
 
