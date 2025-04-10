@@ -37,7 +37,7 @@ myUnitreeSkills.initialize_skills()
 # Initialize query stream
 query_provider = QueryDataProvider()
 
-system_query = "You are a robot with the following functions. Move(), Reverse(), Left(), Right(), Stop(). Given the following user comands return ONLY the correct function."
+system_query = "You are a helpful assistant."
 
 # Initialize agent
 agent = HuggingFaceLocalAgent(
@@ -49,7 +49,7 @@ agent = HuggingFaceLocalAgent(
     input_query_stream=query_provider.data_stream,
     process_all_inputs=False,
     max_input_tokens_per_request=250,
-    max_output_tokens_per_request=100,
+    max_output_tokens_per_request=20,
     # output_dir=self.output_dir,
     # skills=skills_instance,
     # frame_processor=frame_processor,
@@ -61,7 +61,7 @@ agent = HuggingFaceLocalAgent(
 # to them via skill execution and provide 1-shot responses.
 query_provider.start_query_stream(
     query_template=
-    "{query}; User: travel forward by 10 meters",
+    "{query}; User: Hello how are you!",
     frequency=30,
     start_count=1,
     end_count=10000,
