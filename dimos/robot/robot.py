@@ -28,7 +28,7 @@ if TYPE_CHECKING:
 else:
     ROSControl = 'ROSControl'
 
-from dimos.skills.skills import SkillRegistry
+from dimos.skills.skills import SkillLibrary
 from dimos.stream.frame_processor import FrameProcessor
 from dimos.stream.video_operators import VideoOperators as vops
 from reactivex import Observable, operators as ops
@@ -59,7 +59,7 @@ class Robot(ABC):
                  ros_control: ROSControl = None,
                  output_dir: str = os.path.join(os.getcwd(), "assets", "output"),
                  pool_scheduler: ThreadPoolScheduler = None,
-                 skill_registry: SkillRegistry = None):
+                 skill_library: SkillLibrary = None):
         """Initialize a Robot instance.
         
         Args:
@@ -73,7 +73,7 @@ class Robot(ABC):
         self.output_dir = output_dir
         self.disposables = CompositeDisposable()
         self.pool_scheduler = pool_scheduler if pool_scheduler else get_scheduler()
-        self.skill_registry = skill_registry if skill_registry else SkillRegistry()
+        self.skill_library = skill_library if skill_library else SkillLibrary()
 
         # Create output directory if it doesn't exist
         os.makedirs(self.output_dir, exist_ok=True)
@@ -278,7 +278,7 @@ class MockRobot(Robot):
         super().__init__()
         self.ros_control = None
         self.hardware_interface = None
-        self.skill_registry = SkillRegistry()
+        self.skill_library = SkillLibrary()
 
     def my_print(self):
         print("Hello, world!")

@@ -14,13 +14,13 @@
 
 import tests.test_header
 
-from dimos.skills.skills import AbstractSkill, SkillRegistry
+from dimos.skills.skills import AbstractSkill, SkillLibrary
 from dimos.robot.robot import MockRobot
 from dimos.robot.unitree.unitree_skills import MyUnitreeSkills
 from dimos.types.constants import Colors
 from dimos.agents.agent import OpenAIAgent
 
-class TestSkillRegistry:
+class TestSkillLibrary:
     robot = MockRobot()
     skill_group = MyUnitreeSkills(robot=robot)
 
@@ -40,22 +40,22 @@ class TestSkillRegistry:
     print(f"\n{Colors.RED_PRINT_COLOR}Initialize the skills{Colors.RESET_COLOR}")
     skill_group.initialize_skills()
 
-    # Add the skills to the skill registry
-    print(f"\n{Colors.RED_PRINT_COLOR}Add the skills to the skill registry{Colors.RESET_COLOR}")
+    # Add the skills to the skill library
+    print(f"\n{Colors.RED_PRINT_COLOR}Add the skills to the skill library{Colors.RESET_COLOR}")
     for skill in skill_group.collect_skills():
-        skill_group.add_to_skill_registry(skill)
+        skill_group.add_to_skill_library(skill)
 
     # Call the skills
     for skill in skill_group.collect_skills():
         if skill.__name__ == "HelloAndStuff":
             print(f"{Colors.GREEN_PRINT_COLOR}Calling skill: {skill.__name__}{Colors.RESET_COLOR}")
-            skill_group.skill_registry.call_function(skill.__name__)
+            skill_group.skill_library.call_function(skill.__name__)
             print("Done.")
 
 class TestSkillWithAgent:
     def __init__(self):
-        # Create a skill registry and initialize with mock robot
-        self.skill_registry = SkillRegistry()
+        # Create a skill library and initialize with mock robot
+        self.skill_library = SkillLibrary()
         self.robot = MockRobot()
         self.skill_group = MyUnitreeSkills(robot=self.robot)
         
@@ -63,16 +63,16 @@ class TestSkillWithAgent:
         print(f"\n{Colors.BLUE_PRINT_COLOR}Initializing skills for agent test{Colors.RESET_COLOR}")
         self.skill_group.initialize_skills()
         
-        # Add a new skill to the registry
+        # Add a new skill to the library
         class TestSkill(AbstractSkill):
             """A test skill that prints a message."""
 
             def __call__(self):
                 print("Some sample skill was called.")
 
-        self.skill_group.add_to_skill_registry(TestSkill)
+        self.skill_group.add_to_skill_library(TestSkill)
         for skill in self.skill_group.collect_skills():
-            self.skill_group.add_to_skill_registry(skill)
+            self.skill_group.add_to_skill_library(skill)
             print(f"- Registered: {skill.__name__}")
         
         # Create an OpenAIAgent with the skills
@@ -101,8 +101,8 @@ class TestSkillWithAgent:
         print(f"\n{Colors.GREEN_PRINT_COLOR}Skill with agent test completed{Colors.RESET_COLOR}")
 
 if __name__ == "__main__":
-    print(f"{Colors.YELLOW_PRINT_COLOR}Running TestSkillRegistry{Colors.RESET_COLOR}")
-    TestSkillRegistry()
+    print(f"{Colors.YELLOW_PRINT_COLOR}Running TestSkillLibrary{Colors.RESET_COLOR}")
+    TestSkillLibrary()
     
     print(f"\n{Colors.YELLOW_PRINT_COLOR}Running TestSkillWithAgent{Colors.RESET_COLOR}")
     TestSkillWithAgent()

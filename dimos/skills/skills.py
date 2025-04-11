@@ -24,11 +24,11 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
 
-# region SkillRegistry
+# region SkillLibrary
 
-class SkillRegistry:
+class SkillLibrary:
 
-    # ==== Flat Skill Registry ====
+    # ==== Flat Skill Library ====
 
     def __init__(self):
         self.registered_skills: list["AbstractSkill"] = []
@@ -112,13 +112,13 @@ class SkillRegistry:
     def get_list_of_skills_as_json(self, list_of_skills: list["AbstractSkill"]) -> list[str]:
         return list(map(pydantic_function_tool, list_of_skills))
 
-# endregion SkillRegistry
+# endregion SkillLibrary
 
 # region AbstractSkill
 
 class AbstractSkill(BaseModel):
  
-    _skill_registry: SkillRegistry = SkillRegistry()
+    _skill_library: SkillLibrary = SkillLibrary()
 
     def __init__(self, *args, **kwargs):
         print("Initializing AbstractSkill Class")
@@ -163,14 +163,14 @@ class AbstractSkill(BaseModel):
             if isinstance(attr, type) and issubclass(attr, AbstractSkill) and attr is not AbstractSkill:
                 nested_skills.append(attr)
 
-        for skill in self._skill_registry:
+        for skill in self._skill_library:
             nested_skills.append(skill)
         
         return nested_skills
 
     def add_skills(self, skills: list["AbstractSkill"]):
         for skill in skills:
-            self._skill_registry.add(skill)
+            self._skill_library.add(skill)
 
     def get_list_of_skills_as_json(self, list_of_skills: list["AbstractSkill"]) -> list[str]:
         return list(map(pydantic_function_tool, list_of_skills))
@@ -198,7 +198,7 @@ class AbstractRobotSkill(AbstractSkill):
 
         # Handle Robot() reference if AbstractRobotSkill() is instantiated standalone with robot=Robot()
         if robot is not None:
-            self._robot.skill_registry.add(self)
+            self._robot.skill_library.add(self)
     
     def set_robot(self, robot: Robot) -> None:
         """Set the robot reference for this skills instance.
