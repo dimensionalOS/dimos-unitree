@@ -24,7 +24,7 @@ else:
     Robot = 'Robot'
     MockRobot = 'MockRobot'
 
-from dimos.skills.skills import AbstractRobotSkill, AbstractSkill, SkillRegistry
+from dimos.skills.skills import AbstractRobotSkill, AbstractSkill, SkillLibrary
 from dimos.types.constants import Colors
 from inspect import signature, Parameter
 from typing import Callable, Any, get_type_hints
@@ -281,10 +281,10 @@ class SkillGroup():
             setattr(cls, skill_class.__name__, skill_class)
 
     # ==== Tool Instance Creation ====
-    skill_registry: SkillRegistry = SkillRegistry()
+    skill_library: SkillLibrary = SkillLibrary()
 
-    def add_to_skill_registry(self, skill_class: Type[AbstractSkill]):
-        self.skill_registry.add(skill_class)
+    def add_to_skill_library(self, skill_class: Type[AbstractSkill]):
+        self.skill_library.add(skill_class)
 
 # endregion SkillGroup
 
@@ -313,7 +313,7 @@ class MyUnitreeSkills(SkillGroup):
         # Provide the robot instance to each skill
         for skill_class in self.collect_skills():
             print(f"{Colors.GREEN_PRINT_COLOR}Creating instance for skill: {skill_class}{Colors.RESET_COLOR}")
-            self.skill_registry.create_instance(skill_class.__name__, robot=self._robot)
+            self.skill_library.create_instance(skill_class.__name__, robot=self._robot)
 
     def create_skills_live(self) -> List[AbstractRobotSkill]:
         # ================================================
@@ -480,14 +480,14 @@ if __name__ == "__main__":
     print(f"\n{Colors.RED_PRINT_COLOR}Initialize the skills{Colors.RESET_COLOR}")
     skill_group.initialize_skills()
 
-    # Add the skills to the skill registry
-    print(f"\n{Colors.RED_PRINT_COLOR}Add the skills to the skill registry{Colors.RESET_COLOR}")
+    # Add the skills to the skill library
+    print(f"\n{Colors.RED_PRINT_COLOR}Add the skills to the skill library{Colors.RESET_COLOR}")
     for skill in skill_group.collect_skills():
-        skill_group.add_to_skill_registry(skill)
+        skill_group.add_to_skill_library(skill)
 
     # Call the skills
     for skill in skill_group.collect_skills():
         if skill.__name__ == "HelloAndStuff":
             print(f"{Colors.GREEN_PRINT_COLOR}Calling skill: {skill.__name__}{Colors.RESET_COLOR}")
-            skill_group.skill_registry.call_function(skill.__name__)
+            skill_group.skill_library.call_function(skill.__name__)
             print("Done.")
