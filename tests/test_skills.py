@@ -26,11 +26,11 @@ class TestSkillLibrary:
 
     # Print out all available skills
     print("\nAvailable Unitree Robot Skills:")
-    for skill in skill_group.collect_skills():
+    for skill in skill_group:
         print(f"- {skill.__name__}")
 
     print(f"\n{Colors.RED_PRINT_COLOR}Get the skills{Colors.RESET_COLOR}")
-    for skill in skill_group.collect_skills():
+    for skill in skill_group:
         if skill.__name__ == "HelloAndStuff":
             print(f"{Colors.GREEN_PRINT_COLOR}Calling skill: {skill.__name__}{Colors.RESET_COLOR}")
             skill()
@@ -42,11 +42,11 @@ class TestSkillLibrary:
 
     # Add the skills to the skill library
     print(f"\n{Colors.RED_PRINT_COLOR}Add the skills to the skill library{Colors.RESET_COLOR}")
-    for skill in skill_group.collect_skills():
+    for skill in skill_group:
         skill_group.add_to_skill_library(skill)
 
     # Call the skills
-    for skill in skill_group.collect_skills():
+    for skill in skill_group:
         if skill.__name__ == "HelloAndStuff":
             print(f"{Colors.GREEN_PRINT_COLOR}Calling skill: {skill.__name__}{Colors.RESET_COLOR}")
             skill_group.skill_library.call_function(skill.__name__)
@@ -71,7 +71,7 @@ class TestSkillWithAgent:
                 print("Some sample skill was called.")
 
         self.skill_group.add_to_skill_library(TestSkill)
-        for skill in self.skill_group.collect_skills():
+        for skill in self.skill_group:
             self.skill_group.add_to_skill_library(skill)
             print(f"- Registered: {skill.__name__}")
         

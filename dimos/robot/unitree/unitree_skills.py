@@ -230,7 +230,8 @@ class SkillGroup():
         if skills is not None:
             self.skills = skills
         else:
-            self.skills = self.collect_skills()
+            # Collect all skills from the parent class and update self.skills
+            self.skills = self.get_skills_from_class(self.parent_class)
 
     def get_skills_from_class(self, cls) -> List[AbstractSkill]:
         """Extract all AbstractSkill subclasses from a class.
@@ -260,15 +261,48 @@ class SkillGroup():
                 continue
                 
         return skills
-    
-    def collect_skills(self) -> List[AbstractSkill]:
-        """Collect all skills from the parent class and update self.skills.
+        
+    def __iter__(self):
+        """Make the skill group iterable.
         
         Returns:
-            List of collected skill classes
+            Iterator over the skills
         """
         self.skills = self.get_skills_from_class(self.parent_class)
-        return self.skills
+        return iter(self.skills)
+        
+    def __len__(self) -> int:
+        """Get the number of skills in the group.
+        
+        Returns:
+            Number of skills
+        """
+        self.skills = self.get_skills_from_class(self.parent_class)
+        return len(self.skills)
+        
+    def __getitem__(self, index):
+        """Get a skill by index.
+        
+        Args:
+            index: Index of the skill to get
+            
+        Returns:
+            The skill at the specified index
+        """
+        self.skills = self.get_skills_from_class(self.parent_class)
+        return self.skills[index]
+        
+    def __contains__(self, skill) -> bool:
+        """Check if a skill is in the group.
+        
+        Args:
+            skill: The skill to check for
+            
+        Returns:
+            True if the skill is in the group, False otherwise
+        """
+        self.skills = self.get_skills_from_class(self.parent_class)
+        return skill in self.skills
 
     @classmethod
     def add_skills(cls, skill_classes: List[Type[AbstractSkill]]):
@@ -311,7 +345,7 @@ class MyUnitreeSkills(SkillGroup):
         self.add_skills(self.create_skills_live())
 
         # Provide the robot instance to each skill
-        for skill_class in self.collect_skills():
+        for skill_class in self:
             print(f"{Colors.GREEN_PRINT_COLOR}Creating instance for skill: {skill_class}{Colors.RESET_COLOR}")
             self.skill_library.create_instance(skill_class.__name__, robot=self._robot)
 
@@ -466,11 +500,11 @@ if __name__ == "__main__":
     
     # Print out all available skills
     print("\nAvailable Unitree Robot Skills:")
-    for skill in skill_group.collect_skills():
+    for skill in skill_group:
         print(f"- {skill.__name__}")
 
     print(f"\n{Colors.RED_PRINT_COLOR}Get the skills{Colors.RESET_COLOR}")
-    for skill in skill_group.collect_skills():
+    for skill in skill_group:
         if skill.__name__ == "HelloAndStuff":
             print(f"{Colors.GREEN_PRINT_COLOR}Calling skill: {skill.__name__}{Colors.RESET_COLOR}")
             skill()
@@ -482,11 +516,11 @@ if __name__ == "__main__":
 
     # Add the skills to the skill library
     print(f"\n{Colors.RED_PRINT_COLOR}Add the skills to the skill library{Colors.RESET_COLOR}")
-    for skill in skill_group.collect_skills():
+    for skill in skill_group:
         skill_group.add_to_skill_library(skill)
 
     # Call the skills
-    for skill in skill_group.collect_skills():
+    for skill in skill_group:
         if skill.__name__ == "HelloAndStuff":
             print(f"{Colors.GREEN_PRINT_COLOR}Calling skill: {skill.__name__}{Colors.RESET_COLOR}")
             skill_group.skill_library.call_function(skill.__name__)
