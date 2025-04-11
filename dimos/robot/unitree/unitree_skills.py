@@ -491,37 +491,3 @@ class MyUnitreeSkills(SkillGroup):
             super().__call__()
             self._robot.my_print()
     # endregion Class-based Skills
-
-
-if __name__ == "__main__":
-    # Create a robot and skill group
-    robot = MockRobot()
-    skill_group = MyUnitreeSkills(robot=robot)
-    
-    # Print out all available skills
-    print("\nAvailable Unitree Robot Skills:")
-    for skill in skill_group:
-        print(f"- {skill.__name__}")
-
-    print(f"\n{Colors.RED_PRINT_COLOR}Get the skills{Colors.RESET_COLOR}")
-    for skill in skill_group:
-        if skill.__name__ == "HelloAndStuff":
-            print(f"{Colors.GREEN_PRINT_COLOR}Calling skill: {skill.__name__}{Colors.RESET_COLOR}")
-            skill()
-            print("Done.")
-    
-    # Initialize the skills
-    print(f"\n{Colors.RED_PRINT_COLOR}Initialize the skills{Colors.RESET_COLOR}")
-    skill_group.initialize_skills()
-
-    # Add the skills to the skill library
-    print(f"\n{Colors.RED_PRINT_COLOR}Add the skills to the skill library{Colors.RESET_COLOR}")
-    for skill in skill_group:
-        skill_group.add_to_skill_library(skill)
-
-    # Call the skills
-    for skill in skill_group:
-        if skill.__name__ == "HelloAndStuff":
-            print(f"{Colors.GREEN_PRINT_COLOR}Calling skill: {skill.__name__}{Colors.RESET_COLOR}")
-            skill_group.skill_library.call_function(skill.__name__)
-            print("Done.")
