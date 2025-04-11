@@ -285,7 +285,7 @@ class LLMAgent(Agent):
                 has_called_tools = True
                 name = tool_call.function.name
                 args = json.loads(tool_call.function.arguments)
-                result = skill_library.call_function(name, **args)
+                result = skill_library.call(name, **args)
                 logger.info(f"Function Call Results: {result}")
                 new_messages.append({
                     "role": "tool",

@@ -370,7 +370,7 @@ class ClaudeAgent(LLMAgent):
             has_called_tools = True
             name = tool_call.function.name
             args = json.loads(tool_call.function.arguments)
-            result = self.skills.call_function(name, **args)
+            result = self.skills.call(name, **args)
             logger.debug(f"Function Call Results: {result}")
             tool_results.append(f"Tool '{name}' returned: {result}")
         

@@ -73,8 +73,7 @@ class SkillLibrary:
             self._instances[key] = kwargs
             print(f"Stored args for later instance creation: {name} with args: {kwargs}")
 
-
-    def call_function(self, name, **args):
+    def call(self, name, **args):
         # Get the stored args if available; otherwise, use an empty dict
         stored_args = self._instances.get(name, {})
 
@@ -117,8 +116,6 @@ class SkillLibrary:
 # region AbstractSkill
 
 class AbstractSkill(BaseModel):
- 
-    _skill_library: SkillLibrary = SkillLibrary()
 
     def __init__(self, *args, **kwargs):
         print("Initializing AbstractSkill Class")
@@ -126,51 +123,15 @@ class AbstractSkill(BaseModel):
         self._instances = {}
         self._list_of_skills = []  # Initialize the list of skills
         print(f"Instances: {self._instances}")
-        
-    # def create_instance(self, name, **kwargs):
-    #     # Key based only on the name
-    #     key = name
-        
-    #     print(f"Preparing to create instance with name: {name} and args: {kwargs}")
-
-    #     if key not in self._instances:
-    #         # Instead of creating an instance, store the args for later use
-    #         self._instances[key] = kwargs
-    #         print(f"Stored args for later instance creation: {name} with args: {kwargs}")
 
     def clone(self) -> "AbstractSkill":
         return AbstractSkill()
 
     # ==== Tools ====
-    def set_list_of_skills(self, list_of_skills: list["AbstractSkill"]):
-        self._list_of_skills = list_of_skills
-
     def get_tools(self) -> Any:
         tools_json = self.get_list_of_skills_as_json(list_of_skills=self._list_of_skills)
         # print(f"Tools JSON: {tools_json}")
         return tools_json
-
-    def get_nested_skills(self) -> list["AbstractSkill"]:
-        nested_skills = []
-        for attr_name in dir(self):
-            # Skip dunder attributes that cause issues
-            if attr_name.startswith("__"):
-                continue
-            try:
-                attr = getattr(self, attr_name)
-            except AttributeError:
-                continue
-            if isinstance(attr, type) and issubclass(attr, AbstractSkill) and attr is not AbstractSkill:
-                nested_skills.append(attr)
-
-        for skill in self._skill_library:
-            nested_skills.append(skill)
-        
-        return nested_skills
-
-    def add_skills(self, skills: list["AbstractSkill"]):
-        for skill in skills:
-            self._skill_library.add(skill)
 
     def get_list_of_skills_as_json(self, list_of_skills: list["AbstractSkill"]) -> list[str]:
         return list(map(pydantic_function_tool, list_of_skills))

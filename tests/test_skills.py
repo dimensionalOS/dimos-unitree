@@ -29,6 +29,7 @@ class TestSkillLibrary:
     for skill in skill_group:
         print(f"- {skill.__name__}")
 
+    # Call a skill directly
     print(f"\n{Colors.RED_PRINT_COLOR}Get the skills{Colors.RESET_COLOR}")
     for skill in skill_group:
         if skill.__name__ == "HelloAndStuff":
@@ -43,13 +44,19 @@ class TestSkillLibrary:
     # Add the skills to the skill library
     print(f"\n{Colors.RED_PRINT_COLOR}Add the skills to the skill library{Colors.RESET_COLOR}")
     for skill in skill_group:
-        skill_group.add_to_skill_library(skill)
+        skill_group.add(skill)
 
     # Call the skills
     for skill in skill_group:
         if skill.__name__ == "HelloAndStuff":
-            print(f"{Colors.GREEN_PRINT_COLOR}Calling skill: {skill.__name__}{Colors.RESET_COLOR}")
-            skill_group.skill_library.call_function(skill.__name__)
+            # Call the skill directly ()
+            print(f"{Colors.GREEN_PRINT_COLOR}Calling skill directly: {skill.__name__}{Colors.RESET_COLOR}")
+            skill()
+            print("Done.")
+
+            # Call the skill using the skill library (TEST)
+            print(f"{Colors.GREEN_PRINT_COLOR}Calling skill using skill library: {skill.__name__}{Colors.RESET_COLOR}")
+            skill_group.skill_library.call(skill.__name__)
             print("Done.")
 
 class TestSkillWithAgent:
@@ -70,9 +77,9 @@ class TestSkillWithAgent:
             def __call__(self):
                 print("Some sample skill was called.")
 
-        self.skill_group.add_to_skill_library(TestSkill)
+        self.skill_group.add(TestSkill)
         for skill in self.skill_group:
-            self.skill_group.add_to_skill_library(skill)
+            self.skill_group.add(skill)
             print(f"- Registered: {skill.__name__}")
         
         # Create an OpenAIAgent with the skills

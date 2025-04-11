@@ -317,7 +317,7 @@ class SkillGroup():
     # ==== Tool Instance Creation ====
     skill_library: SkillLibrary = SkillLibrary()
 
-    def add_to_skill_library(self, skill_class: Type[AbstractSkill]):
+    def add(self, skill_class: Type[AbstractSkill]):
         self.skill_library.add(skill_class)
 
 # endregion SkillGroup
@@ -383,38 +383,6 @@ class MyUnitreeSkills(SkillGroup):
             skills_classes.append(skill_class)
 
         return skills_classes
-
-    # region Decorated Skills
-    
-    # TODO: Implement this (Note: Needs parent store to hold collection of skills)
-    # @robot_skill("Move the robot forward using distance commands.")
-    # def move(robot, distance: float = Field(..., description="Distance to move in meters")):
-    #     return robot.move(distance=distance)
-
-    # @robot_skill("Reverse the robot using distance commands.")
-    # def reverse(robot, distance: float = Field(..., description="Distance to reverse in meters")):
-    #     return robot.reverse(distance=distance)
-
-    # @robot_skill("Spin the robot left using degree commands.")
-    # def spin_left(robot, degrees: float = Field(..., description="Distance to spin left in degrees")):
-    #     return robot.spin(degrees=degrees)  # Spinning left is positive degrees
-
-    # @robot_skill("Spin the robot right using degree commands.")
-    # def spin_right(robot, degrees: float = Field(..., description="Distance to spin right in degrees")):
-    #     return robot.spin(degrees=-degrees)  # Spinning right is negative degrees
-    
-    # @robot_skill("Move the robot using direct velocity commands.")
-    # def move_vel(robot, x: float = Field(..., description="Forward/backward velocity (m/s)"),
-    #             y: float = Field(..., description="Left/right velocity (m/s)"),
-    #             yaw: float = Field(..., description="Rotational velocity (rad/s)"),
-    #             duration: float = Field(..., description="How long to move (seconds). If 0, command is continuous")):
-    #     return robot.move_vel(x=x, y=y, yaw=yaw, duration=duration)
-
-    # @robot_skill("Wait for a specified amount of time.")
-    # def wait(robot, seconds: float = Field(..., description="Seconds to wait")):
-    #     return time.sleep(seconds)
-
-    # endregion Decorated Skills
 
     # region Class-based Skills
     
@@ -491,3 +459,35 @@ class MyUnitreeSkills(SkillGroup):
             super().__call__()
             self._robot.my_print()
     # endregion Class-based Skills
+
+    # region Decorated Skills
+    
+    # TODO: Implement this (Note: Needs parent store to hold collection of skills)
+    # @robot_skill("Move the robot forward using distance commands.")
+    # def move(robot, distance: float = Field(..., description="Distance to move in meters")):
+    #     return robot.move(distance=distance)
+
+    # @robot_skill("Reverse the robot using distance commands.")
+    # def reverse(robot, distance: float = Field(..., description="Distance to reverse in meters")):
+    #     return robot.reverse(distance=distance)
+
+    # @robot_skill("Spin the robot left using degree commands.")
+    # def spin_left(robot, degrees: float = Field(..., description="Distance to spin left in degrees")):
+    #     return robot.spin(degrees=degrees)  # Spinning left is positive degrees
+
+    # @robot_skill("Spin the robot right using degree commands.")
+    # def spin_right(robot, degrees: float = Field(..., description="Distance to spin right in degrees")):
+    #     return robot.spin(degrees=-degrees)  # Spinning right is negative degrees
+    
+    # @robot_skill("Move the robot using direct velocity commands.")
+    # def move_vel(robot, x: float = Field(..., description="Forward/backward velocity (m/s)"),
+    #             y: float = Field(..., description="Left/right velocity (m/s)"),
+    #             yaw: float = Field(..., description="Rotational velocity (rad/s)"),
+    #             duration: float = Field(..., description="How long to move (seconds). If 0, command is continuous")):
+    #     return robot.move_vel(x=x, y=y, yaw=yaw, duration=duration)
+
+    # @robot_skill("Wait for a specified amount of time.")
+    # def wait(robot, seconds: float = Field(..., description="Seconds to wait")):
+    #     return time.sleep(seconds)
+
+    # endregion Decorated Skills
