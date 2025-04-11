@@ -20,7 +20,7 @@ from dimos.utils.logging_config import logger
 # Global variables for tracking control
 object_size = 0.30  # Hardcoded object size in meters (adjust based on your tracking target)
 tracking_object_name = "object"  # Will be updated by Qwen
-object_name = "cup"  # Example object name for Qwen
+object_name = "cardboard box"  # Example object name for Qwen
 
 global tracker_initialized, detection_in_progress
 
@@ -54,6 +54,9 @@ tracker_stream = ObjectTrackingStream(
 video_stream = video_provider.capture_video_as_observable(realtime=True, fps=10)
 tracking_stream = tracker_stream.create_stream(video_stream)
 
+# Check if display is available
+if 'DISPLAY' not in os.environ:
+    raise RuntimeError("No display available. Please set DISPLAY environment variable or run in headless mode.")
 
 # Define callbacks for the tracking stream
 def on_next(result):
