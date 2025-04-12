@@ -40,6 +40,32 @@ class SkillLibrary:
         # Temporary
         self.registered_skills = self.class_skills.copy()
 
+    def get_class_skills(self) -> list["AbstractSkill"]:
+        """Extract all AbstractSkill subclasses from a class.
+            
+        Returns:
+            List of skill classes found within the class
+        """
+        skills = []
+        
+        # Loop through all attributes of the class
+        for attr_name in dir(self.__class__):
+            # Skip special/dunder attributes
+            if attr_name.startswith('__'):
+                continue
+                
+            try:
+                attr = getattr(self.__class__, attr_name)
+                
+                # Check if it's a class and inherits from AbstractSkill
+                if isinstance(attr, type) and issubclass(attr, AbstractSkill) and attr is not AbstractSkill:
+                    skills.append(attr)
+            except (AttributeError, TypeError):
+                # Skip attributes that can't be accessed or aren't classes
+                continue
+                
+        return skills
+
     def refresh_class_skills(self):
         self.class_skills = self.get_class_skills()
 
@@ -119,37 +145,6 @@ class SkillLibrary:
     
     def get_list_of_skills_as_json(self, list_of_skills: list["AbstractSkill"]) -> list[str]:
         return list(map(pydantic_function_tool, list_of_skills))
-
-    # ==== Transfered Back From SkillGroup ==== 
-
-    def get_class_skills(self) -> list["AbstractSkill"]:
-        """Extract all AbstractSkill subclasses from a class.
-        
-        Args:
-            cls: The class to scan for skills
-            
-        Returns:
-            List of skill classes found within the class
-        """
-        skills = []
-        
-        # Loop through all attributes of the class
-        for attr_name in dir(self.__class__):
-            # Skip special/dunder attributes
-            if attr_name.startswith('__'):
-                continue
-                
-            try:
-                attr = getattr(self.__class__, attr_name)
-                
-                # Check if it's a class and inherits from AbstractSkill
-                if isinstance(attr, type) and issubclass(attr, AbstractSkill) and attr is not AbstractSkill:
-                    skills.append(attr)
-            except (AttributeError, TypeError):
-                # Skip attributes that can't be accessed or aren't classes
-                continue
-                
-        return skills
 
 # endregion SkillLibrary
 
