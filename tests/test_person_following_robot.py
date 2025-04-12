@@ -1,10 +1,8 @@
 import os
 import time
 import sys
-from reactivex import Subject, operators as RxOps
-
-# Add the parent directory to the Python path
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from reactivex import operators as RxOps
+import tests.test_header
 
 from dimos.robot.unitree.unitree_go2 import UnitreeGo2
 from dimos.robot.unitree.unitree_ros_control import UnitreeROSControl

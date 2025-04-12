@@ -8,9 +8,7 @@ import threading
 import json
 from reactivex import Subject, operators as RxOps
 from openai import OpenAI
-
-# Add the parent directory to the Python path
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+import tests.test_header
 
 from dimos.stream.video_provider import VideoProvider
 from dimos.perception.object_tracker import ObjectTrackingStream
@@ -20,7 +18,7 @@ from dimos.utils.logging_config import logger
 # Global variables for tracking control
 object_size = 0.30  # Hardcoded object size in meters (adjust based on your tracking target)
 tracking_object_name = "object"  # Will be updated by Qwen
-object_name = "cardboard box"  # Example object name for Qwen
+object_name = "hairbrush"  # Example object name for Qwen
 
 global tracker_initialized, detection_in_progress
 
@@ -127,22 +125,26 @@ try:
             print("tracker_initialized: ", tracker_initialized)
 
             def detection_task():
-                global detection_in_progress, tracker_initialized
+                global detection_in_progress, tracker_initialized, tracking_object_name, object_size
                 try:
-                    bbox = get_bbox_from_qwen(video_stream, object_name=object_name)
+                    result = get_bbox_from_qwen(video_stream, object_name=object_name)
+                    print(f"Got result from Qwen: {result}")
                     
-                    if bbox:
-                        print(f"Detected {tracking_object_name} at {bbox}")
-                        # Initialize tracker with the new bbox and default size
-                        tracker_stream.track(bbox, size=object_size)
+                    if result:
+                        bbox, size = result
+                        print(f"Detected object at {bbox} with size {size}")
+                        tracker_stream.track(bbox, size=size)
                         tracker_initialized = True
-                    else:
-                        print("No object detected by Qwen")
-                        tracker_initialized = False
-                        tracker_stream.stop_track()
+                        return
+                    
+                    print("No object detected by Qwen")
+                    tracker_initialized = False
+                    tracker_stream.stop_track()
 
                 except Exception as e:
                     print(f"Error in update_tracking: {e}")
+                    tracker_initialized = False
+                    tracker_stream.stop_track()
                 finally:
                     detection_in_progress = False
 

@@ -9,6 +9,7 @@ from dimos.robot.unitree.unitree_ros_control import UnitreeROSControl
 from dimos.robot.unitree.unitree_skills import MyUnitreeSkills
 from dimos.web.robot_web_interface import RobotWebInterface
 from dimos.utils.logging_config import logger
+import tests.test_header
 
 def parse_args():
     parser = argparse.ArgumentParser(description='Navigate to an object using Qwen vision.')

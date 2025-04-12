@@ -4,9 +4,7 @@ import os
 import sys
 import queue
 import threading
-
-# Add the parent directory to the Python path
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+import tests.test_header
 
 from dimos.stream.video_provider import VideoProvider
 from dimos.perception.object_tracker import ObjectTrackingStream
