@@ -32,16 +32,16 @@ class SkillLibrary:
 
     def __init__(self):
         self.registered_skills: list["AbstractSkill"] = []
-
-        # region Transfered Back From SkillGroup
-
-        # By default, use this instance's class
-        self.parent_class = self.__class__
+        self.class_skills: list["AbstractSkill"] = []
         
         # Collect all skills from the parent class and update self.skills
-        self.skills = self.get_skills_from_class(self.parent_class)
+        self.refresh_class_skills()
 
-        # endregion Transfered Back From SkillGroup
+        # Temporary
+        self.registered_skills = self.class_skills.copy()
+
+    def refresh_class_skills(self):
+        self.class_skills = self.get_class_skills()
 
     def add(self, skill: "AbstractSkill") -> None:
         if skill not in self.registered_skills:
@@ -68,6 +68,9 @@ class SkillLibrary:
     def __contains__(self, skill: "AbstractSkill") -> bool:
         return skill in self.registered_skills
     
+    def __getitem__(self, index):
+        return self.registered_skills[index]
+    
     # ==== Calling a Function ====
 
     _instances: dict[str, dict] = {} 
@@ -90,26 +93,22 @@ class SkillLibrary:
         # Merge the arguments with priority given to stored arguments
         complete_args = {**args, **stored_args}
 
-        try:
-            # Dynamically get the class from the module or current script
-            skill_class = getattr(self, name, None)
+        # Dynamically get the class from the module or current script
+        skill_class = getattr(self, name, None)
+        if skill_class is None:
+            for skill in self.get():
+                if name == skill.__name__:
+                    skill_class = skill
+                    break
             if skill_class is None:
-                for skill in self.get():
-                    if name == skill.__name__:
-                        skill_class = skill
-                        break
-                if skill_class is None:
-                    raise ValueError(f"Skill class not found: {name}")
+                raise ValueError(f"Skill class not found: {name}")
 
-            # Initialize the instance with the merged arguments
-            instance = skill_class(**complete_args)
-            print(f"Instance created and function called for: {name} with args: {complete_args}")
-            
-            # Call the instance directly
-            return instance()
-        except Exception as e:
-            print(f"Error running function {name}: {e}")
-            return f"Error running function {name}: {e}"
+        # Initialize the instance with the merged arguments
+        instance = skill_class(**complete_args)
+        print(f"Instance created and function called for: {name} with args: {complete_args}")
+        
+        # Call the instance directly
+        return instance()
     
     # ==== Tools ====
 
@@ -123,7 +122,7 @@ class SkillLibrary:
 
     # ==== Transfered Back From SkillGroup ==== 
 
-    def get_skills_from_class(self, cls) -> list["AbstractSkill"]:
+    def get_class_skills(self) -> list["AbstractSkill"]:
         """Extract all AbstractSkill subclasses from a class.
         
         Args:
@@ -135,13 +134,13 @@ class SkillLibrary:
         skills = []
         
         # Loop through all attributes of the class
-        for attr_name in dir(cls):
+        for attr_name in dir(self.__class__):
             # Skip special/dunder attributes
             if attr_name.startswith('__'):
                 continue
                 
             try:
-                attr = getattr(cls, attr_name)
+                attr = getattr(self.__class__, attr_name)
                 
                 # Check if it's a class and inherits from AbstractSkill
                 if isinstance(attr, type) and issubclass(attr, AbstractSkill) and attr is not AbstractSkill:
@@ -151,62 +150,6 @@ class SkillLibrary:
                 continue
                 
         return skills
-    
-    @classmethod
-    def add_skills(cls, skill_classes: Union['AbstractSkill', list['AbstractSkill']]):
-        """Add multiple skill classes as class attributes.
-        
-        Args:
-            skill_classes: List of skill classes to add
-        """
-        if isinstance(skill_classes, list):
-            for skill_class in skill_classes:
-                setattr(cls, skill_class.__name__, skill_class)
-        else:
-            setattr(cls, skill_classes.__name__, skill_classes)
-
-    def __iter__(self):
-        """Make the skill group iterable.
-        
-        Returns:
-            Iterator over the skills
-        """
-        self.skills = self.get_skills_from_class(self.parent_class)
-        return iter(self.skills)
-        
-    def __len__(self) -> int:
-        """Get the number of skills in the group.
-        
-        Returns:
-            Number of skills
-        """
-        self.skills = self.get_skills_from_class(self.parent_class)
-        return len(self.skills)
-        
-    def __getitem__(self, index):
-        """Get a skill by index.
-        
-        Args:
-            index: Index of the skill to get
-            
-        Returns:
-            The skill at the specified index
-        """
-        self.skills = self.get_skills_from_class(self.parent_class)
-        return self.skills[index]
-        
-    def __contains__(self, skill) -> bool:
-        """Check if a skill is in the group.
-        
-        Args:
-            skill: The skill to check for
-            
-        Returns:
-            True if the skill is in the group, False otherwise
-        """
-        self.skills = self.get_skills_from_class(self.parent_class)
-        return skill in self.skills
-
 
 # endregion SkillLibrary
 

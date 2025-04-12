@@ -14,7 +14,7 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, List, Optional, Tuple, Type
+from typing import TYPE_CHECKING, List, Optional, Tuple, Type, Union
 import time
 from pydantic import Field
 
@@ -158,57 +158,6 @@ UNITREE_ROS_CONTROLS: List[Tuple[str, int, str]] = [
     )
 ]
 
-# region Decorator
-
-# TODO: Implement this decorator (Note: Needs parent store to hold collection of skills)
-# def robot_skill(description: str = None):
-#     """Decorator to convert a function into a robot skill and add it to MyUnitreeSkills class."""
-#     def decorator(func: Callable):
-#         # Get function signature and type hints
-#         sig = signature(func)
-#         type_hints = get_type_hints(func)
-        
-#         # Extract parameter info for the Pydantic model
-#         fields = {}
-#         for param_name, param in sig.parameters.items():
-#             if param_name == 'robot':
-#                 continue
-                
-#             param_type = type_hints.get(param_name, Any)
-#             default = ... if param.default is Parameter.empty else param.default
-#             description = param.annotation if isinstance(param.annotation, str) else None
-            
-#             fields[param_name] = (param_type, Field(default, description=description))
-        
-#         # Create skill class dynamically
-#         class DynamicSkill(AbstractRobotSkill):
-#             __doc__ = description or func.__doc__
-            
-#             # Add fields from our function parameters
-#             for field_name, (field_type, field_info) in fields.items():
-#                 locals()[field_name] = field_info
-            
-#             def __call__(self):
-#                 super().__call__()
-#                 # Extract parameters that match the function signature
-#                 params = {k: v for k, v in self.__dict__.items() 
-#                          if k in sig.parameters and k != 'robot' and k != '_robot'}
-#                 # Call the original function with the validated parameters
-#                 return func(self._robot, **params)
-                
-#         # Set the class name to match the function name
-#         DynamicSkill.__name__ = func.__name__
-        
-#         # Add the skill class as an attribute of MyUnitreeSkills
-#         setattr(MyUnitreeSkills, func.__name__, DynamicSkill)
-        
-#         return func  # Return the original function
-    
-#     return decorator
-
-
-# endregion Decorator
-
 # region MyUnitreeSkills
 
 class MyUnitreeSkills(SkillLibrary):
@@ -216,12 +165,28 @@ class MyUnitreeSkills(SkillLibrary):
 
     _robot: Optional[Robot] = None
 
+    @classmethod
+    def register_skills(cls, skill_classes: Union['AbstractSkill', list['AbstractSkill']]):
+        """Add multiple skill classes as class attributes.
+        
+        Args:
+            skill_classes: List of skill classes to add
+        """
+        if isinstance(skill_classes, list):
+            for skill_class in skill_classes:
+                setattr(cls, skill_class.__name__, skill_class)
+        else:
+            setattr(cls, skill_classes.__name__, skill_classes)
+
     def __init__(self, robot: Optional[Robot] = None):
         super().__init__()
         self._robot: Robot = None
 
-        # Add dynamic skills to the class
-        self.add_skills(self.create_skills_live())
+        # Add dynamic skills to this class
+        self.register_skills(self.create_skills_live())
+
+        # Refresh the class skills
+        self.refresh_class_skills()
 
         if robot is not None:
             self._robot = robot
@@ -229,7 +194,7 @@ class MyUnitreeSkills(SkillLibrary):
 
     def initialize_skills(self):
         # Create the skills and add them to the list of skills
-        self.add_skills(self.create_skills_live())
+        self.register_skills(self.create_skills_live())
 
         # Provide the robot instance to each skill
         for skill_class in self:
@@ -346,6 +311,56 @@ class MyUnitreeSkills(SkillLibrary):
             super().__call__()
             self._robot.my_print()
     # endregion Class-based Skills
+
+    # region Decorator
+
+    # TODO: Implement this decorator (Note: Needs parent store to hold collection of skills)
+    # def robot_skill(description: str = None):
+    #     """Decorator to convert a function into a robot skill and add it to MyUnitreeSkills class."""
+    #     def decorator(func: Callable):
+    #         # Get function signature and type hints
+    #         sig = signature(func)
+    #         type_hints = get_type_hints(func)
+            
+    #         # Extract parameter info for the Pydantic model
+    #         fields = {}
+    #         for param_name, param in sig.parameters.items():
+    #             if param_name == 'robot':
+    #                 continue
+                    
+    #             param_type = type_hints.get(param_name, Any)
+    #             default = ... if param.default is Parameter.empty else param.default
+    #             description = param.annotation if isinstance(param.annotation, str) else None
+                
+    #             fields[param_name] = (param_type, Field(default, description=description))
+            
+    #         # Create skill class dynamically
+    #         class DynamicSkill(AbstractRobotSkill):
+    #             __doc__ = description or func.__doc__
+                
+    #             # Add fields from our function parameters
+    #             for field_name, (field_type, field_info) in fields.items():
+    #                 locals()[field_name] = field_info
+                
+    #             def __call__(self):
+    #                 super().__call__()
+    #                 # Extract parameters that match the function signature
+    #                 params = {k: v for k, v in self.__dict__.items() 
+    #                          if k in sig.parameters and k != 'robot' and k != '_robot'}
+    #                 # Call the original function with the validated parameters
+    #                 return func(self._robot, **params)
+                    
+    #         # Set the class name to match the function name
+    #         DynamicSkill.__name__ = func.__name__
+            
+    #         # Add the skill class as an attribute of MyUnitreeSkills
+    #         setattr(MyUnitreeSkills, func.__name__, DynamicSkill)
+            
+    #         return func  # Return the original function
+        
+    #     return decorator
+
+    # endregion Decorator
 
     # region Decorated Skills
     
