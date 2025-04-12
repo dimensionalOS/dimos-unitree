@@ -51,10 +51,25 @@ def main():
         print("Waiting for camera and tracking to initialize...")
         time.sleep(5)
         # Get initial point from Qwen
-        qwen_point = eval(query_single_frame(
-            video_stream,
-            "Look at this frame and point to the person in the gray jacket. Return ONLY their center coordinates as a tuple (x,y)."
-        ).pipe(RxOps.take(1)).run())  # Get first response and convert string tuple to actual tuple
+
+        max_retries = 5
+        delay = 3  
+        
+        for attempt in range(max_retries):
+            try:
+                qwen_point = eval(query_single_frame(
+                    video_stream,
+                    "Look at this frame and point to the person shirt. Return ONLY their center coordinates as a tuple (x,y)."
+                ).pipe(RxOps.take(1)).run())  # Get first response and convert string tuple to actual tuple
+                logger.info(f"Found person at coordinates {qwen_point}")
+                break  # If successful, break out of retry loop
+            except Exception as e:
+                if attempt < max_retries - 1:
+                    logger.error(f"Person not found. Attempt {attempt + 1}/{max_retries} failed. Retrying in {delay}s... Error: {e}")
+                    time.sleep(delay)
+                else:
+                    logger.error(f"Person not found after {max_retries} attempts. Last error: {e}")
+                    return
         
         # Start following human in a separate thread
         import threading
