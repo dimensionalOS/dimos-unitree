@@ -761,3 +761,21 @@ class ROSControl(ABC):
         except Exception as e:
             logger.error(f"Failed to send pose command: {e}")
             return False
+            
+    def get_position_stream(self):
+        """
+        Get a stream of position updates from ROS.
+        
+        Returns:
+            Observable that emits (x, y) tuples representing the robot's position
+        """
+        from dimos.robot.position_stream import PositionStreamProvider
+        
+        # Create a position stream provider
+        position_provider = PositionStreamProvider(
+            ros_node=self._node,
+            odometry_topic="/odom",  # Default odometry topic
+            use_odometry=True
+        )
+        
+        return position_provider.get_position_stream()
