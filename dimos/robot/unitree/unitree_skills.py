@@ -310,86 +310,15 @@ class MyUnitreeSkills(SkillLibrary):
             print(f"{Colors.MAGENTA_PRINT_COLOR}self._robot: {self._robot}{Colors.RESET_COLOR}")
             super().__call__()
             self._robot.my_print()
-    # endregion Class-based Skills
 
-    # region Decorator
+    class NavigateToObject(AbstractRobotSkill):
+        """Navigate to an object using a camera."""
 
-    # TODO: Implement this decorator (Note: Needs parent store to hold collection of skills)
-    # def robot_skill(description: str = None):
-    #     """Decorator to convert a function into a robot skill and add it to MyUnitreeSkills class."""
-    #     def decorator(func: Callable):
-    #         # Get function signature and type hints
-    #         sig = signature(func)
-    #         type_hints = get_type_hints(func)
-            
-    #         # Extract parameter info for the Pydantic model
-    #         fields = {}
-    #         for param_name, param in sig.parameters.items():
-    #             if param_name == 'robot':
-    #                 continue
-                    
-    #             param_type = type_hints.get(param_name, Any)
-    #             default = ... if param.default is Parameter.empty else param.default
-    #             description = param.annotation if isinstance(param.annotation, str) else None
-                
-    #             fields[param_name] = (param_type, Field(default, description=description))
-            
-    #         # Create skill class dynamically
-    #         class DynamicSkill(AbstractRobotSkill):
-    #             __doc__ = description or func.__doc__
-                
-    #             # Add fields from our function parameters
-    #             for field_name, (field_type, field_info) in fields.items():
-    #                 locals()[field_name] = field_info
-                
-    #             def __call__(self):
-    #                 super().__call__()
-    #                 # Extract parameters that match the function signature
-    #                 params = {k: v for k, v in self.__dict__.items() 
-    #                          if k in sig.parameters and k != 'robot' and k != '_robot'}
-    #                 # Call the original function with the validated parameters
-    #                 return func(self._robot, **params)
-                    
-    #         # Set the class name to match the function name
-    #         DynamicSkill.__name__ = func.__name__
-            
-    #         # Add the skill class as an attribute of MyUnitreeSkills
-    #         setattr(MyUnitreeSkills, func.__name__, DynamicSkill)
-            
-    #         return func  # Return the original function
-        
-    #     return decorator
+        object_name: str = Field(..., description="Object to navigate to")
 
-    # endregion Decorator
+        def __init__(self, robot: Optional[Robot] = None, **data):
+            super().__init__(robot=robot, **data)
 
-    # region Decorated Skills
-    
-    # TODO: Implement this (Note: Needs parent store to hold collection of skills)
-    # @robot_skill("Move the robot forward using distance commands.")
-    # def move(robot, distance: float = Field(..., description="Distance to move in meters")):
-    #     return robot.move(distance=distance)
-
-    # @robot_skill("Reverse the robot using distance commands.")
-    # def reverse(robot, distance: float = Field(..., description="Distance to reverse in meters")):
-    #     return robot.reverse(distance=distance)
-
-    # @robot_skill("Spin the robot left using degree commands.")
-    # def spin_left(robot, degrees: float = Field(..., description="Distance to spin left in degrees")):
-    #     return robot.spin(degrees=degrees)  # Spinning left is positive degrees
-
-    # @robot_skill("Spin the robot right using degree commands.")
-    # def spin_right(robot, degrees: float = Field(..., description="Distance to spin right in degrees")):
-    #     return robot.spin(degrees=-degrees)  # Spinning right is negative degrees
-    
-    # @robot_skill("Move the robot using direct velocity commands.")
-    # def move_vel(robot, x: float = Field(..., description="Forward/backward velocity (m/s)"),
-    #             y: float = Field(..., description="Left/right velocity (m/s)"),
-    #             yaw: float = Field(..., description="Rotational velocity (rad/s)"),
-    #             duration: float = Field(..., description="How long to move (seconds). If 0, command is continuous")):
-    #     return robot.move_vel(x=x, y=y, yaw=yaw, duration=duration)
-
-    # @robot_skill("Wait for a specified amount of time.")
-    # def wait(robot, seconds: float = Field(..., description="Seconds to wait")):
-    #     return time.sleep(seconds)
-
-    # endregion Decorated Skills
+        def __call__(self):
+            super().__call__()
+            return self._robot.navigate_to(object_name=self.object_name)
