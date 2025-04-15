@@ -25,7 +25,7 @@ from reactivex import create
 from dimos.agents.agent import LLMAgent
 from dimos.agents.memory.base import AbstractAgentSemanticMemory
 from dimos.agents.prompt_builder.impl import PromptBuilder
-from dimos.robot.skills import AbstractSkill
+from dimos.skills.skills import AbstractSkill
 from dimos.stream.frame_processor import FrameProcessor
 from dimos.utils.logging_config import setup_logger
 from dimos.utils.threadpool import get_scheduler
@@ -370,7 +370,7 @@ class ClaudeAgent(LLMAgent):
             has_called_tools = True
             name = tool_call.function.name
             args = json.loads(tool_call.function.arguments)
-            result = self.skills.call_function(name, **args)
+            result = self.skills.call(name, **args)
             logger.debug(f"Function Call Results: {result}")
             tool_results.append(f"Tool '{name}' returned: {result}")
         
