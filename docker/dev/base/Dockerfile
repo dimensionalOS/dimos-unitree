@@ -13,7 +13,8 @@ RUN apt-get install -y \
     ccze \
     tmux \
     htop \
-    python-is-python3
+    python-is-python3 \
+    iputils-ping
 
 # Copy files and add version to motd
 COPY motd /etc/motd
