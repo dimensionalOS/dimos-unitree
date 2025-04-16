@@ -148,8 +148,10 @@ class SpatialVectorDB:
         processed_results = []
         
         for i, vector_id in enumerate(results['ids']):
-            if vector_id in self.image_storage:
-                encoded_image = self.image_storage[vector_id]
+            lookup_id = vector_id[0] if isinstance(vector_id, list) else vector_id
+            
+            if lookup_id in self.image_storage:
+                encoded_image = self.image_storage[lookup_id]
                 image_bytes = base64.b64decode(encoded_image)
                 image_array = np.frombuffer(image_bytes, dtype=np.uint8)
                 image = cv2.imdecode(image_array, cv2.IMREAD_COLOR)
@@ -157,11 +159,11 @@ class SpatialVectorDB:
                 result = {
                     'image': image,
                     'metadata': results['metadatas'][i] if 'metadatas' in results else {},
-                    'id': vector_id
+                    'id': lookup_id
                 }
                 
                 if 'distances' in results:
-                    result['distance'] = results['distances'][i]
+                    result['distance'] = results['distances'][i][0] if isinstance(results['distances'][i], list) else results['distances'][i]
                 
                 processed_results.append(result)
         
