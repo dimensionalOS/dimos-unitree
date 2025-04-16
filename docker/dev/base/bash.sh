@@ -186,3 +186,4 @@ function watchFile
 }
 
 PS1='${debian_chroot:+($debian_chroot)}\[\033[32m\]\u@dimos\[\033[00m\]:\[\033[34m\]\w\[\033[00m\] \$ '
+export PATH="/app/bin:${PATH}"

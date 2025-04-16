@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 build_image() {
     docker rm -f dimos-dev
@@ -18,4 +18,8 @@ else
     fi
 fi
 
-docker compose -f docker/dev/base/docker-compose.yaml up -d && docker exec -it dimos-dev bash
+# Get current directory relative to repo root
+REPO_ROOT=$(git rev-parse --show-toplevel)
+REL_PATH=$(realpath --relative-to="$REPO_ROOT" "$(pwd)")
+
+docker compose -f $REPO_ROOT/docker/dev/base/docker-compose.yaml up -d && docker exec -it dimos-dev bash -c "cd $REL_PATH; exec bash"

@@ -6,6 +6,9 @@ services:
       - ../../../:/app
     environment:
       - PYTHONPATH=/app
+    ports:
+      - "5555:5555"
+      - "3000:3000"
     stdin_open: true
     tty: true
     command: /bin/bash

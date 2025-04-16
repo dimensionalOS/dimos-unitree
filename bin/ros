@@ -1,0 +1,3 @@
+#!/usr/bin/env bash
+export ROBOT_IP=192.168.9.140
+ros2 launch go2_robot_sdk robot.launch.py
