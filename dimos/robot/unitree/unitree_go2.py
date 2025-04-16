@@ -48,6 +48,7 @@ from dimos.utils.logging_config import setup_logger
 from dimos.perception.visual_servoing import VisualServoing
 from dimos.perception.person_tracker import PersonTrackingStream
 from dimos.perception.object_tracker import ObjectTrackingStream
+from dimos.robot.local_planner import VFHPurePursuitPlanner
 
 # Set up logging
 logger = setup_logger("dimos.robot.unitree.unitree_go2", level=logging.DEBUG)
@@ -83,7 +84,7 @@ class UnitreeGo2(Robot):
             use_webrtc: Whether to use WebRTC video provider ONLY
             disable_video_stream: Whether to disable the video stream
             mock_connection: Whether to mock the connection to the robot
-            skills: Skills instance. Can be MyUnitreeSkills for full functionality or any AbstractSkill for custom development..
+            skills: Skills instance. Can be MyUnitreeSkills for full functionality or any AbstractSkill for custom development.
         """
         print(f"Initializing UnitreeGo2 with use_ros: {use_ros} and use_webrtc: {use_webrtc}")
         if not (use_ros ^ use_webrtc):  # XOR operator ensures exactly one is True
@@ -157,9 +158,19 @@ class UnitreeGo2(Robot):
 
             self.person_tracking_stream = person_tracking_stream
             self.object_tracking_stream = object_tracking_stream
+            
+        # Initialize the local planner and create BEV visualization stream
+        self.local_planner = VFHPurePursuitPlanner(
+            robot=self,
+            robot_width=0.36,  # Unitree Go2 width in meters
+            robot_length=0.6,  # Unitree Go2 length in meters
+            visualization_size=500  # 500x500 pixel visualization
+        )
+
+        # Create the visualization stream at 5Hz
+        self.local_planner_viz_stream = self.local_planner.create_stream(frequency_hz=5.0)
 
     def follow_human(self, distance: int = 1.5, timeout: float = 20.0, point: Tuple[int, int] = None):
-
         person_visual_servoing = VisualServoing(tracking_stream=self.person_tracking_stream)
     
         logger.warning(f"Following human for {timeout} seconds...")
@@ -253,6 +264,56 @@ class UnitreeGo2(Robot):
         del object_visual_servoing
             
         return goal_reached
+
+    def test_goal_following(self, goal_distance: float = 3.0, runtime_seconds: float = 60.0):
+        """
+        Sets a single goal ahead of the robot and navigates towards it for a duration.
+
+        Args:
+            goal_distance: Distance (in meters) to set the goal ahead of the robot.
+            runtime_seconds: How long (in seconds) the test should run.
+        """
+        if not hasattr(self, 'local_planner'):
+            logger.error("Local planner not initialized. Cannot run goal following test.")
+            return
+
+        logger.info(f"Starting single goal navigation test for {runtime_seconds} seconds.")
+
+        time.sleep(6.0)
+        
+        # Set the single goal goal_distance meters ahead in the robot's frame
+        logger.info(f"Setting goal {goal_distance}m ahead.")
+        self.local_planner.set_goal((goal_distance, 0.0), is_robot_frame=True)
+        
+        start_time = time.time()
+
+        try:
+            while time.time() - start_time < runtime_seconds:
+                # Get planned velocity towards the single goal
+                vel_command = self.local_planner.plan()
+                x_vel = vel_command.get('x_vel', 0.0)
+                angular_vel = vel_command.get('angular_vel', 0.0)
+                
+                # logger.debug(f"Planner output: x_vel={x_vel:.2f}, angular_vel={angular_vel:.2f}")
+
+                # Send velocity command
+                self.ros_control.move_vel_control(x=x_vel, y=0, yaw=angular_vel)
+
+                # Check if goal has been reached (optional logging)
+                if self.local_planner.is_goal_reached():
+                    logger.info("Goal has been reached according to tolerance.")
+                    break 
+
+                # Control loop frequency
+                time.sleep(0.1)
+
+        except KeyboardInterrupt:
+            logger.info("Goal following test interrupted by user.")
+        except Exception as e:
+            logger.error(f"Error during goal following test: {e}")
+        finally:
+            logger.info("Stopping robot after goal following test.")
+            self.ros_control.stop()
 
     def do(self, *args, **kwargs):
         pass

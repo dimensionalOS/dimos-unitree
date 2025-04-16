@@ -40,6 +40,7 @@ from geometry_msgs.msg import Point, Vector3
 from dimos.robot.ros_command_queue import ROSCommandQueue
 from dimos.utils.logging_config import setup_logger
 import logging
+from nav_msgs.msg import Odometry, OccupancyGrid
 
 logger = setup_logger("dimos.robot.ros_control")
 
@@ -71,6 +72,8 @@ class ROSControl(ABC):
                  webrtc_msg_type: Type = None,
                  move_vel_topic: str = None,
                  pose_topic: str = None,
+                 odom_topic: str = '/odom',
+                 costmap_topic: str = '/local_costmap/costmap',
                  debug: bool = False):
       
         """
@@ -88,6 +91,9 @@ class ROSControl(ABC):
             webrtc_api_topic: Topic for WebRTC API commands
             webrtc_msg_type: The ROS message type for webrtc data
             move_vel_topic: Topic for direct movement commands
+            pose_topic: Topic for pose commands
+            odom_topic: Topic for odometry data
+            costmap_topic: Topic for local costmap data
         """
         # Initialize rclpy and ROS node if not already running
         if not rclpy.ok():
@@ -95,6 +101,8 @@ class ROSControl(ABC):
 
         self._state_topic = state_topic
         self._imu_topic = imu_topic
+        self._odom_topic = odom_topic
+        self._costmap_topic = costmap_topic
         self._state_msg_type = state_msg_type
         self._imu_msg_type = imu_msg_type
         self._webrtc_msg_type = webrtc_msg_type
@@ -114,6 +122,8 @@ class ROSControl(ABC):
         # Track State variables 
         self._robot_state = None  # Full state message
         self._imu_state = None  # Full IMU message
+        self._odom_data = None  # Odometry data
+        self._costmap_data = None  # Costmap data
         self._mode = RobotMode.INITIALIZING
 
         # Create sensor data QoS profile
@@ -175,6 +185,28 @@ class ROSControl(ABC):
             self._subscriptions.append(self._imu_sub)
         else:
             logger.warning("No IMU topic and/or message type provided - IMU data tracking will be unavailable")
+            
+        if self._odom_topic:
+            self._odom_sub = self._node.create_subscription(
+                Odometry,
+                self._odom_topic,
+                self._odom_callback,
+                sensor_qos
+            )
+            self._subscriptions.append(self._odom_sub)
+        else:
+            logger.warning("No odometry topic provided - odometry data tracking will be unavailable")
+        
+        if self._costmap_topic:
+            self._costmap_sub = self._node.create_subscription(
+                OccupancyGrid,
+                self._costmap_topic,
+                self._costmap_callback,
+                sensor_qos
+            )
+            self._subscriptions.append(self._costmap_sub)
+        else:
+            logger.warning("No costmap topic provided - costmap data tracking will be unavailable")
 
         # Nav2 Action Clients
         self._drive_client = ActionClient(self._node, DriveOnHeading, 'drive_on_heading')
@@ -222,6 +254,13 @@ class ROSControl(ABC):
         # Log IMU state (very verbose)
         #logger.debug(f"IMU state updated: {self._imu_state}")
 
+    def _odom_callback(self, msg):
+        """Callback for odometry data"""
+        self._odom_data = msg
+            
+    def _costmap_callback(self, msg):
+        """Callback for costmap data"""
+        self._costmap_data = msg
 
     def _state_callback(self, msg):
         """Callback for state messages to track mode and progress"""
@@ -284,6 +323,30 @@ class ROSControl(ABC):
             logger.warning("No IMU topic provided - IMU data tracking will be unavailable")
             return None
         return self._imu_state
+
+    def get_odometry(self) -> Optional[Odometry]:
+        """
+        Get current odometry data
+        
+        Returns:
+            Optional[Odometry]: Current odometry data or None if not available
+        """
+        if not self._odom_topic:
+            logger.warning("No odometry topic provided - odometry data tracking will be unavailable")
+            return None
+        return self._odom_data
+        
+    def get_costmap(self) -> Optional[OccupancyGrid]:
+        """
+        Get current costmap data
+        
+        Returns:
+            Optional[OccupancyGrid]: Current costmap data or None if not available
+        """
+        if not self._costmap_topic:
+            logger.warning("No costmap topic provided - costmap data tracking will be unavailable")
+            return None
+        return self._costmap_data
     
     def _image_callback(self, msg):
         """Convert ROS image to numpy array and push to data stream"""
