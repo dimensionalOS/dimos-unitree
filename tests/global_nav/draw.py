@@ -546,15 +546,20 @@ if __name__ == "__main__":
         cost_threshold=50,
     )
 
+    resampled_path = path.resample(0.5)
+
     print(
         "draw:\n",
-        "\n".join(map(lambda x: str(x), [start, goal, path, smudged_costmap])),
+        "\n".join(
+            map(lambda x: str(x), [start, goal, path, resampled_path, smudged_costmap])
+        ),
     )
 
     draw(
         (smudged_costmap),
         (costmap, {"transparent_empty": True, "cmap": "Greys"}),
         path,
+        (resampled_path, {"color": "red"}),
         (start, {"color": "green"}),
         goal,
         title="A* Path Planning",
