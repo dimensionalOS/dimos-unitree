@@ -11,17 +11,22 @@ This module implements the approach described in "Semantic Spatial Perception fo
 
 import logging
 import uuid
+import time
+import uuid
+import os
+from typing import Dict, List, Tuple, Optional, Any
+
 import numpy as np
 import cv2
-from typing import Dict, List, Tuple, Optional, Any
 from reactivex import Observable
 from reactivex import operators as ops
-import time
+from reactivex.subject import Subject
 from datetime import datetime
 
 from dimos.utils.logging_config import setup_logger
 from dimos.agents.memory.spatial_vector_db import SpatialVectorDB
 from dimos.agents.memory.image_embedding import ImageEmbeddingProvider
+from dimos.agents.memory.visual_memory import VisualMemory
 
 logger = setup_logger("dimos.perception.spatial_memory")
 
@@ -38,8 +43,11 @@ class SpatialMemory:
         collection_name: str = "spatial_memory",
         embedding_model: str = "clip", 
         embedding_dimensions: int = 512,
-        min_distance_threshold: float = 0.5,  # Min distance in meters to store a new frame
-        min_time_threshold: float = 2.0,  # Min time in seconds to store a new frame
+        min_distance_threshold: float = 1.0,  # Min distance in meters to store a new frame
+        min_time_threshold: float = 1.0,  # Min time in seconds to store a new frame
+        chroma_client = None,  # Optional ChromaDB client for persistence
+        visual_memory = None,  # Optional VisualMemory instance for storing images
+        output_dir: str = None,  # Directory for storing visual memory data
     ):
         """
         Initialize the spatial perception system.
@@ -50,6 +58,9 @@ class SpatialMemory:
             embedding_dimensions: Dimensions of the embedding vectors
             min_distance_threshold: Minimum distance in meters to record a new frame
             min_time_threshold: Minimum time in seconds to record a new frame
+            chroma_client: Optional ChromaDB client for persistent storage
+            visual_memory: Optional VisualMemory instance for storing images
+            output_dir: Directory for storing visual memory data if visual_memory is not provided
         """
         self.collection_name = collection_name
         self.embedding_model = embedding_model
@@ -57,7 +68,16 @@ class SpatialMemory:
         self.min_distance_threshold = min_distance_threshold
         self.min_time_threshold = min_time_threshold
         
-        self.vector_db = SpatialVectorDB(collection_name=collection_name)
+        # Create visual memory if not provided
+        if visual_memory is None and output_dir is not None:
+            visual_memory = VisualMemory(output_dir=output_dir)
+        
+        # Pass the chroma_client and visual_memory to SpatialVectorDB
+        self.vector_db = SpatialVectorDB(
+            collection_name=collection_name,
+            chroma_client=chroma_client,
+            visual_memory=visual_memory
+        )
         
         self.embedding_provider = ImageEmbeddingProvider(
             model_name=embedding_model,

@@ -20,37 +20,68 @@ import chromadb
 from chromadb.utils import embedding_functions
 
 from dimos.agents.memory.base import AbstractAgentSemanticMemory
+from dimos.agents.memory.visual_memory import VisualMemory
 from dimos.utils.logging_config import setup_logger
 
-logger = setup_logger("dimos.agents.memory.spatial_vector_db", level=logging.INFO)
+logger = setup_logger("dimos.agents.memory.spatial_vector_db")
 
 class SpatialVectorDB:
     """
-    A vector database for storing and querying images with XY locations.
+    A vector database for storing and querying images mapped to X,Y,theta absolute locations for SpatialMemory.
     
     This class extends the ChromaDB implementation to support storing images with
-    their XY locations and querying by location or image similarity.
+    their absolute locations and querying by location, text, or image cosine semantic similarity.
     """
     
-    def __init__(self, collection_name: str = "spatial_memory"):
+    def __init__(self, collection_name: str = "spatial_memory", chroma_client=None, visual_memory=None):
         """
         Initialize the spatial vector database.
         
         Args:
             collection_name: Name of the vector database collection
+            chroma_client: Optional ChromaDB client for persistence. If None, an in-memory client is used.
+            visual_memory: Optional VisualMemory instance for storing images. If None, a new one is created.
         """
         self.collection_name = collection_name
         
-        self.client = chromadb.Client()
+        # Use provided client or create in-memory client
+        self.client = chroma_client if chroma_client is not None else chromadb.Client()
         
+        # Check if collection already exists - in newer ChromaDB versions list_collections returns names directly
+        existing_collections = self.client.list_collections()
+        
+        # Handle different versions of ChromaDB API
+        try:
+            collection_exists = collection_name in existing_collections
+        except:
+            try:
+                collection_exists = collection_name in [c.name for c in existing_collections]
+            except:
+                try:
+                    self.client.get_collection(name=collection_name)
+                    collection_exists = True
+                except Exception:
+                    collection_exists = False
+        
+        # Get or create the collection
         self.image_collection = self.client.get_or_create_collection(
             name=collection_name,
             metadata={"hnsw:space": "cosine"}
         )
         
-        self.image_storage = {}
+        # Use provided visual memory or create a new one
+        self.visual_memory = visual_memory if visual_memory is not None else VisualMemory()
         
-        logger.info(f"SpatialVectorDB initialized with collection: {collection_name}")
+        # Log initialization info with details about whether using existing collection
+        client_type = "persistent" if chroma_client is not None else "in-memory"
+        try:
+            count = len(self.image_collection.get(include=[])['ids'])
+            if collection_exists:
+                logger.info(f"Using EXISTING {client_type} collection '{collection_name}' with {count} entries")
+            else:
+                logger.info(f"Created NEW {client_type} collection '{collection_name}'")
+        except Exception as e:
+            logger.info(f"Initialized {client_type} collection '{collection_name}' (count error: {str(e)})")
     
     def add_image_vector(self, vector_id: str, image: np.ndarray, embedding: np.ndarray, 
                        metadata: Dict[str, Any]) -> None:
@@ -63,21 +94,17 @@ class SpatialVectorDB:
             embedding: The pre-computed embedding vector for the image
             metadata: Metadata for the image, including x, y coordinates
         """
-        _, buffer = cv2.imencode('.jpg', image)
-        encoded_image = base64.b64encode(buffer).decode('utf-8')
+        # Store the image in visual memory
+        self.visual_memory.add(vector_id, image)
         
-        self.image_storage[vector_id] = encoded_image
-        
-        if 'x' not in metadata or 'y' not in metadata:
-            raise ValueError("Metadata must include 'x' and 'y' coordinates")
-        
+        # Add the vector to ChromaDB
         self.image_collection.add(
             ids=[vector_id],
             embeddings=[embedding.tolist()],
             metadatas=[metadata]
         )
         
-        logger.debug(f"Added image vector with ID: {vector_id}, position: ({metadata['x']}, {metadata['y']})")
+        logger.debug(f"Added image vector {vector_id} with metadata: {metadata}")
     
     def query_by_embedding(self, embedding: np.ndarray, limit: int = 5) -> List[Dict]:
         """
@@ -96,7 +123,7 @@ class SpatialVectorDB:
         )
         
         return self._process_query_results(results)
-    
+    # TODO: implement efficient nearest neighbor search 
     def query_by_location(self, x: float, y: float, radius: float = 2.0, limit: int = 5) -> List[Dict]:
         """
         Query the vector database for images near the specified location.
@@ -150,22 +177,21 @@ class SpatialVectorDB:
         for i, vector_id in enumerate(results['ids']):
             lookup_id = vector_id[0] if isinstance(vector_id, list) else vector_id
             
-            if lookup_id in self.image_storage:
-                encoded_image = self.image_storage[lookup_id]
-                image_bytes = base64.b64decode(encoded_image)
-                image_array = np.frombuffer(image_bytes, dtype=np.uint8)
-                image = cv2.imdecode(image_array, cv2.IMREAD_COLOR)
-                
-                result = {
-                    'image': image,
-                    'metadata': results['metadatas'][i] if 'metadatas' in results else {},
-                    'id': lookup_id
-                }
-                
-                if 'distances' in results:
-                    result['distance'] = results['distances'][i][0] if isinstance(results['distances'][i], list) else results['distances'][i]
-                
-                processed_results.append(result)
+            # Create the result dictionary with metadata regardless of image availability
+            result = {
+                'metadata': results['metadatas'][i] if 'metadatas' in results else {},
+                'id': lookup_id
+            }
+            
+            # Add distance if available
+            if 'distances' in results:
+                result['distance'] = results['distances'][i][0] if isinstance(results['distances'][i], list) else results['distances'][i]
+            
+            # Get the image from visual memory
+            image = self.visual_memory.get(lookup_id)
+            result['image'] = image
+            
+            processed_results.append(result)
         
         return processed_results
     
@@ -191,28 +217,36 @@ class SpatialVectorDB:
         
         results = self.image_collection.query(
             query_embeddings=[text_embedding.tolist()],
-            n_results=limit
+            n_results=limit,
+            include=["documents", "metadatas", "distances"]
         )
         
         logger.info(f"Text query: '{text}' returned {len(results['ids'] if 'ids' in results else [])} results")
-        
         return self._process_query_results(results)
     
-    def get_all_locations(self) -> List[Tuple[float, float]]:
-        """
-        Get all stored locations (x, y coordinates).
+    def get_all_locations(self) -> List[Tuple[float, float, float]]:
+        """Get all locations stored in the database."""
+        # Get all items from the collection without embeddings
+        results = self.image_collection.get(include=["metadatas"])
         
-        Returns:
-            List of (x, y) tuples
-        """
-        results = self.image_collection.get()
-        
-        if not results or not results['metadatas']:
+        if not results or "metadatas" not in results or not results["metadatas"]:
             return []
         
+        # Extract x, y coordinates from metadata
         locations = []
-        for metadata in results['metadatas']:
-            if 'x' in metadata and 'y' in metadata:
-                locations.append((metadata['x'], metadata['y']))
+        for metadata in results["metadatas"]:
+            if isinstance(metadata, list) and metadata and isinstance(metadata[0], dict):
+                metadata = metadata[0]  # Handle nested metadata
+            
+            if isinstance(metadata, dict) and "x" in metadata and "y" in metadata:
+                x = metadata.get("x", 0)
+                y = metadata.get("y", 0)
+                z = metadata.get("z", 0) if "z" in metadata else 0
+                locations.append((x, y, z))
         
         return locations
+        
+    @property
+    def image_storage(self):
+        """Legacy accessor for compatibility with existing code."""
+        return self.visual_memory.images
