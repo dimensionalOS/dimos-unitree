@@ -551,18 +551,10 @@ class Costmap:
             start_point = path[0]
             goal_point = path[-1]
 
-            # Add start and goal points
-            additional_points["start"] = {
-                "positions": [start_point],
-                "color": "green",
-                "marker": "o",
-                "size": 100,
-            }
-
             additional_points["goal"] = {
                 "positions": [goal_point],
                 "color": "blue",
-                "marker": "s",  # square
+                "marker": "o",
                 "size": 100,
             }
 
@@ -571,7 +563,7 @@ class Costmap:
                 "positions": path,
                 "color": "lime",
                 "marker": ".",
-                "size": 50,
+                "size": 5,
             }
 
         # Call the regular plot method with the additional points
@@ -593,7 +585,7 @@ if __name__ == "__main__":
     goal_x, goal_y = 5.0, -7.0
 
     # Find path using A* algorithm
-    path = smudged_costmap.astar(goal_x=goal_x, goal_y=goal_y, cost_threshold=80)
+    path = smudged_costmap.astar(goal_x=goal_x, goal_y=goal_y, cost_threshold=50)
 
     if path:
         print(f"Path found with {len(path)} waypoints")
