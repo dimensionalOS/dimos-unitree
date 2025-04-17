@@ -10,6 +10,43 @@ from vectortypes import VectorLike, to_vector
 class Drawer:
     """A class to draw costmaps, vectors, and paths together with styling options."""
 
+    default_styles = {
+        "costmap": {
+            "cmap": "turbo_r",
+            "show_grid": True,
+            "grid_interval": 1.0,
+            "grid_color": "black",
+            "grid_alpha": 0.3,
+            "unknown_color": "lightgray",
+            "transparent_unknown": True,
+            "transparent_empty": False,
+        },
+        "path": {
+            "color": "#1f77b4",
+            "marker": ".",
+            "markersize": 0.5,
+            "linewidth": 1,
+            "linestyle": "dashed",
+            "alpha": 1,
+            "zorder": 10,
+        },
+        "vector": {
+            "color": "red",
+            "marker": "o",
+            "markersize": 80,
+            "alpha": 0.8,
+            "zorder": 20,
+            "show_text": False,
+        },
+        "point": {
+            "color": "green",
+            "marker": "o",
+            "markersize": 8,
+            "alpha": 0.8,
+            "zorder": 30,
+        },
+    }
+
     def __init__(
         self,
         figsize=(10, 8),
@@ -19,6 +56,7 @@ class Drawer:
         dark_mode=False,
         fig=None,
         ax=None,
+        click_callback=None,
     ):
         """Initialize the drawer with figure settings.
 
@@ -30,6 +68,7 @@ class Drawer:
             dark_mode: Whether to use dark background with light text
             fig: Existing figure to use (optional)
             ax: Existing axes to use (optional)
+            click_callback: Custom callback function to be called with (x, y) coordinates when plot is clicked
         """
         if fig is not None and ax is not None:
             self.fig = fig
@@ -41,6 +80,10 @@ class Drawer:
 
         self.show_colorbar = show_colorbar
         self.dark_mode = dark_mode
+
+        self.cid = self.fig.canvas.mpl_connect("button_press_event", self._on_click)
+
+        self.click_callback = click_callback
 
         if dark_mode:
             bg_color = "black"
@@ -99,44 +142,6 @@ class Drawer:
 
         # Reset the counters
         self.reset_counters()
-
-        # Default styles
-        self.default_styles = {
-            "costmap": {
-                "cmap": "turbo_r",
-                "show_grid": True,
-                "grid_interval": 1.0,
-                "grid_color": "black",
-                "grid_alpha": 0.3,
-                "unknown_color": "lightgray",
-                "transparent_unknown": True,
-                "transparent_empty": False,
-            },
-            "path": {
-                "color": "#1f77b4",
-                "marker": ".",
-                "markersize": 0.5,
-                "linewidth": 1,
-                "linestyle": "dashed",
-                "alpha": 1,
-                "zorder": 10,
-            },
-            "vector": {
-                "color": "red",
-                "marker": "o",
-                "markersize": 80,
-                "alpha": 0.8,
-                "zorder": 20,
-                "show_text": False,
-            },
-            "point": {
-                "color": "green",
-                "marker": "o",
-                "markersize": 8,
-                "alpha": 0.8,
-                "zorder": 30,
-            },
-        }
 
     def draw_costmap(self, costmap: Costmap, style: Dict[str, Any] = None) -> None:
         """Draw a costmap with optional styling.
@@ -434,6 +439,23 @@ class Drawer:
                 for text in legend.get_texts():
                     text.set_color("black")
 
+    def _on_click(self, event):
+        """Handle click events on the plot.
+
+        Args:
+            event: The matplotlib event object
+        """
+        if event.xdata is not None and event.ydata is not None:
+            # Get world coordinates
+            x, y = event.xdata, event.ydata
+
+            # Print coordinates if no callback is provided
+            if self.click_callback is None:
+                print(f"Clicked at world coordinates: ({x:.3f}, {y:.3f})")
+            else:
+                # Call the user-provided callback with coordinates
+                self.click_callback(x, y)
+
     def show(self, block=True) -> None:
         """Show the plot.
 
@@ -527,8 +549,15 @@ class Drawer:
         return self.fig, self.ax
 
 
-def draw(*items, legend=True, save_path=False, **kwargs):
-    drawer = Drawer(**kwargs)
+def draw(
+    *items,
+    legend=True,
+    save_path=False,
+    **kwargs,
+):
+    drawer = Drawer(
+        **kwargs,
+    )
 
     drawer.draw(*items)
 
@@ -556,88 +585,20 @@ if __name__ == "__main__":
         kernel_size=10, iterations=10, threshold=80, preserve_unknown=False
     )
 
-    # Create a drawer that we'll reuse
-    drawer = Drawer(
-        figsize=(12, 10),
-        title="A* Path Planning - Navigating to Random Points",
-        show_axes=True,
-        show_colorbar=False,
-        dark_mode=True,
-    )
-
     # Start position
     start = Vector(0.0, 0.0)
+    goal = Vector(4.0, -3.0)
+    path = astar(
+        smudged_costmap,
+        start=start,
+        goal=goal,
+        cost_threshold=50,
+    )
 
-    # Configure interactive mode for real-time updates
-    plt.ion()
-
-    update_interval = 0.1
-
-    # Precompute valid cells for more efficient sampling
-    # Create a mask of valid cells (cost < 50 and not unknown)
-    valid_cells_mask = (costmap.grid < 50) & (costmap.grid >= 0)
-    valid_y_indices, valid_x_indices = np.where(valid_cells_mask)
-
-    try:
-        while True:
-            # Generate a random goal by sampling directly from valid cells
-            # Pick a random index from the valid cells
-            idx = random.randint(0, len(valid_y_indices) - 1)
-
-            # Get grid coordinates from the random selection
-            grid_y, grid_x = valid_y_indices[idx], valid_x_indices[idx]
-
-            # Convert to world coordinates
-            goal = costmap.grid_to_world(Vector(grid_x, grid_y))
-
-            print(f"Planning path from {start} to {goal}")
-
-            # Plan path using A*
-            path = astar(
-                smudged_costmap,
-                start=start,
-                goal=goal,
-                cost_threshold=50,
-            )
-
-            if path:
-                print(f"Path found with {len(path)} waypoints")
-
-                # Resample the path for smoother visualization
-                resampled_path = path.resample(0.5)
-
-                # Clear previous plot
-                drawer.clear(title="A* Path Planning")
-                drawer.draw(
-                    smudged_costmap,
-                    (
-                        costmap,
-                        {"transparent_empty": True, "cmap": "Greys", "alpha": 0.7},
-                    ),
-                    (path, {"color": "yellow", "linewidth": 1.5}),
-                    (resampled_path, {"color": "green", "linewidth": 2}),
-                    (start, {"color": "blue", "markersize": 100, "show_text": True}),
-                    (goal, {"color": "red", "markersize": 100, "show_text": True}),
-                )
-
-                plt.draw()
-                plt.pause(0.1)
-                drawer.fig.canvas.flush_events()
-                time.sleep(update_interval)
-
-                # Update start to be the previous goal for continuous movement
-                start = goal
-            else:
-                print(f"No path found to goal {goal}")
-                # Try a different goal next time but keep the same start
-
-        # Keep the plot open after all iterations
-        print("\nPath planning demo completed.")
-
-    except KeyboardInterrupt:
-        print("\nInterrupted by user")
-        plt.ioff()
-
-    except Exception as e:
-        print(f"Error during navigation demo: {e}")
-        raise
+    draw(
+        smudged_costmap,
+        (costmap, {"transparent_empty": True, "transparent_unknown": True}),
+        start,
+        (goal, {"color": "green"}),
+        path,
+    )
