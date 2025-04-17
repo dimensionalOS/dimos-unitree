@@ -5,10 +5,11 @@ import matplotlib.pyplot as plt
 from typing import Tuple, Optional, Dict, Any, List, Union
 from scipy import ndimage
 import heapq
+from nav_msgs.msg import OccupancyGrid
 
 
 class Costmap:
-    """Class to hold costmap data from ROS OccupancyGrid messages."""
+    """Class to hold ROS OccupancyGrid data."""
 
     def __init__(
         self,
@@ -28,16 +29,10 @@ class Costmap:
         self.height = self.grid.shape[0]
 
     @classmethod
-    def from_msg(cls, costmap_msg) -> "Costmap":
+    def from_msg(cls, costmap_msg: OccupancyGrid) -> "Costmap":
         """Create a Costmap instance from a ROS OccupancyGrid message."""
         if costmap_msg is None:
-            return cls(
-                grid=np.zeros((100, 100), dtype=np.int8),
-                resolution=0.1,
-                origin_x=0.0,
-                origin_y=0.0,
-                origin_theta=0.0,
-            )
+            raise Exception("need costmap msg")
 
         # Extract info from the message
         width = costmap_msg.info.width
@@ -67,6 +62,10 @@ class Costmap:
             origin_y=origin_y,
             origin_theta=origin_theta,
         )
+
+    def save_pickle(pickle_path: str):
+        with open(path, "wb") as f:
+            pickle.dump(costmap, f)
 
     @classmethod
     def from_pickle(cls, pickle_path: str) -> "Costmap":
@@ -569,12 +568,43 @@ class Costmap:
         # Call the regular plot method with the additional points
         return self.plot(additional_points=additional_points, **kwargs)
 
+    def __str__(self) -> str:
+        """
+        Create a string representation of the Costmap.
+
+        Returns:
+            A formatted string with key costmap information
+        """
+        # Calculate occupancy statistics
+        total_cells = self.width * self.height
+        occupied_cells = np.sum(self.grid >= 50)
+        unknown_cells = np.sum(self.grid == -1)
+        free_cells = total_cells - occupied_cells - unknown_cells
+
+        # Calculate percentages
+        occupied_percent = (occupied_cells / total_cells) * 100
+        unknown_percent = (unknown_cells / total_cells) * 100
+        free_percent = (free_cells / total_cells) * 100
+
+        cell_info = [
+            "▦",
+            f"{self.width}x{self.height}",
+            f"({self.width * self.resolution:.1f}x{self.height * self.resolution:.1f}m @",
+            f"{1 / self.resolution:.0f}cm res)",
+            f"▣ {occupied_percent:.1f}%",
+            f"□ {free_percent:.1f}%",
+            f"◌ {unknown_percent:.1f}%",
+        ]
+
+        return " ".join(cell_info)
+
 
 if __name__ == "__main__":
     costmap = Costmap.from_pickle("costmapMsg.pickle")
-    print(f"Costmap dimensions: {costmap.width}x{costmap.height}")
-    print(f"Resolution: {costmap.resolution}")
-    print(f"Origin: ({costmap.origin_x}, {costmap.origin_y}, {costmap.origin_theta})")
+    print(costmap)
+    # print(f"Costmap dimensions: {costmap.width}x{costmap.height}")
+    # print(f"Resolution: {costmap.resolution}")
+    # print(f"Origin: ({costmap.origin_x}, {costmap.origin_y}, {costmap.origin_theta})")
 
     # Create a smudged version of the costmap for better planning
     smudged_costmap = costmap.smudge(
@@ -597,4 +627,4 @@ if __name__ == "__main__":
         smudged_costmap.plot(title="No Path Found")
 
     # Block, wait for input and exit
-    input("Press Enter to exit...")
+#    input("Press Enter to exit...")
