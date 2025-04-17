@@ -35,7 +35,6 @@ class Drawer:
         # Default styles
         self.default_styles = {
             "costmap": {
-                #                "cmap": "plasma",
                 "cmap": "YlOrRd",
                 "show_grid": True,
                 "grid_interval": 1.0,
@@ -46,8 +45,8 @@ class Drawer:
             "path": {
                 "color": "#1f77b4",
                 "marker": ".",
-                "markersize": 1,
-                "linewidth": 2,
+                "markersize": 0.5,
+                "linewidth": 1,
                 "linestyle": "dashed",
                 "alpha": 1,
                 "zorder": 10,

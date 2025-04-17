@@ -1,8 +1,7 @@
 import pickle
 import math
 import numpy as np
-import matplotlib.pyplot as plt
-from typing import Tuple, Optional, Dict, Any, List, Union
+from typing import Optional
 from scipy import ndimage
 from nav_msgs.msg import OccupancyGrid
 from vectortypes import VectorLike, x, y, to_vector
@@ -20,8 +19,6 @@ class Costmap:
         resolution: float = 0.05,
     ):
         """Initialize Costmap with its core attributes."""
-        from vector import Vector
-
         self.grid = grid
         self.resolution = resolution
         self.origin = to_vector(origin)
@@ -245,180 +242,6 @@ class Costmap:
             origin=self.origin,
             origin_theta=self.origin_theta,
         )
-
-    def plot(
-        self,
-        figsize=(10, 8),
-        show_axes=True,
-        # cmap="viridis",
-        cmap="YlOrRd",
-        title="Costmap Visualization",
-        show=True,
-        unknown_color="lightgray",
-        show_grid=True,
-        grid_interval=1.0,
-        grid_color="black",
-        grid_alpha=0.5,
-        additional_points: Dict[str, Dict[str, Any]] = {},
-    ) -> plt.Figure:
-        fig, ax = plt.subplots(figsize=figsize)
-
-        additional_points["origin"] = {
-            "positions": [(0, 0)],  # Example position
-            "color": "red",
-            "marker": "x",
-            "size": 100,
-        }
-
-        # Create the extent for proper world coordinate mapping
-        extent = [
-            x(self.origin),
-            x(self.origin) + self.width * self.resolution,
-            y(self.origin),
-            y(self.origin) + self.height * self.resolution,
-        ]
-
-        # Create a masked array to handle unknown (-1) cells separately
-        grid_copy = self.grid.copy()
-        unknown_mask = grid_copy == -1
-
-        # Create a custom colormap with a specific color for unknown cells
-        norm = plt.Normalize(
-            vmin=0, vmax=100
-        )  # Adjust vmax based on your costmap values
-
-        # Plot the known costs
-        masked_grid = np.ma.array(grid_copy, mask=unknown_mask)
-        im = ax.imshow(
-            masked_grid,
-            cmap=cmap,
-            norm=norm,
-            origin="lower",
-            extent=extent,
-            interpolation="none",
-        )
-
-        # Plot the unknown cells with a different color
-        if np.any(unknown_mask):
-            unknown_grid = np.ma.array(np.zeros_like(grid_copy), mask=~unknown_mask)
-            ax.imshow(
-                unknown_grid,
-                cmap=plt.matplotlib.colors.ListedColormap([unknown_color]),
-                origin="lower",
-                extent=extent,
-                interpolation="none",
-            )
-
-        # Add meter grid overlay
-        if show_grid:
-            # Calculate grid line positions for X and Y axes
-            x_min, x_max = extent[0], extent[1]
-            y_min, y_max = extent[2], extent[3]
-
-            # Round to nearest grid_interval for cleaner display
-            x_start = math.ceil(x_min / grid_interval) * grid_interval
-            y_start = math.ceil(y_min / grid_interval) * grid_interval
-
-            # Draw vertical grid lines (constant x-value)
-            x_lines = np.arange(x_start, x_max, grid_interval)
-            for x in x_lines:
-                ax.axvline(
-                    x=x,
-                    color=grid_color,
-                    linestyle="--",
-                    linewidth=0.5,
-                    alpha=grid_alpha,
-                    zorder=1,
-                )
-
-            # Draw horizontal grid lines (constant y-value)
-            y_lines = np.arange(y_start, y_max, grid_interval)
-            for y in y_lines:
-                ax.axhline(
-                    y=y,
-                    color=grid_color,
-                    linestyle="--",
-                    alpha=grid_alpha,
-                    zorder=1,
-                    linewidth=0.5,
-                )
-
-            # Add labeled tick marks at grid intervals
-            ax.set_xticks(x_lines)
-            ax.set_yticks(y_lines)
-
-        # Add colorbar for known cells
-        cbar = fig.colorbar(im, ax=ax)
-        cbar.set_label("Cost Value (0-100)")
-
-        # Plot additional points if provided
-        if additional_points:
-            for label, point_data in additional_points.items():
-                positions = point_data.get("positions", [])
-                color = point_data.get("color", "red")
-                marker = point_data.get("marker", "o")
-                size = point_data.get("size", 50)
-
-                # Extract x and y coordinates
-                x_coords = [pos[0] for pos in positions]
-                y_coords = [pos[1] for pos in positions]
-
-                ax.scatter(
-                    x_coords, y_coords, c=color, marker=marker, s=size, label=label
-                )
-
-        # Set labels and title
-        ax.set_xlabel("X (world coordinates)")
-        ax.set_ylabel("Y (world coordinates)")
-        ax.set_title(title)
-
-        # Hide axes if requested
-        if not show_axes:
-            ax.set_axis_off()
-
-        # Show the plot
-        if show:
-            plt.tight_layout()
-            plt.show(block=False)
-
-        return fig
-
-    def plot_path(self, path: List[Tuple[float, float]], **kwargs) -> plt.Figure:
-        """
-        Plot the costmap with a path overlay.
-
-        Args:
-            path: List of (x, y) tuples representing the path in world coordinates
-            **kwargs: Additional arguments to pass to the plot method
-
-        Returns:
-            The matplotlib Figure object
-        """
-        # Create a dictionary of additional points for the plot method
-        additional_points = kwargs.pop("additional_points", {})
-
-        # Add the path to the additional_points dictionary
-        if path:
-            start_point = path[0]
-            goal_point = path[-1]
-
-            additional_points["goal"] = {
-                "positions": [goal_point],
-                "color": "blue",
-                "marker": "o",
-                "size": 100,
-            }
-
-            # Add the path
-            additional_points["path"] = {
-                "positions": path,
-                "color": "lime",
-                "marker": ".",
-                "size": 5,
-            }
-
-        # Call the regular plot method with the additional points
-        return self.plot(additional_points=additional_points, **kwargs)
 
     def __str__(self) -> str:
         """
