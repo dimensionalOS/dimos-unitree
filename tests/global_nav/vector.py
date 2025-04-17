@@ -72,7 +72,7 @@ class Vector:
         # Get directional arrow symbol
         arrow = repr[dir_index]
 
-        return f"{arrow} {self.__repr__()}"
+        return f"{arrow} Vector {self.__repr__()}"
 
     def __eq__(self, other) -> bool:
         if isinstance(other, Vector):
@@ -233,6 +233,5 @@ if __name__ == "__main__":
         Vector(-3, 4),  # Up-Left (longer)
     ]
 
-    print("Vector direction test:")
     for v in test_vectors:
         print(str(v))
