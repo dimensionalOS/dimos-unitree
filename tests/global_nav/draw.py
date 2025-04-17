@@ -17,6 +17,8 @@ class Drawer:
         show_axes=True,
         show_colorbar=False,
         dark_mode=False,
+        fig=None,
+        ax=None,
     ):
         """Initialize the drawer with figure settings.
 
@@ -26,8 +28,17 @@ class Drawer:
             show_axes: Whether to show axes in the plot
             show_colorbar: Whether to show colorbar for costmaps
             dark_mode: Whether to use dark background with light text
+            fig: Existing figure to use (optional)
+            ax: Existing axes to use (optional)
         """
-        self.fig, self.ax = plt.subplots(figsize=figsize)
+        if fig is not None and ax is not None:
+            self.fig = fig
+            self.ax = ax
+            # Clear the axes but keep the figure
+            self.ax.clear()
+        else:
+            self.fig, self.ax = plt.subplots(figsize=figsize)
+
         self.show_colorbar = show_colorbar
         self.dark_mode = dark_mode
 
@@ -53,10 +64,41 @@ class Drawer:
             self.ax.spines["left"].set_color(text_color)
             self.ax.spines["right"].set_color(text_color)
 
+        self.reset_counters()
+
+    def reset_counters(self):
+        """Reset the counters for drawn objects."""
         self.costmaps_drawn = 0
         self.paths_drawn = 0
         self.vectors_drawn = 0
         self.points_drawn = 0
+
+    def clear(self, title=None):
+        """Clear the current axes for redrawing.
+
+        Args:
+            title: Optional new title for the plot
+        """
+        self.ax.clear()
+
+        # Restore styling
+        text_color = "white" if self.dark_mode else "black"
+
+        if title:
+            self.ax.set_title(title, color=text_color)
+
+        # Restore axis styling
+        if not hasattr(self.ax, "_axis_off") or not self.ax._axis_off:
+            self.ax.set_xlabel("X (world coordinates)", color=text_color)
+            self.ax.set_ylabel("Y (world coordinates)", color=text_color)
+            self.ax.tick_params(colors=text_color)
+            self.ax.spines["bottom"].set_color(text_color)
+            self.ax.spines["top"].set_color(text_color)
+            self.ax.spines["left"].set_color(text_color)
+            self.ax.spines["right"].set_color(text_color)
+
+        # Reset the counters
+        self.reset_counters()
 
         # Default styles
         self.default_styles = {
@@ -411,118 +453,98 @@ class Drawer:
         plt.tight_layout()
         plt.savefig(filename, dpi=dpi)
 
+    def draw(self, *items, add_legend=False):
+        """Draw multiple items with optional styling.
 
-def draw(
-    *items,
-    figsize=(10, 8),
-    title="Visualization",
-    show_axes=True,
-    show=True,
-    save_path=None,
-    show_colorbar=False,
-    dark_mode=False,
-):
-    """Create a visualization with multiple items.
+        Args:
+            *items: Individual objects (costmap, vector, path) or tuples of (item, style_dict)
+            add_legend: Whether to add a legend after drawing all items
 
-    Args:
-        *items: Individual objects (costmap, vector, path) or tuples of (item, style_dict)
-        figsize: Figure size (width, height)
-        title: Plot title
-        show_axes: Whether to show axes
-        show: Whether to show the plot
-        save_path: File path to save the figure (optional)
-        show_colorbar: Whether to show colorbar for costmaps (default: False)
-        dark_mode: Whether to use dark background with light text (default: False)
+        Returns:
+            The figure and axes objects
+        """
+        for item in items:
+            # Check if this is an (item, style) pair or just an item
+            if isinstance(item, tuple) and len(item) == 2 and isinstance(item[1], dict):
+                obj, style = item
+            else:
+                obj, style = item, None
 
-    Example with styling:
-        draw(
-            (costmap, {"cmap": "viridis"}),
-            (path, {"color": "red", "linewidth": 3}),
-            (vector, {"color": "blue", "head_width": 0.2}),
-            show=True
-        )
+            # Handle vector with origin special case
+            if (
+                isinstance(obj, tuple)
+                and len(obj) == 2
+                and (
+                    isinstance(obj[0], Vector)
+                    or (hasattr(obj[0], "__iter__") and len(obj[0]) >= 2)
+                )
+                and (
+                    isinstance(obj[1], Vector)
+                    or (hasattr(obj[1], "__iter__") and len(obj[1]) >= 2)
+                )
+                and style is None
+            ):
+                # This might be a (vector, origin) pair rather than a (obj, style) pair
+                try:
+                    # Try to interpret as vector and origin
+                    vec = to_vector(obj[0])
+                    origin = to_vector(obj[1])
+                    self.draw_vector(vec, origin=origin)
+                    continue
+                except:
+                    # If that fails, proceed with normal object type detection
+                    pass
 
-    Example without styling (using defaults):
-        draw(costmap, path, vector, title="Simple Visualization")
-    """
-    drawer = Drawer(
-        figsize=figsize,
-        title=title,
-        show_axes=show_axes,
-        show_colorbar=show_colorbar,
-        dark_mode=dark_mode,
-    )
+            # Draw different types of objects
+            if isinstance(obj, Costmap):
+                self.draw_costmap(obj, style)
+            elif isinstance(obj, Path):
+                self.draw_path(obj, style)
+            elif isinstance(obj, Vector):
+                self.draw_vector(obj, style=style)
+            elif (
+                isinstance(obj, tuple)
+                and len(obj) == 2
+                and all(isinstance(o, (tuple, list, Vector)) for o in obj)
+            ):
+                # Assume it's a (vector, origin) pair
+                self.draw_vector(obj[0], origin=obj[1], style=style)
+            elif isinstance(obj, (list, tuple)) and all(
+                isinstance(p, (tuple, list, Vector)) for p in obj
+            ):
+                # Assume it's a path represented as a list of points
+                self.draw_path(obj, style)
+            else:
+                # Try to treat as a point
+                try:
+                    self.draw_point(obj, style)
+                except Exception as e:
+                    print(f"Could not draw object of type {type(obj)}: {e}")
 
-    for item in items:
-        # Check if this is an (item, style) pair or just an item
-        if isinstance(item, tuple) and len(item) == 2 and isinstance(item[1], dict):
-            obj, style = item
-        else:
-            obj, style = item, None
+        if add_legend:
+            self.add_legend()
 
-        # Handle vector with origin special case
-        if (
-            isinstance(obj, tuple)
-            and len(obj) == 2
-            and (
-                isinstance(obj[0], Vector)
-                or (hasattr(obj[0], "__iter__") and len(obj[0]) >= 2)
-            )
-            and (
-                isinstance(obj[1], Vector)
-                or (hasattr(obj[1], "__iter__") and len(obj[1]) >= 2)
-            )
-            and style is None
-        ):
-            # This might be a (vector, origin) pair rather than a (obj, style) pair
-            try:
-                # Try to interpret as vector and origin
-                vec = to_vector(obj[0])
-                origin = to_vector(obj[1])
-                drawer.draw_vector(vec, origin=origin)
-                continue
-            except:
-                # If that fails, proceed with normal object type detection
-                pass
+        return self.fig, self.ax
 
-        # Draw different types of objects
-        if isinstance(obj, Costmap):
-            drawer.draw_costmap(obj, style)
-        elif isinstance(obj, Path):
-            drawer.draw_path(obj, style)
-        elif isinstance(obj, Vector):
-            drawer.draw_vector(obj, style=style)
-        elif (
-            isinstance(obj, tuple)
-            and len(obj) == 2
-            and all(isinstance(o, (tuple, list, Vector)) for o in obj)
-        ):
-            # Assume it's a (vector, origin) pair
-            drawer.draw_vector(obj[0], origin=obj[1], style=style)
-        elif isinstance(obj, (list, tuple)) and all(
-            isinstance(p, (tuple, list, Vector)) for p in obj
-        ):
-            # Assume it's a path represented as a list of points
-            drawer.draw_path(obj, style)
-        else:
-            # Try to treat as a point
-            try:
-                drawer.draw_point(obj, style)
-            except Exception as e:
-                print(f"Could not draw object of type {type(obj)}: {e}")
 
-    drawer.add_legend()
+def draw(*items, legend=True, save_path=False, **kwargs):
+    drawer = Drawer(**kwargs)
+
+    drawer.draw(*items)
+
+    if legend:
+        drawer.add_legend()
 
     if save_path:
         drawer.save(save_path)
 
-    if show:
-        drawer.show()
-
-    return drawer.fig, drawer.ax
+    drawer.show()
 
 
 if __name__ == "__main__":
+    import time
+    import random
+    import matplotlib.pyplot as plt
     from costmap import Costmap
     from astar import astar
 
@@ -534,35 +556,88 @@ if __name__ == "__main__":
         kernel_size=10, iterations=10, threshold=80, preserve_unknown=False
     )
 
-    # Test different types of inputs for goal position
-    start = Vector(0.0, 0.0)  # Define a single position
-    goal = Vector(5.0, -7.0)  # Define a single position
-
-    # Try each type of input
-    path = astar(
-        smudged_costmap,
-        start=start,
-        goal=goal,
-        cost_threshold=50,
-    )
-
-    resampled_path = path.resample(0.5)
-
-    print(
-        "draw:\n",
-        "\n".join(
-            map(lambda x: str(x), [start, goal, path, resampled_path, smudged_costmap])
-        ),
-    )
-
-    draw(
-        (smudged_costmap),
-        (costmap, {"transparent_empty": True, "cmap": "Greys"}),
-        path,
-        (resampled_path, {"color": "red"}),
-        (start, {"color": "green"}),
-        goal,
-        title="A* Path Planning",
+    # Create a drawer that we'll reuse
+    drawer = Drawer(
+        figsize=(12, 10),
+        title="A* Path Planning - Navigating to Random Points",
+        show_axes=True,
+        show_colorbar=False,
         dark_mode=True,
-        show_colorbar=True,
     )
+
+    # Start position
+    start = Vector(0.0, 0.0)
+
+    # Configure interactive mode for real-time updates
+    plt.ion()
+
+    update_interval = 0.1
+
+    # Precompute valid cells for more efficient sampling
+    # Create a mask of valid cells (cost < 50 and not unknown)
+    valid_cells_mask = (costmap.grid < 50) & (costmap.grid >= 0)
+    valid_y_indices, valid_x_indices = np.where(valid_cells_mask)
+
+    try:
+        while True:
+            # Generate a random goal by sampling directly from valid cells
+            # Pick a random index from the valid cells
+            idx = random.randint(0, len(valid_y_indices) - 1)
+
+            # Get grid coordinates from the random selection
+            grid_y, grid_x = valid_y_indices[idx], valid_x_indices[idx]
+
+            # Convert to world coordinates
+            goal = costmap.grid_to_world(Vector(grid_x, grid_y))
+
+            print(f"Planning path from {start} to {goal}")
+
+            # Plan path using A*
+            path = astar(
+                smudged_costmap,
+                start=start,
+                goal=goal,
+                cost_threshold=50,
+            )
+
+            if path:
+                print(f"Path found with {len(path)} waypoints")
+
+                # Resample the path for smoother visualization
+                resampled_path = path.resample(0.5)
+
+                # Clear previous plot
+                drawer.clear(title="A* Path Planning")
+                drawer.draw(
+                    smudged_costmap,
+                    (
+                        costmap,
+                        {"transparent_empty": True, "cmap": "Greys", "alpha": 0.7},
+                    ),
+                    (path, {"color": "yellow", "linewidth": 1.5}),
+                    (resampled_path, {"color": "green", "linewidth": 2}),
+                    (start, {"color": "blue", "markersize": 100, "show_text": True}),
+                    (goal, {"color": "red", "markersize": 100, "show_text": True}),
+                )
+
+                plt.draw()
+                plt.pause(0.1)
+                drawer.fig.canvas.flush_events()
+                time.sleep(update_interval)
+
+                # Update start to be the previous goal for continuous movement
+                start = goal
+            else:
+                print(f"No path found to goal {goal}")
+                # Try a different goal next time but keep the same start
+
+        # Keep the plot open after all iterations
+        print("\nPath planning demo completed.")
+
+    except KeyboardInterrupt:
+        print("\nInterrupted by user")
+        plt.ioff()
+
+    except Exception as e:
+        print(f"Error during navigation demo: {e}")
+        raise
