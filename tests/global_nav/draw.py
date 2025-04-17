@@ -10,22 +10,48 @@ from vectortypes import VectorLike, to_vector
 class Drawer:
     """A class to draw costmaps, vectors, and paths together with styling options."""
 
-    def __init__(self, figsize=(10, 8), title="Visualization", show_axes=True):
+    def __init__(
+        self,
+        figsize=(10, 8),
+        title="Visualization",
+        show_axes=True,
+        show_colorbar=False,
+        dark_mode=False,
+    ):
         """Initialize the drawer with figure settings.
 
         Args:
             figsize: Tuple of (width, height) for the figure
             title: Title for the plot
             show_axes: Whether to show axes in the plot
+            show_colorbar: Whether to show colorbar for costmaps
+            dark_mode: Whether to use dark background with light text
         """
         self.fig, self.ax = plt.subplots(figsize=figsize)
-        self.ax.set_title(title)
+        self.show_colorbar = show_colorbar
+        self.dark_mode = dark_mode
+
+        if dark_mode:
+            bg_color = "black"
+            text_color = "white"
+        else:
+            bg_color = "white"
+            text_color = "black"
+
+        self.fig.set_facecolor(bg_color)
+        self.ax.set_facecolor(bg_color)
+        self.ax.set_title(title, color=text_color)
 
         if not show_axes:
             self.ax.set_axis_off()
         else:
-            self.ax.set_xlabel("X (world coordinates)")
-            self.ax.set_ylabel("Y (world coordinates)")
+            self.ax.set_xlabel("X (world coordinates)", color=text_color)
+            self.ax.set_ylabel("Y (world coordinates)", color=text_color)
+            self.ax.tick_params(colors=text_color)
+            self.ax.spines["bottom"].set_color(text_color)
+            self.ax.spines["top"].set_color(text_color)
+            self.ax.spines["left"].set_color(text_color)
+            self.ax.spines["right"].set_color(text_color)
 
         self.costmaps_drawn = 0
         self.paths_drawn = 0
@@ -35,7 +61,7 @@ class Drawer:
         # Default styles
         self.default_styles = {
             "costmap": {
-                "cmap": "YlOrRd",
+                "cmap": "turbo_r",
                 "show_grid": True,
                 "grid_interval": 1.0,
                 "grid_color": "black",
@@ -179,11 +205,17 @@ class Drawer:
             # Add labeled tick marks at grid intervals
             self.ax.set_xticks(x_lines)
             self.ax.set_yticks(y_lines)
+            text_color = "white" if self.dark_mode else "black"
+            self.ax.tick_params(colors=text_color)
 
-        # Add colorbar for known cells if this is the first costmap
-        if self.costmaps_drawn == 0:
+        # Add colorbar for known cells if this is the first costmap and show_colorbar is True
+        if self.costmaps_drawn == 0 and self.show_colorbar:
             cbar = self.fig.colorbar(im, ax=self.ax)
-            cbar.set_label("Cost Value (0-100)")
+            text_color = "white" if self.dark_mode else "black"
+            cbar.set_label("Cost Value (0-100)", color=text_color)
+            cbar.ax.yaxis.set_tick_params(color=text_color)
+            cbar.outline.set_edgecolor(text_color)
+            plt.setp(plt.getp(cbar.ax.axes, "yticklabels"), color=text_color)
 
         self.costmaps_drawn += 1
 
@@ -350,7 +382,15 @@ class Drawer:
         """Add a legend to the plot."""
         handles, labels = self.ax.get_legend_handles_labels()
         if handles:
-            self.ax.legend(loc=loc)
+            legend = self.ax.legend(loc=loc)
+            if self.dark_mode:
+                legend.get_frame().set_facecolor("black")
+                for text in legend.get_texts():
+                    text.set_color("white")
+            else:
+                legend.get_frame().set_facecolor("white")
+                for text in legend.get_texts():
+                    text.set_color("black")
 
     def show(self, block=True) -> None:
         """Show the plot.
@@ -379,6 +419,8 @@ def draw(
     show_axes=True,
     show=True,
     save_path=None,
+    show_colorbar=False,
+    dark_mode=False,
 ):
     """Create a visualization with multiple items.
 
@@ -389,6 +431,8 @@ def draw(
         show_axes: Whether to show axes
         show: Whether to show the plot
         save_path: File path to save the figure (optional)
+        show_colorbar: Whether to show colorbar for costmaps (default: False)
+        dark_mode: Whether to use dark background with light text (default: False)
 
     Example with styling:
         draw(
@@ -401,7 +445,13 @@ def draw(
     Example without styling (using defaults):
         draw(costmap, path, vector, title="Simple Visualization")
     """
-    drawer = Drawer(figsize=figsize, title=title, show_axes=show_axes)
+    drawer = Drawer(
+        figsize=figsize,
+        title=title,
+        show_axes=show_axes,
+        show_colorbar=show_colorbar,
+        dark_mode=dark_mode,
+    )
 
     for item in items:
         # Check if this is an (item, style) pair or just an item
@@ -502,9 +552,12 @@ if __name__ == "__main__":
     )
 
     draw(
-        (smudged_costmap, {"cmap": "turbo_r"}),
+        (smudged_costmap),
         (costmap, {"transparent_empty": True, "cmap": "Greys"}),
         path,
         (start, {"color": "green"}),
         goal,
+        title="A* Path Planning",
+        dark_mode=True,
+        show_colorbar=True,
     )
