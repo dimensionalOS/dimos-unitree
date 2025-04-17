@@ -13,7 +13,7 @@ import logging
 from typing import Optional, Dict, Any, List
 from pydantic import Field
 
-from dimos.robot.skills import AbstractRobotSkill
+from dimos.skills.skills import AbstractRobotSkill
 from dimos.utils.logging_config import setup_logger
 
 logger = setup_logger("dimos.skills.kill_skill", level=logging.INFO)

@@ -19,7 +19,7 @@ import reactivex as rx
 from reactivex import operators as ops
 from pydantic import Field
 
-from dimos.robot.skills import AbstractRobotSkill
+from dimos.skills.skills import AbstractRobotSkill
 from dimos.agents.claude_agent import ClaudeAgent
 from dimos.utils.threadpool import get_scheduler
 from dimos.utils.logging_config import setup_logger
