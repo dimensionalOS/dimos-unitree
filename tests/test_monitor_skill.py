@@ -26,8 +26,8 @@ from dimos.skills.monitor_skill import MonitorSkill
 from dimos.skills.kill_skill import KillSkill, get_running_skills
 from dimos.web.robot_web_interface import RobotWebInterface
 from dimos.utils.logging_config import setup_logger
-
-logger = setup_logger("tests.test_monitor_skill", level=logging.INFO)
+import tests.test_header
+logger = setup_logger("tests.test_monitor_skill")
 
 load_dotenv()
 
@@ -116,7 +116,7 @@ def main():
         logger.info("Test interrupted by user")
         
         if "monitor" in get_running_skills():
-            robot_skills.call_function("KillSkill", skill_name="monitor")
+            robot_skills.call("KillSkill", skill_name="monitor")
     
     logger.info("Test completed")
 

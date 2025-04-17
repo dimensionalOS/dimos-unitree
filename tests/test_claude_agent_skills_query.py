@@ -14,7 +14,7 @@
 
 import os
 import sys
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+import tests.test_header
 
 import time
 from dotenv import load_dotenv
@@ -67,8 +67,8 @@ Example: If the user asks to move forward 1 meter, call the Move function with d
 )
 
 robot_skills = robot.get_skills()
-robot_skills.add_skill(MonitorSkill)
-robot_skills.add_skill(KillSkill)
+robot_skills.add(MonitorSkill)
+robot_skills.add(KillSkill)
 
 robot_skills.create_instance("MonitorSkill", robot=robot, claude_agent=agent)
 robot_skills.create_instance("KillSkill")

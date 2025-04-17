@@ -547,7 +547,7 @@ class ClaudeAgent(LLMAgent):
                     # Execute the tool
                     name = tool_call.function.name
                     args = json.loads(tool_call.function.arguments)
-                    result = self.skills.call_function(name, **args)
+                    result = self.skills.call(name, **args)
                     logger.info(f"Tool '{name}' executed with args {args} and returned: {result}")
                     
                     # Add tool result to conversation
