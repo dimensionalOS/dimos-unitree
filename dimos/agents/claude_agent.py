@@ -39,7 +39,7 @@ from reactivex import create
 from dimos.agents.agent import LLMAgent
 from dimos.agents.memory.base import AbstractAgentSemanticMemory
 from dimos.agents.prompt_builder.impl import PromptBuilder
-from dimos.skills.skills import AbstractSkill
+from dimos.skills.skills import AbstractSkill, SkillLibrary
 from dimos.stream.frame_processor import FrameProcessor
 from dimos.utils.logging_config import setup_logger
 from dimos.utils.threadpool import get_scheduler
@@ -49,6 +49,29 @@ load_dotenv()
 
 # Initialize logger for the Claude agent
 logger = setup_logger("dimos.agents.claude")
+
+# Response object compatible with LLMAgent
+class ResponseMessage:
+    def __init__(self, content="", tool_calls=None, thinking_blocks=None):
+        self.content = content
+        self.tool_calls = tool_calls or []
+        self.thinking_blocks = thinking_blocks or []
+        self.parsed = None
+    
+    def __str__(self):
+        # Return a string representation for logging
+        parts = []
+        
+        # Include content if available
+        if self.content:
+            parts.append(self.content)
+        
+        # Include tool calls if available
+        if self.tool_calls:
+            tool_names = [tc.function.name for tc in self.tool_calls]
+            parts.append(f"[Tools called: {', '.join(tool_names)}]")
+        
+        return "\n".join(parts) if parts else "[No content]"
 
 class ClaudeAgent(LLMAgent):
     """Claude agent implementation that uses Anthropic's API for processing.
@@ -133,6 +156,16 @@ class ClaudeAgent(LLMAgent):
         
         # Configure skills
         self.skills = skills
+        self.skill_library = None # Required for error 'ClaudeAgent' object has no attribute 'skill_library' due to skills refactor
+        if isinstance(self.skills, SkillLibrary):
+            self.skill_library = self.skills
+        elif isinstance(self.skills, list):
+            self.skill_library = SkillLibrary()
+            for skill in self.skills:
+                self.skill_library.add(skill)
+        elif isinstance(self.skills, AbstractSkill):
+            self.skill_library = SkillLibrary()
+            self.skill_library.add(self.skills)
         
         self.response_model = response_model
         self.model_name = model_name
@@ -321,32 +354,9 @@ class ClaudeAgent(LLMAgent):
             
             # Log full request parameters to console
             print("\n\n==== CLAUDE API REQUEST ====")
-            print(json.dumps(claude_params, indent=2, default=str))
+            #print(json.dumps(claude_params, indent=2, default=str))
             
             print("==== END REQUEST ====")
-            
-            # Response object compatible with LLMAgent
-            class ResponseMessage:
-                def __init__(self, content="", tool_calls=None, thinking_blocks=None):
-                    self.content = content
-                    self.tool_calls = tool_calls or []
-                    self.thinking_blocks = thinking_blocks or []
-                    self.parsed = None
-                
-                def __str__(self):
-                    # Return a string representation for logging
-                    parts = []
-                    
-                    # Include content if available
-                    if self.content:
-                        parts.append(self.content)
-                    
-                    # Include tool calls if available
-                    if self.tool_calls:
-                        tool_names = [tc.function.name for tc in self.tool_calls]
-                        parts.append(f"[Tools called: {', '.join(tool_names)}]")
-                    
-                    return "\n".join(parts) if parts else "[No content]"
             
             # Initialize response containers
             text_content = ""
@@ -507,16 +517,24 @@ class ClaudeAgent(LLMAgent):
         # Build the initial prompt including image if provided
         messages = self._build_prompt(base64_image, dimensions, False, condensed_results)
         claude_params = messages.get('claude_prompt', {}).copy()
-        
-        # Initialize conversation history
-        conversation = claude_params.get('messages', []).copy()
         final_response = ""
+        # Get the system message from the default conversation
+        default_messages = claude_params.get('messages', [])
+        system_message = default_messages[0] if default_messages and default_messages[0]['role'] == 'system' else None
+        
+        # Start fresh or use existing conversation history
+        if not self.conversation_history:
+            # First call - initialize with default messages
+            self.conversation_history = default_messages.copy()
+        elif system_message and (not self.conversation_history or self.conversation_history[0]['role'] != 'system'):
+            # We have history but missing system message - add it
+            self.conversation_history.insert(0, system_message)
         
         # Main processing loop that continues until all tool calls are complete
         still_processing = True
         while still_processing:
-            # Send query with current conversation state
-            claude_params['messages'] = conversation
+            # Send query with current conversation history
+            claude_params['messages'] = self.conversation_history
             response_message = self._send_query({'claude_prompt': claude_params})
             
             if response_message is None:
@@ -538,11 +556,11 @@ class ClaudeAgent(LLMAgent):
                     # Build assistant message with content and thinking blocks
                     assistant_content = []
                     
-                    # Add thinking blocks if available
+                    # First add all thinking blocks
                     if hasattr(response_message, 'thinking_blocks') and response_message.thinking_blocks:
                         assistant_content.extend(response_message.thinking_blocks)
                     
-                    # Add text content if present
+                    # Then add text content if present
                     if response_message.content and response_message.content.strip():
                         assistant_content.append({"type": "text", "text": response_message.content})
                     
@@ -554,8 +572,8 @@ class ClaudeAgent(LLMAgent):
                         "input": json.loads(tool_call.function.arguments)
                     })
                     
-                    # Add assistant message to conversation
-                    conversation.append({
+                    # Add assistant response to conversation history
+                    self.conversation_history.append({
                         "role": "assistant",
                         "content": assistant_content
                     })
@@ -566,8 +584,8 @@ class ClaudeAgent(LLMAgent):
                     result = self.skills.call(name, **args)
                     logger.info(f"Tool '{name}' executed with args {args} and returned: {result}")
                     
-                    # Add tool result to conversation
-                    conversation.append({
+                    # Add tool result to conversation history
+                    self.conversation_history.append({
                         "role": "user",
                         "content": [{
                             "type": "tool_result",
@@ -583,27 +601,52 @@ class ClaudeAgent(LLMAgent):
         
         logger.info(f"Direct query complete. Final response: {final_response}")
         return final_response
-    # TODO: Delete, not used
-    def run_streaming_query(self, query_text: str, base64_image: Optional[str] = None, dimensions: Optional[Tuple[int, int]] = None):
-        """Run a streaming query with Claude that handles multi-turn tool calling.
+    def _observable_query(self,
+                             observer: Observer,
+                             base64_image: Optional[str] = None,
+                             dimensions: Optional[Tuple[int, int]] = None,
+                             override_token_limit: bool = False,
+                             incoming_query: Optional[str] = None,
+                             reset_conversation: bool = False):
+        """Override of LLMAgent._observable_query to use the conversation history.
         
-        This method creates a continuous streaming session that:
-        1. Sends the initial query to Claude
-        2. Processes streaming responses with thinking blocks
-        3. Uses _handle_tooling to execute any tool calls that Claude makes
-        4. Continues the conversation with tool results
-        5. Repeats until Claude completes its response without tool calls
+        This implementation ensures conversation history is maintained whether the call
+        comes through direct_query or through the observable pattern.
         
         Args:
-            query_text (str): The query text to process
-            base64_image (Optional[str]): Optional Base64-encoded image to include in the query
-            dimensions (Optional[Tuple[int, int]]): Optional image dimensions (width, height)
-            
-        Returns:
-            The final text response from Claude after all tool calls are complete
+            observer (Observer): The observer to emit responses to
+            base64_image (Optional[str]): Optional Base64-encoded image
+            dimensions (Optional[Tuple[int, int]]): Optional image dimensions
+            override_token_limit (bool): Whether to override token limits
+            incoming_query (Optional[str]): Optional query to update the agent's query
+            reset_conversation (bool): Whether to reset the conversation history
         """
-        # Use the direct query method instead since it works better with the early exit in LLMAgent
-        return self.direct_query(query_text, base64_image, dimensions)
+        try:
+            # Reset conversation history if requested
+            if reset_conversation:
+                self.conversation_history = []
+                
+            # Update query and get context
+            self._update_query(incoming_query)
+            _, condensed_results = self._get_rag_context()
+            
+            # Process the query using direct_query (which handles conversation history)
+            if base64_image:
+                # Base64 image is already encoded
+                result = self.direct_query(self.query, base64_image, dimensions)
+            else:
+                # Text-only query
+                result = self.direct_query(self.query)
+            
+            # Send response to observer
+            observer.on_next(result)
+            self.response_subject.on_next(result)
+            observer.on_completed()
+            
+        except Exception as e:
+            logger.error(f"Query failed in {self.dev_name}: {e}")
+            observer.on_error(e)
+            self.response_subject.on_error(e)
         
     def _handle_tooling(self, response_message, messages):
         """Override of LLMAgent._handle_tooling to handle Claude's message format.

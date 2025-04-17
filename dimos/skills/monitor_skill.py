@@ -180,7 +180,8 @@ class MonitorSkill(AbstractRobotSkill):
             base64_image = base64.b64encode(buffer).decode('utf-8')
             
             response = self._claude_agent.direct_query(
-                f"{self.query_text}\n\nHere is the current camera view from the robot:"
+                f"{self.query_text}\n\nHere is the current camera view from the robot:",
+                base64_image=base64_image,
             )
             
             logger.info(f"Claude response: {response}")

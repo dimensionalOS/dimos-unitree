@@ -181,6 +181,9 @@ class LLMAgent(Agent):
         
         # Subject for emitting responses
         self.response_subject = Subject()
+        
+        # Conversation history for maintaining context between calls
+        self.conversation_history = []
 
     def _update_query(self, incoming_query: Optional[str]) -> None:
         """Updates the query if an incoming query is provided.

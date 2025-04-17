@@ -33,7 +33,7 @@ load_dotenv()
 robot = UnitreeGo2(ip=os.getenv('ROBOT_IP'),
                     ros_control=UnitreeROSControl(),
                     skills=MyUnitreeSkills(),
-                    mock_connection=True)
+                    mock_connection=False)
 
 # Create a subject for agent responses
 agent_response_subject = rx.subject.Subject()
@@ -63,7 +63,7 @@ IMPORTANT INSTRUCTIONS:
 
 Example: If the user asks to move forward 1 meter, call the Move function with distance=1""",
     model_name="claude-3-7-sonnet-latest",
-    thinking_budget_tokens=10000
+    thinking_budget_tokens=2000
 )
 
 robot_skills = robot.get_skills()
