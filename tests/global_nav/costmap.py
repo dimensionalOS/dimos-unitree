@@ -4,6 +4,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from typing import Tuple, Optional, Dict, Any, List, Union
 from scipy import ndimage
+import heapq
 
 
 class Costmap:
@@ -101,11 +102,22 @@ class Costmap:
         world_y = grid_y * self.resolution + self.origin_y
         return world_x, world_y
 
-    def is_occupied(self, x: float, y: float) -> bool:
-        """Check if a position in world coordinates is occupied."""
+    def is_occupied(self, x: float, y: float, threshold: int = 50) -> bool:
+        """Check if a position in world coordinates is occupied.
+
+        Args:
+            x: X coordinate in world frame
+            y: Y coordinate in world frame
+            threshold: Cost threshold above which a cell is considered occupied (0-100)
+
+        Returns:
+            True if position is occupied or out of bounds, False otherwise
+        """
         grid_x, grid_y = self.world_to_grid(x, y)
         if 0 <= grid_x < self.width and 0 <= grid_y < self.height:
-            return self.grid[grid_y, grid_x] > 0
+            # Consider unknown (-1) as unoccupied for navigation purposes
+            value = self.grid[grid_y, grid_x]
+            return value > 0 and value >= threshold
         return True  # Consider out-of-bounds as occupied
 
     def get_value(self, x: float, y: float) -> Optional[int]:
@@ -367,6 +379,204 @@ class Costmap:
 
         return fig
 
+    def astar(
+        self,
+        goal_x: float,
+        goal_y: float,
+        start_x: float = 0.0,
+        start_y: float = 0.0,
+        cost_threshold: int = 50,
+        allow_diagonal: bool = True,
+    ) -> List[Tuple[float, float]]:
+        """
+        A* path planning algorithm from start to goal position.
+
+        Args:
+            goal_x: Goal position X coordinate in world frame
+            goal_y: Goal position Y coordinate in world frame
+            start_x: Start position X coordinate in world frame (default: 0.0)
+            start_y: Start position Y coordinate in world frame (default: 0.0)
+            cost_threshold: Cost threshold above which a cell is considered an obstacle
+            allow_diagonal: Whether to allow diagonal movements
+
+        Returns:
+            List of waypoints as (x, y) tuples in world coordinates, or empty list if no path found
+        """
+        # Convert world coordinates to grid coordinates
+        start_grid_x, start_grid_y = self.world_to_grid(start_x, start_y)
+        goal_grid_x, goal_grid_y = self.world_to_grid(goal_x, goal_y)
+
+        # Check if start or goal is out of bounds or in an obstacle
+        if not (
+            0 <= start_grid_x < self.width and 0 <= start_grid_y < self.height
+        ) or not (0 <= goal_grid_x < self.width and 0 <= goal_grid_y < self.height):
+            print("Start or goal position is out of bounds")
+            return []
+
+        # Check if start or goal is in an obstacle
+        if (
+            self.grid[start_grid_y, start_grid_x] >= cost_threshold
+            or self.grid[goal_grid_y, goal_grid_x] >= cost_threshold
+        ):
+            print("Start or goal position is in an obstacle")
+            return []
+
+        # Define possible movements (8-connected grid)
+        if allow_diagonal:
+            # 8-connected grid: horizontal, vertical, and diagonal movements
+            directions = [
+                (0, 1),
+                (1, 0),
+                (0, -1),
+                (-1, 0),
+                (1, 1),
+                (1, -1),
+                (-1, 1),
+                (-1, -1),
+            ]
+        else:
+            # 4-connected grid: only horizontal and vertical movements
+            directions = [(0, 1), (1, 0), (0, -1), (-1, 0)]
+
+        # Cost for each movement (straight vs diagonal)
+        movement_costs = (
+            [1.0, 1.0, 1.0, 1.0, 1.414, 1.414, 1.414, 1.414]
+            if allow_diagonal
+            else [1.0, 1.0, 1.0, 1.0]
+        )
+
+        # A* algorithm implementation
+        open_set = []  # Priority queue for nodes to explore
+        closed_set = set()  # Set of explored nodes
+
+        # Dictionary to store cost from start and parents for each node
+        g_score = {(start_grid_x, start_grid_y): 0}
+        parents = {}
+
+        # Heuristic function (Euclidean distance)
+        def heuristic(x1, y1, x2, y2):
+            return math.sqrt((x2 - x1) ** 2 + (y2 - y1) ** 2)
+
+        # Start with the starting node
+        f_score = g_score[(start_grid_x, start_grid_y)] + heuristic(
+            start_grid_x, start_grid_y, goal_grid_x, goal_grid_y
+        )
+        heapq.heappush(open_set, (f_score, (start_grid_x, start_grid_y)))
+
+        while open_set:
+            # Get the node with the lowest f_score
+            _, current = heapq.heappop(open_set)
+            current_x, current_y = current
+
+            # Check if we've reached the goal
+            if current == (goal_grid_x, goal_grid_y):
+                # Reconstruct the path
+                path = []
+                while current in parents:
+                    world_x, world_y = self.grid_to_world(current[0], current[1])
+                    path.append((world_x, world_y))
+                    current = parents[current]
+
+                # Add the start position
+                world_x, world_y = self.grid_to_world(start_grid_x, start_grid_y)
+                path.append((world_x, world_y))
+
+                # Reverse the path (start to goal)
+                path.reverse()
+
+                # Add the goal position if it's not already included
+                world_x, world_y = self.grid_to_world(goal_grid_x, goal_grid_y)
+                if not path or path[-1] != (world_x, world_y):
+                    path.append((world_x, world_y))
+
+                return path
+
+            # Add current node to closed set
+            closed_set.add(current)
+
+            # Explore neighbors
+            for i, (dx, dy) in enumerate(directions):
+                neighbor_x, neighbor_y = current_x + dx, current_y + dy
+                neighbor = (neighbor_x, neighbor_y)
+
+                # Check if the neighbor is valid
+                if not (0 <= neighbor_x < self.width and 0 <= neighbor_y < self.height):
+                    continue
+
+                # Check if the neighbor is already explored
+                if neighbor in closed_set:
+                    continue
+
+                # Check if the neighbor is an obstacle
+                if self.grid[neighbor_y, neighbor_x] >= cost_threshold:
+                    continue
+
+                # Calculate g_score for the neighbor
+                tentative_g_score = g_score[current] + movement_costs[i]
+
+                # Get the current g_score for the neighbor or set to infinity if not yet explored
+                neighbor_g_score = g_score.get(neighbor, float("inf"))
+
+                # If this path to the neighbor is better than any previous one
+                if tentative_g_score < neighbor_g_score:
+                    # Update the neighbor's scores and parent
+                    parents[neighbor] = current
+                    g_score[neighbor] = tentative_g_score
+                    f_score = tentative_g_score + heuristic(
+                        neighbor_x, neighbor_y, goal_grid_x, goal_grid_y
+                    )
+
+                    # Add the neighbor to the open set with its f_score
+                    heapq.heappush(open_set, (f_score, neighbor))
+
+        # If we get here, no path was found
+        return []
+
+    def plot_path(self, path: List[Tuple[float, float]], **kwargs) -> plt.Figure:
+        """
+        Plot the costmap with a path overlay.
+
+        Args:
+            path: List of (x, y) tuples representing the path in world coordinates
+            **kwargs: Additional arguments to pass to the plot method
+
+        Returns:
+            The matplotlib Figure object
+        """
+        # Create a dictionary of additional points for the plot method
+        additional_points = kwargs.pop("additional_points", {})
+
+        # Add the path to the additional_points dictionary
+        if path:
+            start_point = path[0]
+            goal_point = path[-1]
+
+            # Add start and goal points
+            additional_points["start"] = {
+                "positions": [start_point],
+                "color": "green",
+                "marker": "o",
+                "size": 100,
+            }
+
+            additional_points["goal"] = {
+                "positions": [goal_point],
+                "color": "blue",
+                "marker": "s",  # square
+                "size": 100,
+            }
+
+            # Add the path
+            additional_points["path"] = {
+                "positions": path,
+                "color": "lime",
+                "marker": ".",
+                "size": 50,
+            }
+
+        # Call the regular plot method with the additional points
+        return self.plot(additional_points=additional_points, **kwargs)
+
 
 if __name__ == "__main__":
     costmap = Costmap.from_pickle("costmapMsg.pickle")
@@ -374,10 +584,25 @@ if __name__ == "__main__":
     print(f"Resolution: {costmap.resolution}")
     print(f"Origin: ({costmap.origin_x}, {costmap.origin_y}, {costmap.origin_theta})")
 
-    # Plot the costmap with special handling for unknown (-1) cells and meter grid
-    costmap.plot()
-    costmap.smudge(kernel_size=5, iterations=10).plot()
+    # Create a smudged version of the costmap for better planning
+    smudged_costmap = costmap.smudge(
+        kernel_size=10, iterations=10, threshold=80, preserve_unknown=False
+    )
 
-    # block, wait for input and exit
+    # Plan a path from origin (0,0) to a goal point (adjust these coordinates as needed)
+    goal_x, goal_y = 5.0, -7.0
 
-    input("press any key")
+    # Find path using A* algorithm
+    path = smudged_costmap.astar(goal_x=goal_x, goal_y=goal_y, cost_threshold=80)
+
+    if path:
+        print(f"Path found with {len(path)} waypoints")
+        # Plot the costmap with the path
+        smudged_costmap.plot_path(path, title="A* Path on Costmap")
+    else:
+        print("No path found")
+        # Plot the costmap without a path
+        smudged_costmap.plot(title="No Path Found")
+
+    # Block, wait for input and exit
+    input("Press Enter to exit...")
