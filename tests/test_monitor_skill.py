@@ -71,8 +71,8 @@ def main():
     
     robot_skills = robot.get_skills()
     
-    robot_skills.add_skill(MonitorSkill)
-    robot_skills.add_skill(KillSkill)
+    robot_skills.add(MonitorSkill)
+    robot_skills.add(KillSkill)
     
     robot_skills.create_instance("MonitorSkill", robot=robot, claude_agent=agent)
     robot_skills.create_instance("KillSkill")
@@ -82,7 +82,7 @@ def main():
     web_interface_thread.start()
     
     logger.info("Starting monitor skill...")
-    result = robot_skills.call_function("MonitorSkill", 
+    result = robot_skills.call("MonitorSkill", 
                                        timestep=10.0,  # 10 seconds between monitoring queries
                                        query_text="What do you see in this image? Alert me if you see any people.",
                                        max_duration=60.0)  # Run for 60 seconds
@@ -95,13 +95,13 @@ def main():
         time.sleep(30.0)
         
         logger.info("Killing the monitor skill...")
-        kill_result = robot_skills.call_function("KillSkill", skill_name="monitor")
+        kill_result = robot_skills.call("KillSkill", skill_name="monitor")
         logger.info(f"Kill skill result: {kill_result}")
         
         logger.info(f"Running skills after kill: {get_running_skills().keys()}")
         
         logger.info("Starting monitor skill again with different parameters...")
-        result = robot_skills.call_function("MonitorSkill", 
+        result = robot_skills.call("MonitorSkill", 
                                           timestep=5.0,  # 5 seconds between monitoring queries
                                           query_text="Monitor for any movement in the scene.",
                                           max_duration=20.0)  # Run for 20 seconds
