@@ -63,16 +63,20 @@ class Vector:
         if self.dim < 2:
             return self.__repr__()
 
-        repr = ["←", "↖", "↑", "↗", "→", "↘", "↓", "↙"]
+        def getArrow():
+            repr = ["←", "↖", "↑", "↗", "→", "↘", "↓", "↙"]
 
-        # Calculate angle in radians and convert to directional index
-        angle = np.arctan2(self.y, self.x)
-        # Map angle to 0-7 index (8 directions) with proper orientation
-        dir_index = int(((angle + np.pi) * 4 / np.pi) % 8)
-        # Get directional arrow symbol
-        arrow = repr[dir_index]
+            if self.y == 0 and self.x == 0:
+                return "·"
 
-        return f"{arrow} Vector {self.__repr__()}"
+            # Calculate angle in radians and convert to directional index
+            angle = np.arctan2(self.y, self.x)
+            # Map angle to 0-7 index (8 directions) with proper orientation
+            dir_index = int(((angle + np.pi) * 4 / np.pi) % 8)
+            # Get directional arrow symbol
+            return repr[dir_index]
+
+        return f"{getArrow()} Vector {self.__repr__()}"
 
     def __eq__(self, other) -> bool:
         if isinstance(other, Vector):

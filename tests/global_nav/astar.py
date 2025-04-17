@@ -5,6 +5,7 @@ from typing import List, Tuple, Optional
 from path import Path
 from vector import Vector
 from vectortypes import VectorLike, to_numpy, to_vector, x, y
+from draw import draw
 
 
 def astar(
@@ -172,7 +173,6 @@ if __name__ == "__main__":
 
     # Load the costmap
     costmap = Costmap.from_pickle("costmapMsg.pickle")
-    print(costmap)
 
     # Create a smudged version of the costmap for better planning
     smudged_costmap = costmap.smudge(
@@ -180,9 +180,14 @@ if __name__ == "__main__":
     )
 
     # Test different types of inputs for goal position
-    goal = (5.0, -7.0)  # Define a single position
+    start = Vector(0.0, 0.0)  # Define a single position
+    goal = Vector(5.0, -7.0)  # Define a single position
+
+    print("A* navigating\nfrom\n", start, "\nto\n", goal, "\non\n", smudged_costmap)
 
     # Try each type of input
-    path = astar(smudged_costmap, goal=goal, cost_threshold=50)
+    path = astar(smudged_costmap, start=start, goal=goal, cost_threshold=50)
 
-    print(path)
+    print("result\n", path)
+
+    draw(smudged_costmap, path, (start, {"color": "green"}), goal)
