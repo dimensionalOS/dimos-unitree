@@ -2,10 +2,18 @@ services:
   dev-environment:
     image: dimensionalos/dev-base
     container_name: dimos-dev
+    network_mode: "host"
     volumes:
       - ../../../:/app
+
+      # X11 forwarding
+      - /tmp/.X11-unix:/tmp/.X11-unix
+      - ${HOME}/.Xauthority:/root/.Xauthority:rw
+
     environment:
       - PYTHONPATH=/app
+      - DISPLAY=${DISPLAY:-}
+
     ports:
       - "5555:5555"
       - "3000:3000"
