@@ -33,7 +33,7 @@ def ros_msg_to_pose_tuple(odom_msg) -> Tuple[float, float, float]:
     
     return (x, y, theta)
 
-def ros_msg_to_numpy_grid(costmap_msg) -> Tuple[np.ndarray, float, Tuple[float, float, float]]:
+def ros_msg_to_numpy_grid(costmap_msg) -> Tuple[np.ndarray, Tuple[int, int, float], Tuple[float, float, float]]:
     """Convert ROS OccupancyGrid message to numpy array, resolution, and origin pose"""
     if costmap_msg is None:
         return np.zeros((100, 100), dtype=np.int8), 0.1, (0.0, 0.0, 0.0)
@@ -54,7 +54,7 @@ def ros_msg_to_numpy_grid(costmap_msg) -> Tuple[np.ndarray, float, Tuple[float, 
     data = np.array(costmap_msg.data, dtype=np.int8)
     grid = data.reshape((height, width))
     
-    return grid, resolution, (origin_x, origin_y, origin_theta)
+    return grid, (width, height, resolution), (origin_x, origin_y, origin_theta)
 
 def normalize_angle(angle: float) -> float:
     """Normalize angle to [-pi, pi] range"""

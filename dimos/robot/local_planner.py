@@ -103,7 +103,7 @@ class VFHPurePursuitPlanner:
         Compute velocity commands using VFH + Pure Pursuit.
         """
         costmap = self.robot.ros_control.get_costmap()
-        occupancy_grid, grid_resolution, _ = ros_msg_to_numpy_grid(costmap)  # Use imported function
+        occupancy_grid, grid_info, _ = ros_msg_to_numpy_grid(costmap)  # Use imported function
         
         odom = self.robot.ros_control.get_odometry()
         robot_pose = ros_msg_to_pose_tuple(odom)  # Use imported function
@@ -122,7 +122,7 @@ class VFHPurePursuitPlanner:
         if goal_distance < self.goal_tolerance:
             return {'x_vel': 0.0, 'angular_vel': 0.0}
         
-        self.histogram = self.build_polar_histogram(occupancy_grid, grid_resolution, robot_pose)
+        self.histogram = self.build_polar_histogram(occupancy_grid, grid_info, robot_pose)
         self.selected_direction = self.select_direction(self.histogram, goal_direction)
         linear_vel, angular_vel = self.compute_pure_pursuit(goal_distance, self.selected_direction)
         
@@ -193,11 +193,12 @@ class VFHPurePursuitPlanner:
     
     def build_polar_histogram(self, 
                               occupancy_grid: np.ndarray, 
-                              grid_resolution: float,
+                              grid_info: Tuple[int, int, float],
                               robot_pose: Tuple[float, float, float]) -> np.ndarray:
         """ Build polar histogram (remains unchanged)."""
         # Initialize histogram
         histogram = np.zeros(self.histogram_bins)
+        grid_width, grid_height, grid_resolution = grid_info
         
         # Extract robot position in grid coordinates
         robot_x, robot_y, robot_theta = robot_pose
@@ -216,7 +217,7 @@ class VFHPurePursuitPlanner:
         height, width = occupancy_grid.shape
         
         # Maximum detection range (in cells)
-        max_range_cells = int(5.0 / grid_resolution)  # 5 meters detection range
+        max_range_cells = int(max(grid_width, grid_height) / grid_resolution)  # 5 meters detection range
         
         # Scan the occupancy grid and update the histogram
         for y in range(max(0, robot_cell_y - max_range_cells), 
@@ -230,8 +231,6 @@ class VFHPurePursuitPlanner:
                 dx_cell = x - robot_cell_x
                 dy_cell = y - robot_cell_y
                 distance = np.linalg.norm([dx_cell, dy_cell]) * grid_resolution
-                
-                if distance > 5.0: continue # Skip if beyond sensor range
                 
                 # Angle relative to grid origin
                 angle_grid = np.arctan2(dy_cell, dx_cell)
