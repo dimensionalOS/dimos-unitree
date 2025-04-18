@@ -53,7 +53,7 @@ def main():
         goal_following_thread = threading.Thread(
             target=robot.navigate_to_goal_local,
             kwargs={
-                'goal_xy_robot': (2.0, 0.0),
+                'goal_xy_robot': (3.0, 0.0),
                 'timeout': 300
             },
             daemon=True

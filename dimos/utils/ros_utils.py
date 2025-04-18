@@ -41,6 +41,9 @@ def ros_msg_to_numpy_grid(costmap_msg) -> Tuple[np.ndarray, Tuple[int, int, floa
     width = costmap_msg.info.width
     height = costmap_msg.info.height
     resolution = costmap_msg.info.resolution
+
+    map_width = width * resolution
+    map_height = height * resolution
     
     origin_x = costmap_msg.info.origin.position.x
     origin_y = costmap_msg.info.origin.position.y
@@ -54,7 +57,7 @@ def ros_msg_to_numpy_grid(costmap_msg) -> Tuple[np.ndarray, Tuple[int, int, floa
     data = np.array(costmap_msg.data, dtype=np.int8)
     grid = data.reshape((height, width))
     
-    return grid, (width, height, resolution), (origin_x, origin_y, origin_theta)
+    return grid, (map_width, map_height, resolution), (origin_x, origin_y, origin_theta)
 
 def normalize_angle(angle: float) -> float:
     """Normalize angle to [-pi, pi] range"""
