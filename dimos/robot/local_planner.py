@@ -88,17 +88,15 @@ class VFHPurePursuitPlanner:
             goal_y_odom = robot_y + goal_x_robot * np.sin(robot_theta) + goal_y_robot * np.cos(robot_theta)
             
             self.goal_xy = (goal_x_odom, goal_y_odom)
-            goal_safe = self.adjust_goal_for_collision()
             logger.info(f"Goal set in robot frame ({goal_x_robot:.2f}, {goal_y_robot:.2f}), "
                         f"transformed to odom frame: ({self.goal_xy[0]:.2f}, {self.goal_xy[1]:.2f})")
-            if not goal_safe:
-                logger.warning("Goal is in collision. Adjusted goal to safe position.")
         else:
             self.goal_xy = goal_xy
-            goal_safe = self.adjust_goal_for_collision()
             logger.info(f"Goal set directly in odom frame: ({self.goal_xy[0]:.2f}, {self.goal_xy[1]:.2f})")
-            if not goal_safe:
-                logger.warning("Goal is in collision. Adjusted goal to safe position.")
+    
+        if self.check_goal_collision():
+            logger.warning("Goal is in collision. Adjusted goal to safe position.")
+            self.goal_xy = self.adjust_goal_to_valid_position(self.goal_xy, 1.0)
 
     def plan(self) -> Dict[str, float]:
         """
@@ -110,10 +108,10 @@ class VFHPurePursuitPlanner:
         odom = self.robot.ros_control.get_odometry()
         robot_pose = ros_msg_to_pose_tuple(odom)  # Use imported function
         
-        goal_xy = self.goal_xy
-        self.adjust_goal_for_collision()
         robot_x, robot_y, robot_theta = robot_pose
-        goal_x, goal_y = goal_xy
+        if self.goal_xy is None:
+            return {'x_vel': 0.0, 'angular_vel': 0.0}
+        goal_x, goal_y = self.goal_xy
         
         dx = goal_x - robot_x
         dy = goal_y - robot_y
@@ -301,130 +299,170 @@ class VFHPurePursuitPlanner:
         distance_to_goal = np.linalg.norm([goal_x - robot_x, goal_y - robot_y])
         return distance_to_goal < self.goal_tolerance
 
-    def adjust_goal_for_collision(self,
-                                       collision_threshold: int = 99,
-                                       search_steps: int = 50,
-                                       buffer_distance_meters: float = 0.5,
-                                       neighbor_search_radius_meters: float = 1.0) -> bool:
-        """Checks if the current goal is in collision. If so, searches backwards
-           along the line from the goal towards the robot to find the closest cell
-           that is both collision-free and at least `buffer_distance_meters` away
-           from any colliding cell. Updates self.goal_xy if found.
-
-        Args:
-            collision_threshold: Occupancy value (0-100) considered an obstacle.
-            search_steps: Max steps to check along the line segment.
-            buffer_distance_meters: Required minimum distance from the candidate cell
-                                    center to the nearest colliding cell center.
-            neighbor_search_radius_meters: How far around a candidate cell to search
-                                           for colliding neighbors.
-
+    def check_goal_collision(self) -> bool:
+        """Check if the current goal is in collision with obstacles in the costmap.
+        
         Returns:
-            bool: True if the original goal was safe or check failed/no suitable adjustment found,
-                  False if the original goal was in collision and a suitable buffered goal was found and set.
+            bool: True if goal is in collision, False if goal is safe or cannot be checked
         """
         if self.goal_xy is None:
-            logger.warning("Goal not set, cannot adjust.")
-            return True
-
+            logger.warning("Cannot check collision: No goal set")
+            return False
+            
         costmap_msg = self.robot.ros_control.get_costmap()
-        odom_msg = self.robot.ros_control.get_odometry()
-        if costmap_msg is None or odom_msg is None:
-            logger.warning("Cannot adjust goal: Costmap or Odometry data unavailable.")
-            return True
-
+        if costmap_msg is None:
+            logger.warning("Cannot check collision: No costmap available")
+            return False
+            
+        # Get costmap data
         occupancy_grid, grid_resolution, grid_origin = ros_msg_to_numpy_grid(costmap_msg)
-        if grid_resolution <= 1e-6: # Use a small epsilon for float comparison
-             logger.error("Invalid grid resolution (<= 0) for collision check.")
-             return True
         grid_origin_x, grid_origin_y, _ = grid_origin
         height, width = occupancy_grid.shape
-        robot_pose = ros_msg_to_pose_tuple(odom_msg)
-        robot_x, robot_y, _ = robot_pose
-
-        original_goal_x_odom, original_goal_y_odom = self.goal_xy
-
-        # Transform original goal to grid cell coordinates
-        goal_rel_x = original_goal_x_odom - grid_origin_x
-        goal_rel_y = original_goal_y_odom - grid_origin_y
+            
+        # Convert goal from odom coordinates to grid cells
+        goal_x, goal_y = self.goal_xy
+        goal_rel_x = goal_x - grid_origin_x
+        goal_rel_y = goal_y - grid_origin_y
         goal_cell_x = int(goal_rel_x / grid_resolution)
         goal_cell_y = int(goal_rel_y / grid_resolution)
+            
+        # Check if goal is within the costmap bounds
+        if 0 <= goal_cell_x < width and 0 <= goal_cell_y < height:
+            # Check the occupancy value at the goal
+            occupancy_value = occupancy_grid[goal_cell_y, goal_cell_x]
+            collision_threshold = 80  # Consider values above 80 as obstacles
+            
+            is_collision = occupancy_value >= collision_threshold
+            if is_collision:
+                logger.warning(f"Goal is in collision: occupancy value = {occupancy_value}")
+            return is_collision
+        else:
+            logger.warning(f"Goal ({goal_cell_x}, {goal_cell_y}) is outside costmap bounds")
+            return False  # Can't determine collision if outside bounds
 
-        if not (0 <= goal_cell_x < width and 0 <= goal_cell_y < height):
-            logger.warning("Original goal is outside costmap. No adjustment needed.")
-            return True
-
-        # Check if original goal needs adjustment
-        original_cell_value = occupancy_grid[goal_cell_y, goal_cell_x]
-        if original_cell_value < collision_threshold:
-            logger.debug("Original goal cell is safe. No adjustment needed.")
-            return True
-
-        logger.warning(f"Original goal ({goal_cell_x}, {goal_cell_y}) colliding (val: {original_cell_value}). Searching for buffered safe cell...")
-
-        # Transform robot pose to grid cell coordinates
-        robot_rel_x = robot_x - grid_origin_x
-        robot_rel_y = robot_y - grid_origin_y
-        robot_cell_x = int(robot_rel_x / grid_resolution)
-        robot_cell_y = int(robot_rel_y / grid_resolution)
-
-        found_buffered_goal = False
-        search_radius_cells = max(1, int(neighbor_search_radius_meters / grid_resolution))
-
-        # Iterate backwards from goal towards robot
-        for i in range(search_steps - 1, -1, -1):
-            t = i / max(1, search_steps - 1)
-            check_cell_x = int(robot_cell_x + t * (goal_cell_x - robot_cell_x))
-            check_cell_y = int(robot_cell_y + t * (goal_cell_y - robot_cell_y))
-
-            if not (0 <= check_cell_x < width and 0 <= check_cell_y < height):
-                continue # Skip cells outside map
-
-            # 1. Check if the candidate cell itself is safe
-            cell_value = occupancy_grid[check_cell_y, check_cell_x]
-            if cell_value < collision_threshold:
-                # 2. Find min distance to nearest colliding cell within radius
-                min_dist_sq_to_collision = float('inf')
-                collision_found_nearby = False
-                for dx in range(-search_radius_cells, search_radius_cells + 1):
-                    for dy in range(-search_radius_cells, search_radius_cells + 1):
-                        if dx == 0 and dy == 0: continue # Skip self check
-
-                        nx, ny = check_cell_x + dx, check_cell_y + dy
-                        if 0 <= nx < width and 0 <= ny < height:
-                            neighbor_value = occupancy_grid[ny, nx]
-                            if neighbor_value >= collision_threshold:
-                                collision_found_nearby = True
-                                dist_sq = float(dx*dx + dy*dy) # Ensure float for sqrt
-                                min_dist_sq_to_collision = min(min_dist_sq_to_collision, dist_sq)
-
-                # Calculate distance only if collision was found nearby
-                min_dist_to_collision = float('inf')
-                if collision_found_nearby:
-                     # Avoid sqrt of infinity if no collision found, though logic prevents this case here
-                     if min_dist_sq_to_collision != float('inf'):
-                           min_dist_to_collision = np.sqrt(min_dist_sq_to_collision) * grid_resolution
-
-                # 3. Check if buffer distance is met (either no collision nearby or closest is far enough)
-                if min_dist_to_collision >= buffer_distance_meters:
-                    # Found a suitable cell
-                    new_goal_cell_x = check_cell_x
-                    new_goal_cell_y = check_cell_y
-
-                    # Convert safe cell center back to odom coordinates
-                    new_goal_x_odom = grid_origin_x + (new_goal_cell_x + 0.5) * grid_resolution
-                    new_goal_y_odom = grid_origin_y + (new_goal_cell_y + 0.5) * grid_resolution
-
-                    self.goal_xy = (new_goal_x_odom, new_goal_y_odom)
-                    logger.warning(f"Adjusted goal to buffered safe cell ({new_goal_cell_x}, {new_goal_cell_y}) "
-                                   f"at odom ({new_goal_x_odom:.2f}, {new_goal_y_odom:.2f}). "
-                                   f"Min dist to collision: {min_dist_to_collision:.2f}m >= {buffer_distance_meters:.2f}m.")
-                    found_buffered_goal = True
-                    break # Stop searching
-
-        if not found_buffered_goal:
-            logger.error(f"Could not find a safe cell with {buffer_distance_meters}m buffer. Goal remains unchanged at colliding position.")
-            return True # No suitable adjustment found
-
-        # Return False because original goal was colliding and we made an adjustment
-        return False
+    def adjust_goal_to_valid_position(self, goal_xy: Tuple[float, float], minimum_distance: float = None) -> Tuple[float, float]:
+        """Find a valid (non-colliding) goal position using ray casting from robot to goal.
+        
+        Args:
+            goal_xy: Original goal position (x, y) in odom frame
+            minimum_distance: Minimum distance in meters to keep from obstacles.
+                             If None, uses the planner's safety_threshold.
+        
+        Returns:
+            Tuple[float, float]: A valid goal position, or the original goal if already valid
+        """
+        # Use class safety threshold if no specific distance provided
+        if minimum_distance is None:
+            minimum_distance = self.safety_threshold
+            
+        # Check if goal is already valid
+        if not self.check_goal_collision():
+            return goal_xy
+            
+        # Get required data
+        costmap_msg = self.robot.ros_control.get_costmap()
+        odom = self.robot.ros_control.get_odometry()
+        if costmap_msg is None or odom is None:
+            return goal_xy
+            
+        # Set up costmap grid and coordinates
+        grid, resolution, origin = ros_msg_to_numpy_grid(costmap_msg)
+        origin_x, origin_y, _ = origin
+        height, width = grid.shape
+        collision_threshold = 80
+        
+        # Calculate minimum distance in grid cells
+        minimum_cells = max(1, int(minimum_distance / resolution))
+        
+        # Get robot and goal positions in both coordinate systems
+        robot_pose = ros_msg_to_pose_tuple(odom)
+        robot_x, robot_y = robot_pose[0], robot_pose[1]
+        goal_x, goal_y = goal_xy
+        
+        # Convert to grid coordinates
+        robot_cell_x = int((robot_x - origin_x) / resolution)
+        robot_cell_y = int((robot_y - origin_y) / resolution)
+        goal_cell_x = int((goal_x - origin_x) / resolution)
+        goal_cell_y = int((goal_y - origin_y) / resolution)
+        
+        # Check bounds and clip if needed
+        if not (0 <= robot_cell_x < width and 0 <= robot_cell_y < height):
+            return goal_xy
+            
+        goal_cell_x = max(0, min(goal_cell_x, width - 1))
+        goal_cell_y = max(0, min(goal_cell_y, height - 1))
+        
+        # Use Bresenham's line algorithm for ray casting
+        points = self.bresenham_line(robot_cell_x, robot_cell_y, goal_cell_x, goal_cell_y)
+        
+        # Find last safe point with minimum distance from obstacles
+        last_safe_x, last_safe_y = robot_cell_x, robot_cell_y
+        for i, (px, py) in enumerate(points):
+            # Skip checking first point (robot position)
+            if i == 0:
+                continue
+                
+            if not (0 <= px < width and 0 <= py < height):
+                continue
+                
+            # Check for collision at current point
+            if grid[py, px] >= collision_threshold:
+                # We hit an obstacle, stop searching
+                break
+                
+            # Check nearby cells for minimum distance requirement
+            meets_min_distance = True
+            
+            # Scan a square area around the point
+            for dx in range(-minimum_cells, minimum_cells + 1):
+                for dy in range(-minimum_cells, minimum_cells + 1):
+                    nx, ny = px + dx, py + dy
+                    # Skip checking out of bounds points
+                    if not (0 <= nx < width and 0 <= ny < height):
+                        continue
+                        
+                    # Calculate actual distance in cells
+                    cell_dist = np.sqrt(dx**2 + dy**2)
+                    if cell_dist <= minimum_cells and grid[ny, nx] >= collision_threshold:
+                        meets_min_distance = False
+                        break
+                        
+                if not meets_min_distance:
+                    break
+                    
+            if meets_min_distance:
+                # This point is safe and has minimum distance from obstacles
+                last_safe_x, last_safe_y = px, py
+            else:
+                # Found a point too close to obstacles, stop here
+                break
+        
+        # Convert back to odom coordinates
+        safe_odom_x = origin_x + (last_safe_x + 0.5) * resolution
+        safe_odom_y = origin_y + (last_safe_y + 0.5) * resolution
+        
+        logger.info(f"Adjusted goal to ({safe_odom_x:.2f}, {safe_odom_y:.2f}) with min distance {minimum_distance}m from obstacles")
+        return (safe_odom_x, safe_odom_y)
+        
+    def bresenham_line(self, x0: int, y0: int, x1: int, y1: int) -> list:
+        """Bresenham's line algorithm to find points along a line between (x0,y0) and (x1,y1)."""
+        points = []
+        dx = abs(x1 - x0)
+        dy = abs(y1 - y0)
+        sx = 1 if x0 < x1 else -1
+        sy = 1 if y0 < y1 else -1
+        err = dx - dy
+        
+        while True:
+            points.append((x0, y0))
+            if x0 == x1 and y0 == y1:
+                break
+            e2 = 2 * err
+            if e2 > -dy:
+                err -= dy
+                x0 += sx
+            if e2 < dx:
+                err += dx
+                y0 += sy
+                
+        return points

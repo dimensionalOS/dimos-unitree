@@ -49,6 +49,8 @@ from dimos.perception.visual_servoing import VisualServoing
 from dimos.perception.person_tracker import PersonTrackingStream
 from dimos.perception.object_tracker import ObjectTrackingStream
 from dimos.robot.local_planner import VFHPurePursuitPlanner
+from dimos.utils.ros_utils import distance_angle_to_goal_xy
+from dimos.utils.generic_subscriber import GenericSubscriber
 
 # Set up logging
 logger = setup_logger("dimos.robot.unitree.unitree_go2", level=logging.DEBUG)
@@ -189,7 +191,7 @@ class UnitreeGo2(Robot):
         
     def navigate_to(self, object_name: str, distance: float = 1.0, timeout: float = 40.0, max_retries: int = 3):
         """
-        Navigate to an object identified by name using vision-based tracking.
+        Navigate to an object identified by name using vision-based tracking and local planner.
 
         Args:
             object_name: Name of the object to navigate to
@@ -200,8 +202,6 @@ class UnitreeGo2(Robot):
         Returns:
             bool: True if navigation was successful, False otherwise
         """
-        object_visual_servoing = VisualServoing(tracking_stream=self.object_tracking_stream)
-            
         logger.warning(f"Navigating to {object_name} with desired distance {distance}m, timeout {timeout} seconds...")
         
         # Try to get a bounding box from Qwen with retries
@@ -230,38 +230,74 @@ class UnitreeGo2(Robot):
         # Start the object tracker with the detected bbox
         self.object_tracker.track(bbox, size=object_size)
         
-        # Start visual servoing to the object
-        success = object_visual_servoing.start_tracking(desired_distance=distance)
-        if not success:
-            logger.error("Failed to start visual servoing")
-            return False
+        # Create object tracking stream
+        object_tracking_stream = self.object_tracking_stream
+        
+        # Create a GenericSubscriber to get latest tracking data
+        tracking_subscriber = GenericSubscriber(object_tracking_stream)
         
         # Main navigation loop
         start_time = time.time()
         goal_reached = False
+        tracking_started = False
+        last_update_time = 0
+        min_update_interval = 0.5  # Update goal at max 5Hz
         
-        while object_visual_servoing.running and time.time() - start_time < timeout:
-            output = object_visual_servoing.updateTracking()
-            x_vel = output.get("linear_vel")
-            z_vel = output.get("angular_vel")
-            # logger.debug(f"Navigating to object: x_vel: {x_vel}, z_vel: {z_vel}")
-            self.ros_control.move_vel_control(x=x_vel, y=0, yaw=z_vel)
-            time.sleep(0.05)
-            if object_visual_servoing.is_goal_reached():
+        while time.time() - start_time < timeout:
+            # Get latest tracking data
+            tracking_data = tracking_subscriber.get_data()
+            
+            # Check if we have valid tracking data with targets
+            if tracking_data and tracking_data.get("targets") and tracking_data["targets"] and not tracking_started:
+                target = tracking_data["targets"][0]
+                
+                # Only update goal position if we have distance and angle data
+                current_time = time.time()
+                if "distance" in target and "angle" in target and current_time - last_update_time >= min_update_interval:
+                    # Convert target distance and angle to xy coordinates in robot frame
+                    logger.info(f"Target distance: {target['distance'] - distance}, Target angle: {target['angle']}")
+                    goal_x_robot, goal_y_robot = distance_angle_to_goal_xy(
+                        target["distance"] - distance,  # Subtract desired distance to stop short
+                        -target["angle"]
+                    )
+                    
+                    # Update the goal in the local planner
+                    self.local_planner.set_goal((goal_x_robot, goal_y_robot), is_robot_frame=True)
+                    last_update_time = current_time
+                    tracking_started = True
+            
+            # Check if goal has been reached (near to object at desired distance)
+            if self.local_planner.is_goal_reached():
                 goal_reached = True
+                logger.info(f"Goal reached! Arrived at {object_name} at desired distance.")
                 break
-        
-        # Stop the robot and tracking
+            
+            # Get planned velocity from local planner
+            vel_command = self.local_planner.plan()
+            x_vel = vel_command.get('x_vel', 0.0)
+            angular_vel = vel_command.get('angular_vel', 0.0)
+            
+            # Send velocity command to robot
+            self.ros_control.move_vel_control(x=x_vel, y=0, yaw=angular_vel)
+
+            # Check if tracking has been lost
+            if tracking_started and (not tracking_data or not tracking_data.get("targets") or not tracking_data["targets"]):
+                logger.warning("Target lost during navigation. Stopping.")
+                break
+            
+            # Control rate
+            time.sleep(0.05)
+                
         self.ros_control.stop()
-        object_visual_servoing.stop_tracking()
+            
+        # Clean up tracking subscriber
+        if tracking_subscriber:
+            tracking_subscriber.dispose()
         
         if goal_reached:
             logger.info(f"Successfully navigated to {object_name}")
         else:
             logger.warning(f"Failed to reach {object_name} within timeout")
-
-        # Clean up the visual servoing
-        del object_visual_servoing
             
         return goal_reached
 
