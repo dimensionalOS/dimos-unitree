@@ -69,7 +69,7 @@ class VFHPurePursuitPlanner:
         
         # VFH parameters
         self.alpha = 0.1  # Histogram smoothing factor
-        self.obstacle_weight = 1.5
+        self.obstacle_weight = 2.0
         self.goal_weight = 1.0
         self.prev_direction_weight = 0.5
         self.prev_selected_angle = 0.0
@@ -136,7 +136,8 @@ class VFHPurePursuitPlanner:
             costmap = self.robot.ros_control.get_costmap()
             odom = self.robot.ros_control.get_odometry()
             
-            occupancy_grid, grid_resolution, grid_origin = ros_msg_to_numpy_grid(costmap)
+            occupancy_grid, grid_info, grid_origin = ros_msg_to_numpy_grid(costmap)
+            _, _, grid_resolution = grid_info
             robot_pose = ros_msg_to_pose_tuple(odom)
             goal_xy = self.goal_xy
             
@@ -233,16 +234,21 @@ class VFHPurePursuitPlanner:
                 distance = np.linalg.norm([dx_cell, dy_cell]) * grid_resolution
                 
                 # Angle relative to grid origin
-                angle_grid = np.arctan2(dy_cell, dx_cell)
+                angle_grid = np.arctan2(dy_cell, dx_cell) 
                 # Angle relative to robot's orientation
-                angle_robot = normalize_angle(angle_grid - robot_theta)
+                angle_robot = normalize_angle(angle_grid - robot_theta) 
                 
                 # Convert angle to bin index
                 bin_index = int(((angle_robot + np.pi) / (2 * np.pi)) * self.histogram_bins) % self.histogram_bins
                 
-                # Update histogram
-                obstacle_value = occupancy_grid[y, x] / 100.0  # Normalize
+                # Update histogram with modified scaling based on distance
+                obstacle_value = occupancy_grid[y, x] / 100.0  # Normalize to 0-1 range
+                
                 if distance > 0:
+                    # Apply different scaling based on whether obstacle is within safety threshold
+                    if distance <= self.safety_threshold:
+                        histogram[bin_index] += obstacle_value * (1.0 + (1.0 - distance / self.safety_threshold))
+                    # Use inverse square law for obstacles beyond safety threshold
                     histogram[bin_index] += obstacle_value / (distance ** 2)
         
         # Smooth histogram
@@ -314,7 +320,8 @@ class VFHPurePursuitPlanner:
             return False
             
         # Get costmap data
-        occupancy_grid, grid_resolution, grid_origin = ros_msg_to_numpy_grid(costmap_msg)
+        occupancy_grid, grid_info, grid_origin = ros_msg_to_numpy_grid(costmap_msg)
+        _, _, grid_resolution = grid_info
         grid_origin_x, grid_origin_y, _ = grid_origin
         height, width = occupancy_grid.shape
             
@@ -365,7 +372,8 @@ class VFHPurePursuitPlanner:
             return goal_xy
             
         # Set up costmap grid and coordinates
-        grid, resolution, origin = ros_msg_to_numpy_grid(costmap_msg)
+        grid, grid_info, origin = ros_msg_to_numpy_grid(costmap_msg)
+        _, _, resolution = grid_info
         origin_x, origin_y, _ = origin
         height, width = grid.shape
         collision_threshold = 80
