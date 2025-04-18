@@ -52,6 +52,9 @@ soundfile
 #Hugging Face
 transformers[torch]==4.49.0
 
+#Vector Embedding
+sentence_transformers
+
 # CTransforms GGUF - GPU required
 ctransformers[cuda]==0.2.27
 
