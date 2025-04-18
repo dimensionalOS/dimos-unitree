@@ -1,3 +1,6 @@
+import matplotlib
+
+# matplotlib.use("GTK3Cairo")
 import os
 import time
 import threading
@@ -43,6 +46,7 @@ def init_robot(env):
             env.update({"base_link": msg})
 
             env["position"] = Vector(msg.transform.translation).to_2d()
+            # euler angle, first value is yaw
             env["rotation"] = Vector(rotation.as_euler("zyx", degrees=False))
 
         base_link.subscribe(on_next=cb)
@@ -52,7 +56,9 @@ def init_robot(env):
             # this is a bit dumb tbh, we should have a stream :/
             costmap_msg = robot.ros_control.get_global_costmap()
             if costmap_msg is not None:
-                env["costmap"] = Costmap.from_msg(costmap_msg).smudge()
+                env["costmap"] = Costmap.from_msg(costmap_msg).smudge(
+                    preserve_unknown=True
+                )
             time.sleep(1)
 
     sub_position()
@@ -75,43 +81,11 @@ def main():
         "rotation": Vector(0, 0),
         "target": Vector(0, 0),
         "path": Path(),
-        "last_draw": 0,
         "is_navigating": False,
         "redraw": False,
     }
 
-    # robot = init_robot(env)
-    drawer = Drawer(interactive=True, dark_mode=True)
-
-    def draw():
-        costmap = env["costmap"]
-        position = env["position"]
-        destination = env["destination"]
-        target = env["target"]
-        path = env["path"]
-        drawer.clear(title="A* Path Planning")
-        drawer.draw(
-            costmap,
-            position,
-            (target, {"color": "#ff0000", "markersize": 5, "marker": "x"}),
-            (destination, {"color": "#00ff00"}),
-            (path, {"color": "#ff0000"}),
-        )
-        plt.pause(0.1)
-        env["last_draw"] = time.time()
-
-    # Start a background thread to handle periodic drawing
-    def draw_loop():
-        while True:
-            try:
-                draw()
-            except Exception as e:
-                print(f"Error in draw loop: {e}")
-                break
-
-    # Start IPython REPL with our variables
-    draw_thread = threading.Thread(target=draw_loop, daemon=True)
-    draw_thread.start()
+    robot = init_robot(env)
 
     def navigate_to(destination: VectorLike):
         print(f"Navigating to {destination}")
@@ -150,15 +124,13 @@ def main():
             yaw_vel = 0.0  # For simplicity, no rotation for now
 
             # Move the robot with 2 second duration
-            # robot.move_vel(x_vel, y_vel, yaw_vel, 2.0)
+            robot.move_vel(x_vel, y_vel, yaw_vel, 2.0)
 
             print(f"Walking to target: {target}. Distance: {distance:.2f}m")
             return True
         else:
             print(f"Reached target: {target}")
             return False
-
-    drawer.on_click = lambda x: navigate_to(x) and draw()
 
     # Define helper functions for IPython
     def move(x, y, yaw=0.0, duration=2.0):
@@ -220,6 +192,28 @@ def main():
             print("\nAutomatic navigation interrupted")
             return False
 
+    drawer = Drawer(interactive=True, dark_mode=True)
+    drawer.on_click = lambda x: navigate_to(x) and draw()
+
+    def draw():
+        costmap = env["costmap"]
+        position = env["position"]
+        destination = env["destination"]
+        target = env["target"]
+        path = env["path"]
+        drawer.clear(title="A* Path Planning")
+        drawer.draw(
+            (costmap, {"transparent_unknown": False}),
+            position,
+            (target, {"color": "#ff0000", "markersize": 5, "marker": "x"}),
+            (destination, {"color": "#00ff00"}),
+            (path, {"color": "#ff0000"}),
+        )
+
+    while True:
+        draw()
+        plt.pause(0.1)
+
     try:
         # Import IPython for interactive REPL
         from IPython import embed
@@ -253,7 +247,7 @@ def main():
         print(f"Error during test: {e}")
     finally:
         print("Cleaning up...")
-        # robot.cleanup()
+        robot.cleanup()
         print("Test completed")
 
 

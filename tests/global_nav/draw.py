@@ -1,6 +1,6 @@
 import matplotlib
 
-matplotlib.use("GTK3Cairo")
+# matplotlib.use("GTK3Cairo")
 import matplotlib.pyplot as plt
 import numpy as np
 from typing import List, Dict, Any, Union
@@ -20,7 +20,7 @@ class Drawer:
             "grid_interval": 1.0,
             "grid_color": "black",
             "grid_alpha": 0.4,
-            "unknown_color": "lightgray",
+            "unknown_color": "black",
             "transparent_unknown": True,
             "transparent_empty": False,
         },
@@ -472,6 +472,9 @@ class Drawer:
             block: Whether to block execution when showing the plot
         """
         plt.tight_layout()
+        if self.interactive:
+            plt.draw()
+            plt.pause(0.001)
         plt.show(block=block)
 
     def save(self, filename: str, dpi: int = 300) -> None:

@@ -170,6 +170,7 @@ class Costmap:
         if preserve_unknown:
             unknown_mask = grid_copy == -1
             # Temporarily replace unknown cells with 0 for processing
+            # This allows smudging to go over unknown areas
             grid_copy[unknown_mask] = 0
 
         # Create a mask of cells that are above the threshold
@@ -224,9 +225,12 @@ class Costmap:
         # Preserve original obstacles
         smudged_map[obstacle_mask] = grid_copy[obstacle_mask]
 
-        # Restore unknown cells if needed
+        # When preserve_unknown is true, only restore unknown cells that haven't been smudged
+        # This allows smudging to extend over unknown areas
         if preserve_unknown and unknown_mask is not None:
-            smudged_map[unknown_mask] = -1
+            # Only keep unknown value in cells that weren't affected by obstacle dilation
+            unsmudged_unknown = unknown_mask & (smudged_map == 0)
+            smudged_map[unsmudged_unknown] = -1
 
         # Ensure cost values are in valid range (0-100) except for unknown (-1)
         if preserve_unknown:
