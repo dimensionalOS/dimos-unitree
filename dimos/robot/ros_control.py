@@ -18,6 +18,7 @@ from rclpy.executors import MultiThreadedExecutor
 from rclpy.action import ActionClient
 from geometry_msgs.msg import Twist
 from nav2_msgs.action import DriveOnHeading, Spin, BackUp
+
 from sensor_msgs.msg import Image, CompressedImage
 from cv_bridge import CvBridge
 from dimos.stream.video_provider import VideoProvider
@@ -43,6 +44,9 @@ from nav_msgs.msg import OccupancyGrid
 
 from dimos.utils.ros_utils import costmap_msg_to_numpy
 
+from dimos.robot.ros_transform_push import ROSTransformAbility
+from dimos.robot.ros_transform import ROSTransformRXAbility
+
 logger = setup_logger("dimos.robot.ros_control")
 
 __all__ = ["ROSControl", "RobotMode"]
@@ -58,7 +62,7 @@ class RobotMode(Enum):
     ERROR = auto()
 
 
-class ROSControl(ABC):
+class ROSControl(ROSTransformAbility, ROSTransformRXAbility, ABC):
     """Abstract base class for ROS-controlled robots"""
 
     def __init__(
@@ -634,7 +638,7 @@ class ROSControl(ABC):
     def stop(self) -> bool:
         """Stop all robot movement"""
         try:
-            self.navigator.cancelTask()
+            # self.navigator.cancelTask()
             self._current_velocity = {"x": 0.0, "y": 0.0, "z": 0.0}
             self._is_moving = False
             return True

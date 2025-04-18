@@ -1,7 +1,9 @@
 import os
 import time
-import threading
 import matplotlib.pyplot as plt
+import rx
+from rx import ops
+from datetime import timedelta
 
 from dimos.robot.unitree.unitree_go2 import UnitreeGo2
 from dimos.robot.unitree.unitree_ros_control import UnitreeROSControl
@@ -11,54 +13,77 @@ from astar import astar
 from path import Path
 from vectortypes import VectorLike, Vector
 from scipy.spatial.transform import Rotation as R
+from geometry_msgs.msg import TransformStamped
+
+
+def transform_to_euler(msg: TransformStamped) -> [Vector, Vector]:
+    q = msg.transform.rotation
+    rotation = R.from_quat([q.x, q.y, q.z, q.w])
+    return [
+        Vector(msg.transform.translation).to_2d(),
+        Vector(rotation.as_euler("zyx", degrees=False)),
+    ]
+
+
+def draw(robot_position, costmap, target, path):
+    position, rotation = robot_position
+    pass
+
+
+def motion_controller(robot_position, path):
+    position, rotation = robot_position
+    pass
+
+
+def to_thread(func, scheduler):
+    return ops.flat_map(
+        lambda args: rx.from_callable(lambda: func(*args), scheduler=scheduler)
+    )
 
 
 def init_robot(env):
-    print("Initializing Unitree Go2 robot with global planner visualization...")
-
-    # Initialize the robot with ROS control and skills
     robot = UnitreeGo2(
         ip=os.getenv("ROBOT_IP"),
         ros_control=UnitreeROSControl(),
-        # skills=MyUnitreeSkills(),
     )
 
     print("robot initialized")
 
-    def sub_position():
+    target = rx.BehaviorSubject(Vector(0, 0))
 
-        base_link = robot.ros_control.transform("base_link", 10)
+    robot_position = robot.transform("base_link").pipe(
+        ops.throttle_first(0.1),  # we pull at 10Hz
+        ops.map(transform_to_euler),
+        ops.sample(timedelta(milliseconds=0)),
+        ops.replay(buffer_size=1),
+        ops.ref_count(),
+    )
 
-        def cb(msg):
-            q = msg.transform.rotation
-            rotation = R.from_quat([q.x, q.y, q.z, q.w])
+    costmap = robot.topic("costmap").pipe(
+        ops.sample(timedelta(milliseconds=0)),
+        ops.share_latest(),
+    )
 
-            env.update({"base_link": msg})
+    # on-thread planning
+    # path = rx.combine_latest(robot_position, costmap, target).pipe(
+    #     ops.map(astar), ops.share_latest()
+    # )
 
-            env["position"] = Vector(msg.transform.translation).to_2d()
-            # euler angle, first value is yaw
-            env["rotation"] = Vector(rotation.as_euler("zyx", degrees=False))
+    # separate thread path planning
+    plan_pool = rx.ThreadPoolScheduler(max_workers=1)
+    path = rx.combine_latest(robot_position, costmap, target).pipe(
+        ops.audit_time(timedelta(milliseconds=100)),  # cap A* at 10Hz
+        to_thread(astar, plan_pool),  # async planner
+        ops.share_latest(),
+    )
 
-        base_link.subscribe(cb)
+    rx.combine_latest(robot_position, costmap, target, path).pipe(
+        ops.audit_time(timedelta(milliseconds=500)),  # cap redraw at 5Hz
+    ).subscribe(draw)
 
-    def receive_costmap():
-        while True:
-            # this is a bit dumb tbh, we should have a stream :/
-            costmap_msg = robot.ros_control.get_global_costmap()
-            if costmap_msg is not None:
-                env["costmap"] = Costmap.from_msg(costmap_msg).smudge(
-                    preserve_unknown=True
-                )
-            time.sleep(1)
-
-    sub_position()
-
-    threading.Thread(
-        target=receive_costmap,
-        daemon=True,
-    ).start()
-
-    return robot
+    rx.combine_latest(robot_position, path).pipe(
+        ops.audit_time(timedelta(milliseconds=50))  # motion control at 20Hz
+    ).subscribe(motion_controller)
 
 
 def main():
@@ -89,7 +114,7 @@ def main():
             return
 
         # Resample the path to have more evenly spaced points (easier for following)
-        env["path"] = path.resample(0.25)  # 0.5m spacing between points
+        env["path"] = path.resample(0.5)  # 0.5m spacing between points
 
         # Set navigating flag
         env["is_navigating"] = True
