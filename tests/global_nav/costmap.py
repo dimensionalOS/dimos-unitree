@@ -139,11 +139,11 @@ class Costmap:
 
     def smudge(
         self,
-        kernel_size: int = 5,
+        kernel_size: int = 7,
         iterations: int = 10,
         decay_factor: float = 0.8,
-        threshold: int = 1,
-        preserve_unknown: bool = True,
+        threshold: int = 80,
+        preserve_unknown: bool = False,
     ) -> "Costmap":
         """
         Creates a new costmap with expanded obstacles (smudged).

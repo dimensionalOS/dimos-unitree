@@ -11,6 +11,7 @@ from typing import (
 )
 import numpy as np
 from vector import Vector
+from geometry_msgs.msg import Vector3
 
 
 # Protocol approach for static type checking
@@ -31,6 +32,9 @@ def to_numpy(value: VectorLike) -> np.ndarray:
     Returns:
         Numpy array representation
     """
+    if isinstance(value, Vector3):
+        return np.array([value.x, value.y, value.z], dtype=float)
+
     if isinstance(value, Vector):
         return value.data
     elif isinstance(value, np.ndarray):
@@ -63,6 +67,8 @@ def to_tuple(value: VectorLike) -> Tuple[float, ...]:
     Returns:
         Tuple of floats
     """
+    if isinstance(value, Vector3):
+        return tuple([value.x, value.y, value.z])
     if isinstance(value, Vector):
         return tuple(value.data)
     elif isinstance(value, np.ndarray):
@@ -102,7 +108,9 @@ def is_2d(value: VectorLike) -> bool:
     Returns:
         True if the value is 2D
     """
-    if isinstance(value, Vector):
+    if isinstance(value, Vector3):
+        return False
+    elif isinstance(value, Vector):
         return len(value) == 2
     elif isinstance(value, np.ndarray):
         return value.shape[-1] == 2 or value.size == 2
@@ -121,6 +129,8 @@ def is_3d(value: VectorLike) -> bool:
     """
     if isinstance(value, Vector):
         return len(value) == 3
+    elif isinstance(value, Vector3):
+        return True
     elif isinstance(value, np.ndarray):
         return value.shape[-1] == 3 or value.size == 3
     else:
@@ -139,6 +149,8 @@ def x(value: VectorLike) -> float:
     """
     if isinstance(value, Vector):
         return value.x
+    elif isinstance(value, Vector3):
+        return value.x
     else:
         return float(to_numpy(value)[0])
 
@@ -153,6 +165,8 @@ def y(value: VectorLike) -> float:
         Y component as a float
     """
     if isinstance(value, Vector):
+        return value.y
+    elif isinstance(value, Vector3):
         return value.y
     else:
         arr = to_numpy(value)
@@ -169,6 +183,8 @@ def z(value: VectorLike) -> float:
         Z component as a float
     """
     if isinstance(value, Vector):
+        return value.z
+    elif isinstance(value, Vector3):
         return value.z
     else:
         arr = to_numpy(value)

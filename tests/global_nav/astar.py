@@ -173,9 +173,7 @@ if __name__ == "__main__":
     costmap = Costmap.from_pickle("costmapMsg.pickle")
 
     # Create a smudged version of the costmap for better planning
-    smudged_costmap = costmap.smudge(
-        kernel_size=10, iterations=10, threshold=80, preserve_unknown=False
-    )
+    smudged_costmap = costmap.smudge()
 
     # Test different types of inputs for goal position
     start = Vector(0.0, 0.0)  # Define a single position

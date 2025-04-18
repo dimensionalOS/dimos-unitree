@@ -1,5 +1,6 @@
 import numpy as np
 from typing import Union, Tuple, List, TypeVar, Generic, overload
+from geometry_msgs.msg import Vector3
 
 T = TypeVar("T", bound="Vector")
 
@@ -18,8 +19,15 @@ class Vector:
         """
         if len(args) == 1 and hasattr(args[0], "__iter__"):
             self._data = np.array(args[0], dtype=float)
+        elif len(args) == 1:
+            self._data = np.array([args[0].x, args[0].y, args[0].z], dtype=float)
+
         else:
             self._data = np.array(args, dtype=float)
+
+    @property
+    def yaw(self) -> float:
+        return self.x
 
     @property
     def x(self) -> float:
@@ -140,6 +148,10 @@ class Vector:
         if length < 1e-10:  # Avoid division by near-zero
             return self.__class__(np.zeros_like(self._data))
         return self.__class__(self._data / length)
+        
+    def to_2d(self: T) -> T:
+        """Convert a vector to a 2D vector by taking only the x and y components."""
+        return self.__class__(self._data[:2])
 
     def distance(self, other) -> float:
         """Compute Euclidean distance to another vector."""
@@ -235,6 +247,7 @@ if __name__ == "__main__":
         Vector(1, -1),  # Down-Right
         Vector(0.5, 0.5),  # Up-Right (shorter)
         Vector(-3, 4),  # Up-Left (longer)
+        Vector(Vector3(x=2.0, y=3.0, z=4.0)),
     ]
 
     for v in test_vectors:

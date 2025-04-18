@@ -3,8 +3,8 @@ from vectortypes import Vector
 from draw import Drawer
 from astar import astar
 import random
-from costmap import Costmap
 import matplotlib.pyplot as plt
+from costmap import Costmap
 
 # Load the costmap
 costmap = Costmap.from_pickle("costmapMsg.pickle")
@@ -25,6 +25,9 @@ drawer = Drawer(
 
 # Start position
 start = Vector(0.0, 0.0)
+
+# Configure interactive mode for real-time updates
+plt.ion()
 
 update_interval = 1
 
@@ -75,6 +78,8 @@ try:
                 (goal, {"color": "red", "markersize": 100, "show_text": True}),
             )
 
+            plt.draw()
+            drawer.fig.canvas.flush_events()
             plt.pause(update_interval)
 
             # Update start to be the previous goal for continuous movement
@@ -88,7 +93,7 @@ try:
 
 except KeyboardInterrupt:
     print("\nInterrupted by user")
-    drawer.close()
+    plt.ioff()
 
 except Exception as e:
     print(f"Error during navigation demo: {e}")

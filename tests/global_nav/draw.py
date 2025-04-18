@@ -1,3 +1,6 @@
+import matplotlib
+
+matplotlib.use("GTK3Cairo")
 import matplotlib.pyplot as plt
 import numpy as np
 from typing import List, Dict, Any, Union
@@ -12,11 +15,11 @@ class Drawer:
 
     default_styles = {
         "costmap": {
-            "cmap": "turbo_r",
+            "cmap": "turbo",
             "show_grid": True,
             "grid_interval": 1.0,
             "grid_color": "black",
-            "grid_alpha": 0.3,
+            "grid_alpha": 0.4,
             "unknown_color": "lightgray",
             "transparent_unknown": True,
             "transparent_empty": False,
@@ -56,7 +59,8 @@ class Drawer:
         dark_mode=False,
         fig=None,
         ax=None,
-        click_callback=None,
+        on_click=None,
+        interactive=False,
     ):
         """Initialize the drawer with figure settings.
 
@@ -68,7 +72,7 @@ class Drawer:
             dark_mode: Whether to use dark background with light text
             fig: Existing figure to use (optional)
             ax: Existing axes to use (optional)
-            click_callback: Custom callback function to be called with (x, y) coordinates when plot is clicked
+            on_click: Custom callback function to be called with (x, y) coordinates when plot is clicked
         """
         if fig is not None and ax is not None:
             self.fig = fig
@@ -83,7 +87,12 @@ class Drawer:
 
         self.cid = self.fig.canvas.mpl_connect("button_press_event", self._on_click)
 
-        self.click_callback = click_callback
+        self.interactive = interactive
+
+        if interactive:
+            plt.ion()
+
+        self.on_click = on_click
 
         if dark_mode:
             bg_color = "black"
@@ -124,24 +133,24 @@ class Drawer:
         """
         self.ax.clear()
 
-        # Restore styling
-        text_color = "white" if self.dark_mode else "black"
+        # # Restore styling
+        # text_color = "white" if self.dark_mode else "black"
 
-        if title:
-            self.ax.set_title(title, color=text_color)
+        # if title:
+        #     self.ax.set_title(title, color=text_color)
 
-        # Restore axis styling
-        if not hasattr(self.ax, "_axis_off") or not self.ax._axis_off:
-            self.ax.set_xlabel("X (world coordinates)", color=text_color)
-            self.ax.set_ylabel("Y (world coordinates)", color=text_color)
-            self.ax.tick_params(colors=text_color)
-            self.ax.spines["bottom"].set_color(text_color)
-            self.ax.spines["top"].set_color(text_color)
-            self.ax.spines["left"].set_color(text_color)
-            self.ax.spines["right"].set_color(text_color)
+        # # Restore axis styling
+        # if not hasattr(self.ax, "_axis_off") or not self.ax._axis_off:
+        #     self.ax.set_xlabel("X (world coordinates)", color=text_color)
+        #     self.ax.set_ylabel("Y (world coordinates)", color=text_color)
+        #     self.ax.tick_params(colors=text_color)
+        #     self.ax.spines["bottom"].set_color(text_color)
+        #     self.ax.spines["top"].set_color(text_color)
+        #     self.ax.spines["left"].set_color(text_color)
+        #     self.ax.spines["right"].set_color(text_color)
 
-        # Reset the counters
-        self.reset_counters()
+        # # Reset the counters
+        # self.reset_counters()
 
     def draw_costmap(self, costmap: Costmap, style: Dict[str, Any] = None) -> None:
         """Draw a costmap with optional styling.
@@ -450,11 +459,11 @@ class Drawer:
             x, y = event.xdata, event.ydata
 
             # Print coordinates if no callback is provided
-            if self.click_callback is None:
+            if self.on_click is None:
                 print(f"Clicked at world coordinates: ({x:.3f}, {y:.3f})")
             else:
                 # Call the user-provided callback with coordinates
-                self.click_callback(x, y)
+                self.on_click(Vector(x, y))
 
     def show(self, block=True) -> None:
         """Show the plot.
@@ -546,7 +555,16 @@ class Drawer:
         if add_legend:
             self.add_legend()
 
+        if self.interactive:
+            self.show(block=False)
+
         return self.fig, self.ax
+
+    def close(self) -> None:
+        """Close the plot and disconnect the event handler."""
+        self.fig.canvas.mpl_disconnect(self.cid)
+        plt.ioff()
+        plt.close(self.fig)
 
 
 def draw(
