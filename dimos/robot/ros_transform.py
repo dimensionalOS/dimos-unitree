@@ -11,7 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
 import rclpy
 from rclpy.node import Node
 from typing import Optional
@@ -21,6 +20,11 @@ import tf2_ros
 from dimos.utils.logging_config import setup_logger
 from reactivex import Observable, create
 from reactivex.disposable import Disposable
+import reactivex as rx
+from reactivex import operators as ops, from_callable
+from reactivex import Observable
+from dimos.utils.threadpool import get_scheduler
+
 
 logger = setup_logger("dimos.robot.ros_transform")
 
@@ -126,6 +130,39 @@ class ROSTransformAbility:
         try:
             # Look up transform
             transform = self._tf_buffer.lookup_transform(
+
+
+class ROSTransformRXAbility:
+    """Mixin class for handling ROS transforms between coordinate frames"""
+
+    @property
+    def tf_buffer(self) -> Buffer:
+        if not hasattr(self, "_tf_buffer"):
+            self._tf_buffer = tf2_ros.Buffer()
+            self._tf_listener = tf2_ros.TransformListener(self._tf_buffer, self._node)
+            logger.info(f"Transform listener initialized")
+
+        return self._tf_buffer
+
+    def transform(
+        self, child_frame: str, frequency=10, parent_frame="map", timeout=1.0
+    ) -> Observable:
+
+        def get_transform():
+            return self.get_transform(child_frame, parent_frame, timeout)
+
+        return rx.interval(1 / frequency, scheduler=get_scheduler()).pipe(
+            ops.flat_map(lambda _: rx.from_callable(get_transform)),
+            ops.replay(buffer_size=1),
+            ops.ref_count(),
+        )
+
+    def get_transform(
+        self, child_frame: str, parent_frame: str = "map", timeout: float = 1.0
+    ) -> Optional[TransformStamped]:
+        try:
+            # Look up transform
+            transform = self.tf_buffer.lookup_transform(
                 parent_frame,
                 child_frame,
                 rclpy.time.Time(),
