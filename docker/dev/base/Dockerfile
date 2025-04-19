@@ -20,20 +20,10 @@ RUN apt-get install -y \
     autojump \
     exa
 
-RUN wget https://raw.githubusercontent.com/oh-my-fish/oh-my-fish/master/bin/install && \
-    fish install --noninteractive && \
-    rm install
-    
-RUN fish -c "omf install fzf-autojump" 
-RUN fish -c "omf install boxfish" 
-
 RUN mkdir /app/.shell && mkdir -p ./.local/share/autojump/
 RUN touch /app/.shell/.autojump.txt; ln -s /app/.shell/.autojump.txt ./.local/share/autojump/autojump.txt
-RUN touch /app/.shell/fish_history; ln -s /app/.shell/fish_history ~/.local/share/fish/fish_history
 
-COPY init.fish /root/.config/omf/init.fish
-
-# # Copy files and add version to motd
+# Copy files and add version to motd
 COPY motd /etc/motd
 COPY bash.sh /root/.bash.sh
 COPY tmux.conf /root/.tmux.conf

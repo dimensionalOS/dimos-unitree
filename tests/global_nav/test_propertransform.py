@@ -15,7 +15,7 @@ from scipy.spatial.transform import Rotation as R
 from geometry_msgs.msg import TransformStamped
 
 
-def transform_to_pos(msg: TransformStamped) -> [Vector, Vector]:
+def transform_to_euler(msg: TransformStamped) -> [Vector, Vector]:
     q = msg.transform.rotation
     rotation = R.from_quat([q.x, q.y, q.z, q.w])
     return [
@@ -40,6 +40,7 @@ def init_robot():
         base_link = robot.ros_control.transform("base_link")
         position = base_link.pipe(ops.map(transform_to_euler))
 
+        position.subscribe(print)
         while True:
             time.sleep(1)
 

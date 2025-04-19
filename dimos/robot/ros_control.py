@@ -44,7 +44,7 @@ from nav_msgs.msg import OccupancyGrid
 
 import logging
 import tf2_ros
-from dimos.robot.ros_transform import ROSTransformAbility, ROSTransformRXAbility
+from dimos.robot.ros_transform import ROSTransformAbility
 
 from nav_msgs.msg import Odometry, OccupancyGrid
 
@@ -62,7 +62,7 @@ class RobotMode(Enum):
     MOVING = auto()
     ERROR = auto()
 
-class ROSControl(ROSTransformAbility, ROSTransformRXAbility, ABC):
+class ROSControl(ROSTransformAbility, ABC):
     """Abstract base class for ROS-controlled robots"""
     def __init__(self, 
                  node_name: str,

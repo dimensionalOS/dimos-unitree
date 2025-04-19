@@ -39,6 +39,7 @@ from dimos.perception.visual_servoing import VisualServoing
 from dimos.perception.person_tracker import PersonTrackingStream
 from dimos.perception.object_tracker import ObjectTrackingStream
 from dimos.robot.local_planner import VFHPurePursuitPlanner
+from dimos.robot.global_planner.planner import AstarPlanner
 from dimos.utils.ros_utils import distance_angle_to_goal_xy
 from dimos.utils.generic_subscriber import GenericSubscriber
 
@@ -168,8 +169,10 @@ class UnitreeGo2(Robot):
             visualization_size=500  # 500x500 pixel visualization
         )
 
+        self.global_planner = AstarPlanner(robot=self)
+
         # Create the visualization stream at 5Hz
-        self.local_planner_viz_stream = self.local_planner.create_stream(frequency_hz=5.0)
+        # self.local_planner_viz_stream = self.local_planner.create_stream(frequency_hz=5.0)
 
     def follow_human(self, distance: int = 1.5, timeout: float = 20.0, point: Tuple[int, int] = None):
         person_visual_servoing = VisualServoing(tracking_stream=self.person_tracking_stream)
