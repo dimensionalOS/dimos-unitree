@@ -13,12 +13,8 @@ Usage:
 """
 
 import os
-import sys
 import time
-import logging
 import argparse
-
-import tests.test_header
 
 from dimos.robot.unitree.unitree_go2 import UnitreeGo2
 from dimos.robot.unitree.unitree_ros_control import UnitreeROSControl

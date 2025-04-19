@@ -23,8 +23,8 @@ logger = setup_logger("dimos.robot.unitree.global_planner", level=logging.DEBUG)
 class Planner(ABC):
     robot: Robot
 
-    # @abstractmethod
-    # def plan(self, goal: VectorLike) -> Path: ...
+    @abstractmethod
+    def plan(self, goal: VectorLike) -> Path: ...
 
     # actually we might want to rewrite this into rxpy
     def walk_loop(self, path: Path) -> bool:

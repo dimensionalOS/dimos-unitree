@@ -298,7 +298,7 @@ class UnitreeGo2(Robot):
             
         return goal_reached
 
-    def navigate_to_goal_local(self, goal_xy_robot: Tuple[float, float], timeout: float = 60.0) -> bool:
+    def navigate_to_goal_local(self, goal_xy_robot: Tuple[float, float], is_robot_frame=True, timeout: float = 60.0) -> bool:
         """
         Navigates the robot to a goal specified in the robot's local frame 
         using the VFHPurePursuitPlanner.
@@ -314,7 +314,7 @@ class UnitreeGo2(Robot):
         logger.info(f"Starting navigation to local goal {goal_xy_robot} with timeout {timeout}s.")
 
         # Set the single goal in the robot's frame. Adjustment will happen internally.
-        self.local_planner.set_goal(goal_xy_robot, is_robot_frame=True)
+        self.local_planner.set_goal(goal_xy_robot, is_robot_frame=is_robot_frame)
 
         start_time = time.time()
         goal_reached = False
