@@ -111,7 +111,7 @@ class ObserveStream(AbstractRobotSkill):
         )
         
         skill_library = self._robot.get_skills()
-        self.register_as_running("observer", skill_library, self._subscription)
+        self.register_as_running("ObserveStream", skill_library, self._subscription)
         
         logger.info(f"Observer started with timestep={self.timestep}s, query='{self.query_text}'")
         return f"Observer started with timestep={self.timestep}s, query='{self.query_text}'"
@@ -218,7 +218,7 @@ class ObserveStream(AbstractRobotSkill):
             self._subscription = None
             
             skill_library = self._robot.get_skills()
-            self.unregister_as_running("observer", skill_library)
+            self.unregister_as_running("ObserveStream", skill_library)
             
             return "Observer stopped"
         return "Observer was not running"

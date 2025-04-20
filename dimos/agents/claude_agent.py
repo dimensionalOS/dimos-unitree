@@ -335,7 +335,7 @@ class ClaudeAgent(LLMAgent):
             
         # Store the parameters for use in _send_query
         self.claude_api_params = claude_params
-            
+        # print("Claude parameters:", claude_params)
         return {'claude_prompt': claude_params}
         
     def _send_query(self, messages: dict) -> Any:
@@ -349,8 +349,9 @@ class ClaudeAgent(LLMAgent):
         """
         try:
             # Get Claude parameters
-            claude_params = (messages.get('claude_prompt', None) or 
-                           self.claude_api_params)
+            print("\n\n==== CLAUDE API PARAMETERS ====")
+            # print(json.dumps(messages, indent=2, default=str))
+            claude_params = (messages.get('claude_prompt', None) or self.claude_api_params)
             
             # Log full request parameters to console
             print("\n\n==== CLAUDE API REQUEST ====")
@@ -382,8 +383,8 @@ class ClaudeAgent(LLMAgent):
                     
                     for event in stream:
                         # Log each event to console
-                        print(f"EVENT: {event.type}")  
-                        print(json.dumps(event.model_dump(), indent=2, default=str))
+                        # print(f"EVENT: {event.type}")  
+                        # print(json.dumps(event.model_dump(), indent=2, default=str))
                         
                         if event.type == "content_block_start":
                             # Initialize a new content block
@@ -395,14 +396,14 @@ class ClaudeAgent(LLMAgent):
                             if event.delta.type == "thinking_delta":
                                 # Accumulate thinking content
                                 current_block['content'] = event.delta.thinking
-                                memory_file.write(f"THINKING: {event.delta.thinking}")
+                                memory_file.write(f"{event.delta.thinking}")
                                 memory_file.flush()  # Ensure content is written immediately
                             
                             elif event.delta.type == "text_delta":
                                 # Accumulate text content
                                 text_content += event.delta.text
                                 current_block['content'] += event.delta.text
-                                memory_file.write(f"RESPONSE: {event.delta.text}")
+                                memory_file.write(f"{event.delta.text}")
                                 memory_file.flush()
                             
                             elif event.delta.type == "signature_delta":
@@ -457,6 +458,10 @@ class ClaudeAgent(LLMAgent):
                                     })
                                     tool_calls.append(tool_call_obj)
                                     logger.debug(f"Tool call complete: {tool_name}")
+                                    
+                                    # Write tool call information to memory.txt
+                                    memory_file.write(f"\n\nTOOL CALL: {tool_name}\n")
+                                    memory_file.write(f"ARGUMENTS: {json.dumps(tool_input, indent=2)}\n")
                             
                             # Reset current block
                             current_block = {'type': None, 'id': None, 'content': "", 'signature': None}
@@ -508,27 +513,58 @@ class ClaudeAgent(LLMAgent):
         Returns:
             The final text response from Claude after all tool calls are complete
         """
-        # Start with the user query
+        # Store the new query text
         self.query = query_text
+        logger.info(f"Processing new query: {self.query}")
         
         # Get RAG context
         _, condensed_results = self._get_rag_context()
         
-        # Build the initial prompt including image if provided
-        messages = self._build_prompt(base64_image, dimensions, False, condensed_results)
-        claude_params = messages.get('claude_prompt', {}).copy()
+        # Initialize the response
         final_response = ""
-        # Get the system message from the default conversation
-        default_messages = claude_params.get('messages', [])
-        system_message = default_messages[0] if default_messages and default_messages[0]['role'] == 'system' else None
         
-        # Start fresh or use existing conversation history
+        # Check if we need to create fresh conversation history or append to existing
         if not self.conversation_history:
-            # First call - initialize with default messages
-            self.conversation_history = default_messages.copy()
-        elif system_message and (not self.conversation_history or self.conversation_history[0]['role'] != 'system'):
-            # We have history but missing system message - add it
-            self.conversation_history.insert(0, system_message)
+            # First call - create a new conversation
+            # Build the initial prompt including image if provided
+            messages = self._build_prompt(base64_image, dimensions, False, condensed_results)
+            claude_params = messages.get('claude_prompt', {}).copy()
+            self.conversation_history = claude_params.get('messages', []).copy()
+            logger.info(f"Created new conversation history with {len(self.conversation_history)} messages")
+        else:
+            # We have existing conversation - add the new user query
+            # Create user message with new query and optional image
+            user_content = []
+            
+            # Add text content first
+            text_content = ""
+            if condensed_results:
+                text_content += f"{condensed_results}\n\n"
+            text_content += self.query
+            user_content.append({"type": "text", "text": text_content})
+            
+            # Add image if present
+            if base64_image:
+                user_content.append({
+                    "type": "image",
+                    "source": {
+                        "type": "base64",
+                        "media_type": "image/jpeg",
+                        "data": base64_image
+                    }
+                })
+            
+            # Append the new user message to conversation history
+            self.conversation_history.append({"role": "user", "content": user_content})
+            logger.info(f"Added new user message to conversation history (now has {len(self.conversation_history)} messages)")
+            
+            # Create parameters with all configuration options but using the updated conversation history
+            claude_params = self.claude_api_params.copy()
+            claude_params['messages'] = self.conversation_history
+
+            # print('convo history', self.conversation_history)
+        # Make a copy of the parameters to avoid modifying the original
+        claude_params = claude_params.copy()
         
         # Main processing loop that continues until all tool calls are complete
         still_processing = True
@@ -593,6 +629,11 @@ class ClaudeAgent(LLMAgent):
                             "content": f"{result}"
                         }]
                     })
+                    
+                    # Log tool result to memory.txt
+                    with open(os.path.join(self.output_dir, "memory.txt"), "a") as f:
+                        f.write(f"\nTOOL RESULT [{name}]: {result}\n")
+                        f.flush()
                 
                 # Continue processing with updated conversation
             else:
@@ -728,7 +769,7 @@ class ClaudeAgent(LLMAgent):
             
             # Log the conversation state
             print("\n\n==== CLAUDE API TOOL CONTINUATION STATE ====")
-            print(json.dumps(conversation, indent=2, default=str))
+            # print(json.dumps(conversation, indent=2, default=str))
             print("==== END TOOL CONTINUATION STATE ====")
             
             # If this isn't the last tool, follow up with Claude to get next instruction
