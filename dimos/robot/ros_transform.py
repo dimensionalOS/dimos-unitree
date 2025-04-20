@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import rclpy
+import time
 from typing import Optional
 from geometry_msgs.msg import TransformStamped
 from tf2_ros import Buffer
@@ -26,6 +27,7 @@ logger = setup_logger("dimos.robot.ros_transform")
 
 __all__ = ["ROSTransformAbility"]
 
+
 class ROSTransformAbility:
     """Mixin class for handling ROS transforms between coordinate frames"""
 
@@ -38,12 +40,21 @@ class ROSTransformAbility:
 
         return self._tf_buffer
 
-    def transform(self, child_frame: str, frequency=10, parent_frame="map", timeout=1.0) -> Observable:
+    def transform(
+        self, child_frame: str, frequency=10, parent_frame="map", timeout=1.0
+    ) -> Observable:
+        # sometimes it takes time for the transform to become available
+        # so we ignore errors
         def get_transform():
-            return self.get_transform(child_frame, parent_frame, timeout)
+            try:
+                return self.get_transform(child_frame, parent_frame, timeout)
+            except:
+                time.sleep(0.1)
+                return None
 
         return rx.interval(1 / frequency, scheduler=get_scheduler()).pipe(
-            ops.flat_map(lambda _: rx.from_callable(get_transform)),
+            ops.flat_map_latest(lambda _: rx.from_callable(get_transform)),
+            ops.filter(lambda x: x is not None),
             ops.replay(buffer_size=1),
             ops.ref_count(),
         )

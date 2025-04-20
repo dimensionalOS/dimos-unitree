@@ -3,6 +3,7 @@ import os
 import time
 import threading
 import matplotlib.pyplot as plt
+import reactivex as rx
 from reactivex import operators as ops
 from dimos.robot.unitree.unitree_go2 import UnitreeGo2
 from dimos.robot.unitree.unitree_ros_control import UnitreeROSControl
@@ -13,6 +14,7 @@ from path import Path
 from vectortypes import VectorLike, Vector
 from scipy.spatial.transform import Rotation as R
 from geometry_msgs.msg import TransformStamped
+from nav_msgs import msg
 
 
 def transform_to_euler(msg: TransformStamped) -> [Vector, Vector]:
@@ -31,18 +33,25 @@ def init_robot():
     robot = UnitreeGo2(
         ip=os.getenv("ROBOT_IP"),
         ros_control=UnitreeROSControl(),
-        # skills=MyUnitreeSkills(),
     )
 
     print("robot initialized")
 
     try:
-        base_link = robot.ros_control.transform("base_link")
-        position = base_link.pipe(ops.map(transform_to_euler))
+        # transform
+        base_link = robot.ros_control.transform(
+            "base_link", frequency=10
+        )  # 10hz by default
+        # topic (same observable returned if called twice)
+        odom = robot.ros_control.topic("/odom", msg.Odometry)
 
-        position.subscribe(print)
-        while True:
-            time.sleep(1)
+        position = base_link.pipe(ops.map(transform_to_euler))
+        rx.combine_latest(odom, position).subscribe(lambda x: print(x))
+
+        time.sleep(5)
+
+        position.dispose()
+        odom.dispose()
 
     except KeyboardInterrupt:
         print("\nInterrupted by user")
