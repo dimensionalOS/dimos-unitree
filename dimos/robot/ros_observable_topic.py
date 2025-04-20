@@ -1,3 +1,16 @@
+# Copyright 2025 Dimensional Inc.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 import functools
 import reactivex as rx
 from reactivex import operators as ops
@@ -17,6 +30,8 @@ from rclpy.qos import (
     QoSDurabilityPolicy,
 )
 
+__all__ = ["ROSObservableTopicAbility"]
+
 # TODO: should go to some shared file, this is copy pasted from ros_control.py
 sensor_qos = QoSProfile(
     reliability=QoSReliabilityPolicy.BEST_EFFORT,
@@ -26,6 +41,7 @@ sensor_qos = QoSProfile(
 )
 
 logger = setup_logger("dimos.robot.ros_control.observable_topic")
+
 
 # ROS thread ─► ReplaySubject─► observe_on(pool) ─► backpressure.latest ─► sub1 (fast)
 #                          ├──► observe_on(pool) ─► backpressure.latest ─► sub2 (slow)
@@ -52,7 +68,7 @@ class ROSObservableTopicAbility:
 
         upstream = rx.create(_on_subscribe)
 
-        # hot, latest‑cached core
+        # hot, latest-cached core
         core = upstream.pipe(
             ops.replay(buffer_size=1),
             ops.ref_count(),  # still synchronous!
@@ -65,8 +81,10 @@ class ROSObservableTopicAbility:
 
             # optional back-pressure handling
             if drop_unprocessed:
+
                 def _subscribe(observer, sch=None):
                     return base.subscribe(BackPressure.LATEST(observer), scheduler=sch)
+
                 return rx.create(_subscribe)
 
             return base
