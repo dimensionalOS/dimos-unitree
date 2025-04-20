@@ -7,11 +7,7 @@ This module provides two skills:
 """
 
 import os
-import sys
-import time
 import threading
-import logging
-from typing import Optional, Dict, Tuple, Any
 import chromadb
 import reactivex
 from reactivex import operators as ops
@@ -126,9 +122,9 @@ class BuildSemanticMap(AbstractRobotSkill):
         
         # Combine video and transform streams
         combined_stream = reactivex.combine_latest(video_stream, transform_stream).pipe(
-            ops.map(lambda pair: {
-                "frame": pair[0],  # First element is the frame
-                "position": self._extract_position(pair[1])  # Second element is the transform
+            ops.starmap(lambda video_frame, position: {
+                "frame": video_frame,
+                "position": position
             })
         )
         
