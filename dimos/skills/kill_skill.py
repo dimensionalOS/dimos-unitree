@@ -1,6 +1,16 @@
+# Copyright 2025 Dimensional Inc.
 #
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
 #
+#     http://www.apache.org/licenses/LICENSE-2.0
 #
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 
 """
 Kill skill for terminating running skills.
@@ -13,12 +23,12 @@ import logging
 from typing import Optional, Dict, Any, List
 from pydantic import Field
 
-from dimos.skills.skills import AbstractRobotSkill, SkillLibrary
+from dimos.skills.skills import AbstractSkill, SkillLibrary
 from dimos.utils.logging_config import setup_logger
 
-logger = setup_logger("dimos.skills.kill_skill", level=logging.INFO)
+logger = setup_logger("dimos.skills.kill_skill")
 
-class KillSkill(AbstractRobotSkill):
+class KillSkill(AbstractSkill):
     """
     A skill that terminates other running skills.
     
@@ -29,15 +39,16 @@ class KillSkill(AbstractRobotSkill):
     
     skill_name: str = Field(..., description="Name of the skill to terminate")
     
-    def __init__(self, robot=None, **data):
+    def __init__(self, skill_library: Optional[SkillLibrary] = None, **data):
         """
         Initialize the kill skill.
         
         Args:
-            robot: The robot instance
+            skill_library: The skill library instance
             **data: Additional data for configuration
         """
-        super().__init__(robot=robot, **data)
+        super().__init__(**data)
+        self._skill_library = skill_library
     
     def __call__(self):
         """
@@ -45,49 +56,7 @@ class KillSkill(AbstractRobotSkill):
         
         Returns:
             A message indicating whether the skill was successfully terminated
-        """
-        super().__call__()
-        
-        skill_library = self._robot.get_skills()
-        
+        """        
+        print("running skills", self._skill_library.get_running_skills())
         # Terminate the skill using the skill library
-        return skill_library.terminate_skill(self.skill_name)
-    
-    @classmethod
-    def list_running_skills(cls, skill_library: SkillLibrary) -> List[str]:
-        """
-        List all currently running skills.
-        
-        Args:
-            skill_library: The skill library to get running skills from
-            
-        Returns:
-            A list of names of running skills
-        """
-        return list(skill_library.get_running_skills().keys())
-
-
-def get_running_skills(skill_library: SkillLibrary) -> Dict[str, tuple]:
-    """
-    Get all running skills from the skill library.
-    
-    Args:
-        skill_library: The skill library to get running skills from
-        
-    Returns:
-        A dictionary of running skill names and their (instance, subscription) tuples
-    """
-    return skill_library.get_running_skills()
-
-def terminate_skill(name: str, skill_library: SkillLibrary) -> str:
-    """
-    Terminate a running skill using the skill library.
-    
-    Args:
-        name: Name of the skill to terminate
-        skill_library: The skill library to terminate the skill from
-        
-    Returns:
-        A message indicating whether the skill was successfully terminated
-    """
-    return skill_library.terminate_skill(name)
+        return self._skill_library.terminate_skill(self.skill_name)

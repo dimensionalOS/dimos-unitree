@@ -1,12 +1,22 @@
+# Copyright 2025 Dimensional Inc.
 #
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
 #
+#     http://www.apache.org/licenses/LICENSE-2.0
 #
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 
 """
-Monitor skill for Claude agent.
+Observer skill for Claude agent.
 
-This module provides a skill that periodically sends images from the robot's
-video stream to a Claude agent for analysis.
+This module provides a skill that periodically sends images from any 
+Robot Data Stream to a Claude agent for inference.
 """
 
 import logging
@@ -24,24 +34,25 @@ from dimos.agents.claude_agent import ClaudeAgent
 from dimos.utils.threadpool import get_scheduler
 from dimos.utils.logging_config import setup_logger
 
-logger = setup_logger("dimos.skills.monitor_skill", level=logging.INFO)
+logger = setup_logger("dimos.skills.observe_stream")
 
-class MonitorSkill(AbstractRobotSkill):
+class ObserveStream(AbstractRobotSkill):
     """
-    A skill that periodically sends images from the robot's video stream to a Claude agent.
+    A skill that periodically Observes a Robot Video Stream and sends images to current instance of Claude agent for context.
     
     This skill runs in a non-halting manner, allowing other skills to run concurrently.
-    It can be used for passive monitoring, such as waiting for a person to enter a room.
+    It can be used for continuous perception and passive monitoring, such as waiting for a person to enter a room 
+    or to monitor changes in the environment.
     """
     
-    timestep: float = Field(60.0, description="Time interval in seconds between monitoring queries")
+    timestep: float = Field(60.0, description="Time interval in seconds between observation queries")
     query_text: str = Field("What do you see in this image? Alert me if you see any people or important changes.", 
                            description="Query text to send to Claude agent with each image")
-    max_duration: float = Field(0.0, description="Maximum duration to run the monitor in seconds (0 for indefinite)")
+    max_duration: float = Field(0.0, description="Maximum duration to run the observer in seconds (0 for indefinite)")
     
-    def __init__(self, robot=None, claude_agent: Optional[ClaudeAgent] = None, **data):
+    def __init__(self, robot=None, claude_agent: Optional[ClaudeAgent] = None, video_stream = None, **data):
         """
-        Initialize the monitor skill.
+        Initialize the ObserveStream skill.
         
         Args:
             robot: The robot instance
@@ -54,29 +65,39 @@ class MonitorSkill(AbstractRobotSkill):
         self._monitor_thread = None
         self._scheduler = get_scheduler()
         self._subscription = None
+
+        # Get the video stream
+        # TODO: Use the video stream provided in the constructor for dynamic video_stream selection by the agent
+        self._video_stream = self._robot.get_ros_video_stream()
+        if self._video_stream is None:
+            logger.error("Failed to get video stream from robot")
+            return
         
     def __call__(self):
         """
-        Start the monitoring process in a separate thread using the threadpool.
+        Start the observing process in a separate thread using the threadpool.
         
         Returns:
-            A message indicating the monitor has started
+            A message indicating the observer has started
         """
         super().__call__()
         
         if self._claude_agent is None:
-            error_msg = "No Claude agent provided to MonitorSkill"
+            error_msg = "No Claude agent provided to ObserveStream"
             logger.error(error_msg)
             return error_msg
             
         if self._robot is None:
-            error_msg = "No robot instance provided to MonitorSkill"
+            error_msg = "No robot instance provided to ObserveStream"
             logger.error(error_msg)
             return error_msg
-            
+        
         self.stop()
         
         self._stop_event.clear()
+        
+        # Initialize start time for duration tracking
+        self._start_time = time.time()
         
         interval_observable = rx.interval(self.timestep, scheduler=self._scheduler).pipe(
             ops.take_while(lambda _: not self._stop_event.is_set())
@@ -90,14 +111,14 @@ class MonitorSkill(AbstractRobotSkill):
         )
         
         skill_library = self._robot.get_skills()
-        self.register_as_running("monitor", skill_library, self._subscription)
+        self.register_as_running("observer", skill_library, self._subscription)
         
-        logger.info(f"Monitor started with timestep={self.timestep}s, query='{self.query_text}'")
-        return f"Monitor started with timestep={self.timestep}s, query='{self.query_text}'"
+        logger.info(f"Observer started with timestep={self.timestep}s, query='{self.query_text}'")
+        return f"Observer started with timestep={self.timestep}s, query='{self.query_text}'"
     
     def _monitor_iteration(self, iteration):
         """
-        Execute a single monitoring iteration.
+        Execute a single observer iteration.
         
         Args:
             iteration: The iteration number (provided by rx.interval)
@@ -106,20 +127,14 @@ class MonitorSkill(AbstractRobotSkill):
             if self.max_duration > 0:
                 elapsed_time = time.time() - self._start_time
                 if elapsed_time > self.max_duration:
-                    logger.info(f"Monitor reached maximum duration of {self.max_duration}s")
+                    logger.info(f"Observer reached maximum duration of {self.max_duration}s")
                     self.stop()
                     return
             
-            logger.info(f"Monitor iteration {iteration} executing")
-            
-            # Get the video stream
-            video_stream = self._robot.get_ros_video_stream()
-            if video_stream is None:
-                logger.error("Failed to get video stream from robot")
-                return
+            logger.info(f"Observer iteration {iteration} executing")
             
             # Get a frame from the video stream
-            frame = self._get_frame_from_stream(video_stream)
+            frame = self._get_frame_from_stream()
             
             if frame is not None:
                 self._process_frame(frame)
@@ -129,7 +144,7 @@ class MonitorSkill(AbstractRobotSkill):
         except Exception as e:
             logger.error(f"Error in monitor iteration {iteration}: {e}")
     
-    def _get_frame_from_stream(self, video_stream):
+    def _get_frame_from_stream(self):
         """
         Get a single frame from the video stream.
         
@@ -143,7 +158,7 @@ class MonitorSkill(AbstractRobotSkill):
         
         frame_subject = rx.subject.Subject()
         
-        subscription = video_stream.pipe(
+        subscription = self._video_stream.pipe(
             ops.take(1)  # Take just one frame
         ).subscribe(
             on_next=lambda x: frame_subject.on_next(x),
@@ -191,21 +206,19 @@ class MonitorSkill(AbstractRobotSkill):
     
     def stop(self):
         """
-        Stop the monitoring process.
+        Stop the ObserveStream monitoring process.
         
         Returns:
-            A message indicating the monitor has stopped
+            A message indicating the observer has stopped
         """
         if self._subscription is not None and not self._subscription.is_disposed:
-            logger.info("Stopping monitor")
+            logger.info("Stopping ObserveStream")
             self._stop_event.set()
             self._subscription.dispose()
             self._subscription = None
             
             skill_library = self._robot.get_skills()
-            self.unregister_as_running("monitor", skill_library)
+            self.unregister_as_running("observer", skill_library)
             
-            return "Monitor stopped"
-        return "Monitor was not running"
-    
-    stop_monitoring = stop
+            return "Observer stopped"
+        return "Observer was not running"
