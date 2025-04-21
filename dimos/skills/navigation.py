@@ -135,19 +135,14 @@ class BuildSemanticMap(AbstractRobotSkill):
         logger.info("Setting up video stream...")
         video_stream = self._robot.get_ros_video_stream()
         
-        # Create transform stream at 1 Hz
-        logger.info("Setting up transform stream...")
-
-        transform_stream = ros_control.transform(
-            "base_link",
-            frequency=1)
+        # Setup video stream processing with transform acquisition
+        logger.info("Setting up video stream with position mapping...")
         
-        # Combine video and transform streams
-        combined_stream = reactivex.combine_latest(video_stream, transform_stream).pipe(
-            ops.starmap(lambda video_frame, position: {
+        # Map each video frame to include the current position from transform
+        combined_stream = video_stream.pipe(
+            ops.map(lambda video_frame: {
                 "frame": video_frame,
-                "position": position
-
+                "position": self._extract_position(ros_control.transform("base_link"))
             })
         )
         

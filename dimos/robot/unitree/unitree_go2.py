@@ -42,6 +42,7 @@ from dimos.robot.local_planner import VFHPurePursuitPlanner
 from dimos.robot.global_planner.planner import AstarPlanner
 from dimos.utils.ros_utils import distance_angle_to_goal_xy
 from dimos.utils.generic_subscriber import GenericSubscriber
+from nav_msgs import msg
 
 # Set up logging
 logger = setup_logger("dimos.robot.unitree.unitree_go2", level=logging.DEBUG)
@@ -169,12 +170,7 @@ class UnitreeGo2(Robot):
             visualization_size=500  # 500x500 pixel visualization
         )
 
-        pos_transform = lambda: self.ros_control.transform_euler('base_link')
-        self.global_planner = AstarPlanner(
-                local_planner=self.local_planner,
-                global_costmap=self.ros_control.topic_latest('map'),
-                pos_transform=pos_transform
-            ).start()
+        self.global_planner = AstarPlanner(robot=self)
 
         # Create the visualization stream at 5Hz
         # self.local_planner_viz_stream = self.local_planner.create_stream(frequency_hz=5.0)

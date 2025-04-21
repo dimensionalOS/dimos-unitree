@@ -17,18 +17,20 @@ import logging
 from dataclasses import dataclass
 from abc import ABC, abstractmethod
 
+from dimos.robot.robot import Robot
 from dimos.utils.logging_config import setup_logger
 from dimos.robot.global_planner.vector import VectorLike, to_vector
 from dimos.robot.global_planner.path import Path
+from dimos.robot.global_planner.costmap import Costmap
 from dimos.robot.global_planner.algo import astar
-from dimos.robot.local_planner import VFHPurePursuitPlanner
+from nav_msgs import msg
 
 logger = setup_logger("dimos.robot.unitree.global_planner", level=logging.DEBUG)
 
 
 @dataclass
 class Planner(ABC):
-    local_planner: VFHPurePursuitPlanner
+    robot: Robot
 
     @abstractmethod
     def plan(self, goal: VectorLike) -> Path: ...
@@ -67,10 +69,9 @@ class Planner(ABC):
 
 
 class AstarPlanner(Planner):
-    def __init__(self, local_planner, global_costmap, pos_transform):
-        super().__init__(local_planner)
-        self.costmap = global_costmap
-        self.pos_transform = pos_transform
+    def __init__(self, robot: Robot):
+        super().__init__(robot)
+        self.costmap = self.robot.ros_control.topic_latest("map", msg.OccupancyGrid)
 
     def start(self):
         return self
@@ -81,5 +82,5 @@ class AstarPlanner(Planner):
             del self.costmap
 
     def plan(self, goal: VectorLike) -> Path:
-        [pos, rot] = self.pos_position()
-        return astar(self.costmap(), goal, pos)
+        [pos, rot] = self.robot.ros_control.transform_euler("base_link")
+        return astar(Costmap.from_msg(self.costmap()).smudge(), goal, pos)
