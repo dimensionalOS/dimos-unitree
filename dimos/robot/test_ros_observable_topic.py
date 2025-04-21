@@ -178,5 +178,3 @@ def test_parallel_and_hog():
 if __name__ == "__main__":
     test_parallel_and_cleanup()
     test_parallel_and_hog()
-
-    # so skills can stream into the thought process.
