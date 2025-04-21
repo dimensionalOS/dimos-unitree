@@ -69,9 +69,13 @@ def test_parallel_and_cleanup():
     received_messages = []
 
     obs1 = robot.topic("/odom", msg.Odometry)
+
+    robot.topic("map").subscribe(...)
+
     print(f"Created subscription: {obs1}")
 
     subscription1 = obs1.subscribe(lambda x: received_messages.append(x + 2))
+
     subscription2 = obs1.subscribe(lambda x: received_messages.append(x + 3))
 
     obs2 = robot.topic("/odom", msg.Odometry)
@@ -169,10 +173,10 @@ def test_parallel_and_hog():
 
 
 @pytest.mark.asyncio
-async def test_topic_latest():
+async def test_topic_latest_async():
     robot = MockRobot()
 
-    odom = await robot.topic_latest("/odom", msg.Odometry)
+    odom = await robot.topic_latest_async("/odom", msg.Odometry)
     assert odom() == 1
     await asyncio.sleep(0.45)
     assert odom() == 5
@@ -181,7 +185,42 @@ async def test_topic_latest():
     assert robot._node.subs == {}
 
 
+def test_topic_latest_sync():
+    robot = MockRobot()
+
+    odom = robot.topic_latest("/odom", msg.Odometry)
+    assert odom() == 1
+    time.sleep(0.45)
+    assert odom() == 5
+    odom.dispose()
+    time.sleep(0.1)
+    assert robot._node.subs == {}
+
+
+def test_topic_latest_sync_benchmark():
+    robot = MockRobot()
+
+    odom = robot.topic_latest("/odom", msg.Odometry)
+
+    start_time = time.time()
+    for i in range(100):
+        odom()
+    end_time = time.time()
+    elapsed = end_time - start_time
+    avg_time = elapsed / 100
+
+    print("avg time", avg_time)
+
+    assert odom() == 1
+    time.sleep(0.45)
+    assert odom() == 5
+    odom.dispose()
+    time.sleep(0.1)
+    assert robot._node.subs == {}
+
+
 if __name__ == "__main__":
     test_parallel_and_cleanup()
     test_parallel_and_hog()
-    asyncio.run(test_topic_latest())
+    test_topic_latest_sync()
+    asyncio.run(test_topic_latest_async())

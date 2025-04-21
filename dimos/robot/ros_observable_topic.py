@@ -13,6 +13,7 @@
 # limitations under the License.
 import asyncio
 import functools
+import enum
 import reactivex as rx
 from reactivex import operators as ops
 from reactivex.disposable import Disposable
@@ -30,7 +31,31 @@ from rclpy.qos import (
     QoSDurabilityPolicy,
 )
 
-__all__ = ["ROSObservableTopicAbility"]
+__all__ = ["ROSObservableTopicAbility", "QOS"]
+
+
+class QOS(enum.Enum):
+    SENSOR = "sensor"
+    COMMAND = "command"
+
+    def to_profile(self) -> QoSProfile:
+        if self == QOS.SENSOR:
+            return QoSProfile(
+                reliability=QoSReliabilityPolicy.BEST_EFFORT,
+                history=QoSHistoryPolicy.KEEP_LAST,
+                durability=QoSDurabilityPolicy.VOLATILE,
+                depth=1,
+            )
+        if self == QOS.COMMAND:
+            return QoSProfile(
+                reliability=QoSReliabilityPolicy.RELIABLE,
+                history=QoSHistoryPolicy.KEEP_LAST,
+                durability=QoSDurabilityPolicy.VOLATILE,
+                depth=10,  # Higher depth for commands to ensure delivery
+            )
+
+        raise ValueError(f"Unknown QoS enum value: {self}")
+
 
 # TODO: should go to some shared file, this is copy pasted from ros_control.py
 sensor_qos = QoSProfile(
@@ -62,16 +87,19 @@ class ROSObservableTopicAbility:
         self,
         topic_name: str,
         msg_type: msg,
-        qos=sensor_qos,
+        qos=QOS.SENSOR,
         scheduler: ThreadPoolScheduler | None = None,
         drop_unprocessed: bool = True,
     ) -> rx.Observable:
         if scheduler is None:
             scheduler = get_scheduler()
 
+        # Convert QOS to QoSProfile
+        qos_profile = qos.to_profile()
+
         # upstream ROS callback
         def _on_subscribe(obs, _):
-            ros_sub = self._node.create_subscription(msg_type, topic_name, obs.on_next, qos)
+            ros_sub = self._node.create_subscription(msg_type, topic_name, obs.on_next, qos_profile)
             return Disposable(lambda: self._node.destroy_subscription(ros_sub))
 
         upstream = rx.create(_on_subscribe)
@@ -99,22 +127,71 @@ class ROSObservableTopicAbility:
         # each `.subscribe()` call gets its own async backpressure chain
         return rx.defer(lambda *_: per_sub())
 
-    # if you are not interested in processing streams, just want to fetch the latest stream
-    # value in a sync fashion, use this function.
+    # If you are not interested in processing streams, just want to fetch the latest stream
+    # value use this function. It runs a subscription in the background.
+    # caches latest value for you, always ready to return.
     #
-    # odom = await robot.topic_latest("/odom", msg.Odometry)
+    # odom = robot.topic_latest("/odom", msg.Odometry)
+    # the initial call to odom() will block until the first message is received
     #
     # any time you'd like you can call:
+    #
     # print(f"Latest odom: {odom()}")
     # odom.dispose()  # clean up the subscription
     #
     # see test_ros_observable_topic.py test_topic_latest for more details
-    async def topic_latest(self, topic_name: str, msg_type: msg, qos=sensor_qos, timeout: float = 10.0):
+    def topic_latest(self, topic_name: str, msg_type: msg, timeout: float | None = 10.0, qos=QOS.SENSOR):
+        """
+        Blocks the current thread until the first message is received, then
+        returns `reader()` (sync) and keeps one ROS subscription alive
+        in the background.
+
+            latest_scan = robot.ros_control.topic_latest_blocking("scan", LaserScan)
+            do_something(latest_scan())       # instant
+            latest_scan.dispose()             # clean up
+        """
+        # one shared observable with a 1-element replay buffer
+        core = self.topic(topic_name, msg_type, qos=qos).pipe(ops.replay(buffer_size=1))
+        conn = core.connect()  # starts the ROS subscription immediately
+
+        try:
+            first_val = core.pipe(
+                ops.first(), *([ops.timeout(timeout)] if timeout is not None else [])
+            ).run()  # ← blocks here
+        except Exception:
+            conn.dispose()
+            raise
+
+        cache = {"val": first_val}
+        sub = core.subscribe(lambda v: cache.__setitem__("val", v))
+
+        def reader():
+            return cache["val"]
+
+        reader.dispose = lambda: (sub.dispose(), conn.dispose())
+        return reader
+
+    # If you are not interested in processing streams, just want to fetch the latest stream
+    # value use this function. It runs a subscription in the background.
+    # caches latest value for you, always ready to return
+    #
+    # odom = await robot.topic_latest_async("/odom", msg.Odometry)
+    #
+    # async nature of this function allows you to do other stuff while you wait
+    # for a first message to arrive
+    #
+    # any time you'd like you can call:
+    #
+    # print(f"Latest odom: {odom()}")
+    # odom.dispose()  # clean up the subscription
+    #
+    # see test_ros_observable_topic.py test_topic_latest for more details
+    async def topic_latest_async(self, topic_name: str, msg_type: msg, qos=QOS.SENSOR, timeout: float = 10.0):
         loop = asyncio.get_running_loop()
         first = loop.create_future()
         cache = {"val": None}
 
-        core = self.topic(topic_name, msg_type)  # single ROS callback
+        core = self.topic(topic_name, msg_type, qos=qos)  # single ROS callback
 
         def _on_next(v):
             cache["val"] = v

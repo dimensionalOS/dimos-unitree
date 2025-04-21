@@ -69,19 +69,22 @@ class Planner(ABC):
 
 
 class AstarPlanner(Planner):
-    def __init__(self, robot, algo_opts={}):
+    def __init__(self, robot, costmap_latest=None, algo_opts={}):
         super().__init__(robot)
         self.algo_opts = algo_opts
-        self.start()
+        self.costmap_latest = costmap_latest
 
-    async def start(self):
-        self.costmap = await self.robot.ros_control.topic_latest("map", msg.OccupancyGrid, timeout=10)
+    def start(self):
+        if not self.costmap_latest:
+            # in the future we'll have a different way to specify deps, in which planner can
+            # depend on global_costmap, which will be provided by a robot spec
+            self.costmap_latest = self.robot.ros_control.topic_latest("map", msg.OccupancyGrid, timeout=10)
 
     def stop(self):
         if hasattr(self, "costmap"):
             self.costmap.dispose()
             del self.costmap
 
-    async def plan(self, goal: VectorLike) -> Path:
+    def plan(self, goal: VectorLike) -> Path:
         [pos, rot] = self.robot.ros_control.euler_transform("base_link")
         return astar(self.costmap(), goal, pos, **self.algo_opts)
