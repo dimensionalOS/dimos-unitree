@@ -169,7 +169,7 @@ class UnitreeGo2(Robot):
             visualization_size=500  # 500x500 pixel visualization
         )
 
-        self.global_planner = AstarPlanner(robot=self)
+        self.global_planner = AstarPlanner(robot=self).start()
 
         # Create the visualization stream at 5Hz
         # self.local_planner_viz_stream = self.local_planner.create_stream(frequency_hz=5.0)
