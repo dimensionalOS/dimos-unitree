@@ -22,7 +22,6 @@ from nav_msgs import msg
 from dimos.utils.logging_config import setup_logger
 from dimos.utils.threadpool import get_scheduler
 
-
 from rclpy.qos import (
     QoSProfile,
     QoSReliabilityPolicy,
@@ -80,14 +79,14 @@ class ROSObservableTopicAbility:
             base = core.pipe(ops.observe_on(scheduler))
 
             # optional back-pressure handling
-            if drop_unprocessed:
+            if not drop_unprocessed:
+                return base
 
-                def _subscribe(observer, sch=None):
-                    return base.subscribe(BackPressure.LATEST(observer), scheduler=sch)
+            def _subscribe(observer, sch=None):
+                return base.subscribe(BackPressure.LATEST(observer), scheduler=sch)
 
-                return rx.create(_subscribe)
+            return rx.create(_subscribe)
 
-            return base
 
         # each `.subscribe()` call gets its own async backpressure chain
         return rx.defer(lambda *_: per_sub())
