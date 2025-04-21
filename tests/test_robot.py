@@ -6,7 +6,7 @@ from dimos.robot.unitree.unitree_ros_control import UnitreeROSControl
 from dimos.robot.unitree.unitree_skills import MyUnitreeSkills
 from dimos.web.robot_web_interface import RobotWebInterface
 from reactivex import operators as RxOps
-
+import tests.test_header
 
 def main():
     print("Initializing Unitree Go2 robot with local planner visualization...")
