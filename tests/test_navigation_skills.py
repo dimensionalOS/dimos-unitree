@@ -1,4 +1,17 @@
-#!/usr/bin/env python3
+# Copyright 2025 Dimensional Inc.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 """
 Simple test script for semantic map skills.
 
@@ -13,8 +26,12 @@ Usage:
 """
 
 import os
+import sys
 import time
+import logging
 import argparse
+
+import tests.test_header
 
 from dimos.robot.unitree.unitree_go2 import UnitreeGo2
 from dimos.robot.unitree.unitree_ros_control import UnitreeROSControl
@@ -89,6 +106,7 @@ def query_map(robot, args):
         logger.info(f"Found '{args.query}' at position: ({position[0]:.2f}, {position[1]:.2f}, {position[2]:.2f})")
         logger.info(f"Similarity score: {similarity:.4f}")
         return position
+
     else:
         logger.error(f"Navigation query failed: {result}")
         return False
@@ -120,6 +138,7 @@ def main():
         # Nav
         robot.global_planner.set_goal(target)
 
+        
     finally:
         # Clean up
         logger.info("Cleaning up resources...")

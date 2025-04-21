@@ -1,3 +1,17 @@
+# Copyright 2025 Dimensional Inc.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 """
 Semantic map skills for building and navigating spatial memory maps.
 
@@ -7,7 +21,15 @@ This module provides two skills:
 """
 
 import os
+
 import threading
+
+import sys
+import time
+import threading
+import logging
+from typing import Optional, Dict, Tuple, Any
+
 import chromadb
 import reactivex
 from reactivex import operators as ops
@@ -115,16 +137,17 @@ class BuildSemanticMap(AbstractRobotSkill):
         
         # Create transform stream at 1 Hz
         logger.info("Setting up transform stream...")
+
         transform_stream = ros_control.transform(
             "base_link",
-            frequency=1
-        )
+            frequency=1)
         
         # Combine video and transform streams
         combined_stream = reactivex.combine_latest(video_stream, transform_stream).pipe(
             ops.starmap(lambda video_frame, position: {
                 "frame": video_frame,
                 "position": position
+
             })
         )
         

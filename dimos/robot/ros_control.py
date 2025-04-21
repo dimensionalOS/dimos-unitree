@@ -38,6 +38,7 @@ from builtin_interfaces.msg import Duration
 from geometry_msgs.msg import Point, Vector3
 from dimos.robot.ros_command_queue import ROSCommandQueue
 from dimos.utils.logging_config import setup_logger
+
 from nav_msgs.msg import OccupancyGrid
 
 import tf2_ros
@@ -260,8 +261,8 @@ class ROSControl(ROSTransformAbility, ROSObservableTopicAbility, ABC):
             # Start the queue processing thread
             self._command_queue.start()
         else:
-            logger.warning("No WebRTC topic provided - WebRTC commands will be unavailable")
-
+            logger.warning("No WebRTC message type provided - WebRTC commands will be unavailable")
+           
         # Initialize TF Buffer and Listener for transform abilities
         self._tf_buffer = tf2_ros.Buffer()
         self._tf_listener = tf2_ros.TransformListener(self._tf_buffer, self._node)
@@ -925,4 +926,3 @@ class ROSControl(ROSTransformAbility, ROSObservableTopicAbility, ABC):
         )
         
         return position_provider.get_position_stream()
-
