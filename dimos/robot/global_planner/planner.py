@@ -1,20 +1,29 @@
-import threading
-import time
+# Copyright 2025 Dimensional Inc.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 import logging
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from abc import ABC, abstractmethod
-from reactivex import operators as ops
-from geometry_msgs.msg import TransformStamped
-from scipy.spatial.transform import Rotation as R
 
 from dimos.robot.robot import Robot
 from dimos.utils.logging_config import setup_logger
-from dimos.robot.global_planner.vector import VectorLike, to_vector, Vector
-from dimos.robot.global_planner.costmap import Costmap
+from dimos.robot.global_planner.vector import VectorLike, to_vector
 from dimos.robot.global_planner.path import Path
 from dimos.robot.global_planner.algo import astar
 
+from nav_msgs import msg
 
 logger = setup_logger("dimos.robot.unitree.global_planner", level=logging.DEBUG)
 
@@ -31,9 +40,7 @@ class Planner(ABC):
         # pop the next goal from the path
         local_goal = path.head()
         print("path head", local_goal)
-        result = self.robot.navigate_to_goal_local(
-            local_goal.to_list(), is_robot_frame=False
-        )
+        result = self.robot.navigate_to_goal_local(local_goal.to_list(), is_robot_frame=False)
 
         if not result:
             # do we need to re-plan here?
@@ -55,51 +62,28 @@ class Planner(ABC):
         goal = to_vector(goal).to_2d()
         path = self.plan(goal)
         if not path:
-            print("NO PATH FOUND")
             logger.warning("No path found to the goal.")
             return False
 
         return self.walk_loop(path)
 
 
-def transform_to_euler(msg: TransformStamped) -> [Vector, Vector]:
-    q = msg.transform.rotation
-    rotation = R.from_quat([q.x, q.y, q.z, q.w])
-    return [
-        Vector(msg.transform.translation).to_2d(),
-        Vector(rotation.as_euler("zyx", degrees=False)),
-    ]
-
-
 class AstarPlanner(Planner):
     def __init__(self, robot, algo_opts={}):
         super().__init__(robot)
-
         self.algo_opts = algo_opts
-        base_link = self.robot.ros_control.transform("base_link")
-        self.position = base_link.pipe(ops.map(transform_to_euler)).subscribe(
-            self.newpos
-        )
+        self.start()
 
-        self.costmap_thread()
+    async def start(self):
+        self.costmap = self.robot.ros_control.topic_value("map", msg.OccupancyGrid, timeout=10)
+        await self.costmap()  # ensure we are receiving costmap updates before returning
 
-    def newpos(self, pos):
-        self.pos = pos
+    def stop(self):
+        if hasattr(self, "costmap"):
+            self.costmap.dispose()
+            del self.costmap
 
-    def costmap_thread(self):
-        def costmap_loop():
-            while True:
-                time.sleep(1)
-                # this is a bit dumb tbh, we should have a stream :/
-                costmap_msg = self.robot.ros_control.get_global_costmap()
-                if costmap_msg is None:
-                    continue
-                self.costmap = Costmap.from_msg(costmap_msg).smudge(
-                    preserve_unknown=True
-                )
-
-        threading.Thread(target=costmap_loop, daemon=True).start()
-
-    def plan(self, goal: VectorLike) -> Path:
-        time.sleep(3)
-        return astar(self.costmap, goal, self.pos[0], **self.algo_opts)
+    async def plan(self, goal: VectorLike) -> Path:
+        costmap = await self.costmap()
+        [pos, rot] = self.robot.ros_control.euler_transform("base_link")
+        return astar(costmap, goal, pos, **self.algo_opts)
