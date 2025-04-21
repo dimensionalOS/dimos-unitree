@@ -40,6 +40,8 @@ from geometry_msgs.msg import Point, Vector3
 from dimos.robot.ros_command_queue import ROSCommandQueue
 from dimos.utils.logging_config import setup_logger
 import logging
+import tf2_ros
+from dimos.robot.ros_transform import ROSTransformAbility
 
 logger = setup_logger("dimos.robot.ros_control")
 
@@ -53,7 +55,7 @@ class RobotMode(Enum):
     MOVING = auto()
     ERROR = auto()
 
-class ROSControl(ABC):
+class ROSControl(ROSTransformAbility, ABC):
     """Abstract base class for ROS-controlled robots"""
     
     def __init__(self, 
@@ -208,6 +210,11 @@ class ROSControl(ABC):
         else:
             logger.warning("No WebRTC message type provided - WebRTC commands will be unavailable")
             
+        # Initialize TF Buffer and Listener for transform abilities
+        self._tf_buffer = tf2_ros.Buffer()
+        self._tf_listener = tf2_ros.TransformListener(self._tf_buffer, self._node)
+        logger.info(f"TF Buffer and Listener initialized for {node_name}")
+        
         # Start ROS spin in a background thread via the executor
         self._spin_thread = threading.Thread(target=self._ros_spin, daemon=True)
         self._spin_thread.start()
@@ -761,3 +768,21 @@ class ROSControl(ABC):
         except Exception as e:
             logger.error(f"Failed to send pose command: {e}")
             return False
+            
+    def get_position_stream(self):
+        """
+        Get a stream of position updates from ROS.
+        
+        Returns:
+            Observable that emits (x, y) tuples representing the robot's position
+        """
+        from dimos.robot.position_stream import PositionStreamProvider
+        
+        # Create a position stream provider
+        position_provider = PositionStreamProvider(
+            ros_node=self._node,
+            odometry_topic="/odom",  # Default odometry topic
+            use_odometry=True
+        )
+        
+        return position_provider.get_position_stream()
