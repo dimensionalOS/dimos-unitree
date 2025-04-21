@@ -1,0 +1,24 @@
+Genesis Quadraped Bounty
+
+Prepare the environment per Genesis install and Training setup.
+https://genesis-world.readthedocs.io/en/latest/user_guide/getting_started/locomotion.html
+
+unzip in the "Genesis/Genesis/examples/locomotion" folder
+
+pip install pygame
+
+In the training script, since we're training using simulated joystick input, the training loop behaves a bit differently. Just exit the training when you've reached a certain iteration that you want instead of letting it run (it will run forever). Avoid setting max_iterations too low or using current_learning_iterations, because doing so causes the runner to restart too frequently. This disrupts training continuity and leads to poor policy performance. Let the policy train in longer uninterrupted chunks for best results.
+Training:
+python v2_go2_train.py -e v9 --num_envs 3000 --max_iterations 5001
+
+Evaluation with joystick control:
+python v2_go2_eval.py -e v9 --ckpt 10000
+
+Controls: 
+Arrow keys: move forward, reverse, and sideways 
+Q/E: rotate right/left 
+H: show help mapping A Pygame window displays the current command label.
+
+For scripted motions, use Agent from agent_control.py and the test.py helper. 
+- Agent.step_command(lin_vel_x, lin_vel_y, ang_vel) issues a single control step
+- Agent.move(speed, time=None, distance=None, heading=0.0) implements Nav2’s DriveOnHeading schema.
