@@ -74,7 +74,7 @@ class V2Go2Env:
 
 
         # #add terrain
-        terrain_type = terrain_types[2]
+        terrain_type = terrain_types[0]
         print(f"\n🌍 Generating Terrain: {terrain_type}")
 
         terrains = Terrain(
