@@ -68,7 +68,7 @@ robot_skills = robot.get_skills()
 robot_skills.add(ObserveStream)
 robot_skills.add(KillSkill)
 
-robot_skills.create_instance("ObserveStream", robot=robot, claude_agent=agent)
+robot_skills.create_instance("ObserveStream", robot=robot, agent=agent)
 robot_skills.create_instance("KillSkill", robot=robot, skill_library=robot_skills)
 
 # Subscribe to agent responses and send them to the subject

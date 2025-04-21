@@ -31,6 +31,7 @@ from pydantic import Field
 
 from dimos.skills.skills import AbstractRobotSkill
 from dimos.agents.claude_agent import ClaudeAgent
+from dimos.agents.agent import LLMAgent
 from dimos.utils.threadpool import get_scheduler
 from dimos.utils.logging_config import setup_logger
 
@@ -50,17 +51,17 @@ class ObserveStream(AbstractRobotSkill):
                            description="Query text to send to Claude agent with each image")
     max_duration: float = Field(0.0, description="Maximum duration to run the observer in seconds (0 for indefinite)")
     
-    def __init__(self, robot=None, claude_agent: Optional[ClaudeAgent] = None, video_stream = None, **data):
+    def __init__(self, robot=None, agent: Optional[LLMAgent] = None, video_stream = None, **data):
         """
         Initialize the ObserveStream skill.
         
         Args:
             robot: The robot instance
-            claude_agent: The Claude agent to send queries to
+            agent: The agent to send queries to
             **data: Additional data for configuration
         """
         super().__init__(robot=robot, **data)
-        self._claude_agent = claude_agent
+        self._agent = agent
         self._stop_event = threading.Event()
         self._monitor_thread = None
         self._scheduler = get_scheduler()
