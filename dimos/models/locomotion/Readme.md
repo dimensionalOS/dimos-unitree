@@ -1,1 +1,0 @@
-Genesis Quadraped Bounty
