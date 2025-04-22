@@ -6,11 +6,17 @@ export class Visualizer {
     private vis: {
         [key: string]: d3.Selection<SVGSVGElement, unknown, null, undefined>
     } = {}
+
     constructor(selector: string) {
         this.svg = d3.select(selector)
             .append("svg")
             .attr("width", "100%")
             .attr("height", "100%")
+    }
+
+    // feel free to change this function, not sure how to feed the data to react
+    visualizeState(state: { [key: string]: Drawable }) {
+        //
     }
 
     visualizeDrawable(drawable: Drawable) {
@@ -21,9 +27,7 @@ export class Visualizer {
         }
     }
 
-    visualizeVector(vector: Vector) {
-    }
+    visualizeVector(vector: Vector) {}
 
-    visualizeCostmap(costmap: Costmap) {
-    }
+    visualizeCostmap(costmap: Costmap) {}
 }
