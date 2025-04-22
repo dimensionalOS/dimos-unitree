@@ -42,6 +42,7 @@ from dimos.robot.local_planner import VFHPurePursuitPlanner
 from dimos.robot.global_planner.planner import AstarPlanner
 from dimos.utils.ros_utils import distance_angle_to_goal_xy
 from dimos.utils.generic_subscriber import GenericSubscriber
+from nav_msgs import msg
 
 # Set up logging
 logger = setup_logger("dimos.robot.unitree.unitree_go2", level=logging.DEBUG)

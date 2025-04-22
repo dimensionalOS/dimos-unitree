@@ -30,10 +30,7 @@ __all__ = ["ROSTransformAbility"]
 def transform_to_euler(msg: TransformStamped) -> [Vector, Vector]:
     q = msg.transform.rotation
     rotation = R.from_quat([q.x, q.y, q.z, q.w])
-    return [
-        Vector(msg.transform.translation).to_2d(),
-        Vector(rotation.as_euler("zyx", degrees=False)),
-    ]
+    return [Vector(msg.transform.translation).to_2d(), Vector(rotation.as_euler("zyx", degrees=False))]
 
 
 class ROSTransformAbility:
@@ -48,7 +45,7 @@ class ROSTransformAbility:
 
         return self._tf_buffer
 
-    def euler_transform(self, child_frame: str, parent_frame: str = "map", timeout: float = 1.0):
+    def transform_euler(self, child_frame: str, parent_frame: str = "map", timeout: float = 1.0):
         return transform_to_euler(self.transform(child_frame, parent_frame, timeout))
 
     def transform(
