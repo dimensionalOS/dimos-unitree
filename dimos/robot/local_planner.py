@@ -17,6 +17,8 @@ from dimos.utils.ros_utils import (
     normalize_angle,
     visualize_local_planner_state
 )
+from dimos.robot.global_planner.vector import Vector, VectorLike, to_vector, to_tuple
+from nav_msgs.msg import OccupancyGrid
 
 logger = setup_logger("dimos.robot.unitree.local_planner", level=logging.DEBUG)
 
@@ -28,12 +30,12 @@ class VFHPurePursuitPlanner:
     
     def __init__(self, 
                  robot: Robot,
-                 safety_threshold: float = 0.5,
+                 safety_threshold: float = 0.8,
                  histogram_bins: int = 72,
                  max_linear_vel: float = 0.8,
                  max_angular_vel: float = 1.0,
                  lookahead_distance: float = 1.0,
-                 goal_tolerance: float = 0.3,
+                 goal_tolerance: float = 0.5,
                  robot_width: float = 0.5,
                  robot_length: float = 0.7,
                  visualization_size: int = 400):
@@ -75,14 +77,26 @@ class VFHPurePursuitPlanner:
         self.prev_selected_angle = 0.0
         self.goal_distance_scale_factor = 3.0
         self.goal_xy = None  # Default goal position (odom frame)
-    
-    def set_goal(self, goal_xy: Tuple[float, float], is_robot_frame: bool = True):
-        """Set the goal position, converting to odom frame if necessary."""
+
+        # topics
+        self.local_costmap = self.robot.ros_control.topic_latest("/local_costmap/costmap", OccupancyGrid)
+
+    def set_goal(self, goal_xy: VectorLike, is_robot_frame: bool = True, out_of_bounds_action: str = "adjust"):
+        """Set the goal position, converting to odom frame if necessary.
+
+        Args:
+            goal_xy: Goal position (x, y) in odom frame
+            is_robot_frame: If True, goal_xy is in robot frame, otherwise it is in odom frame
+            out_of_bounds_action: Action to take if goal is out of bounds of the costmap
+                                  Options: "adjust" (move goal to closest valid point), 
+                                           "ignore" (leave goal as is), 
+                                           "reject" (don't set goal)
+        """
+
         if is_robot_frame:
-            odom = self.robot.ros_control.get_odometry()
-            robot_pose = ros_msg_to_pose_tuple(odom)  # Use imported function
-            robot_x, robot_y, robot_theta = robot_pose
-            goal_x_robot, goal_y_robot = goal_xy
+            [pos, rot] = self.robot.ros_control.transform_euler("base_link", "odom")
+            robot_x, robot_y, robot_theta = pos[0], pos[1], rot[2]
+            goal_x_robot, goal_y_robot = to_tuple(goal_xy)
             
             # Transform to odom frame using numpy functions
             goal_x_odom = robot_x + goal_x_robot * np.cos(robot_theta) - goal_y_robot * np.sin(robot_theta)
@@ -92,24 +106,39 @@ class VFHPurePursuitPlanner:
             logger.info(f"Goal set in robot frame ({goal_x_robot:.2f}, {goal_y_robot:.2f}), "
                         f"transformed to odom frame: ({self.goal_xy[0]:.2f}, {self.goal_xy[1]:.2f})")
         else:
-            self.goal_xy = goal_xy
+            self.goal_xy = to_tuple(goal_xy)
             logger.info(f"Goal set directly in odom frame: ({self.goal_xy[0]:.2f}, {self.goal_xy[1]:.2f})")
+        
+        # Check if goal is in bounds of costmap
+        if not self.is_goal_in_costmap_bounds(self.goal_xy):
+            if out_of_bounds_action == "adjust":
+                logger.warning("Goal is out of bounds. Adjusting to closest valid point.")
+                self.goal_xy = self.adjust_goal_to_valid_position(self.goal_xy)
+            elif out_of_bounds_action == "reject":
+                logger.warning("Goal is out of bounds. Rejecting goal.")
+                self.goal_xy = None
+                return
+            elif out_of_bounds_action == "ignore":
+                logger.warning("Goal is out of bounds. Ignoring and keeping goal as is.")
+            else:
+                logger.warning(f"Unknown out_of_bounds_action: {out_of_bounds_action}. Adjusting goal.")
+                self.goal_xy = self.adjust_goal_to_valid_position(self.goal_xy)
     
-        if self.check_goal_collision():
+        if self.check_goal_collision(self.goal_xy):
             logger.warning("Goal is in collision. Adjusted goal to safe position.")
-            self.goal_xy = self.adjust_goal_to_valid_position(self.goal_xy, 0.5)
+            self.goal_xy = self.adjust_goal_to_valid_position(self.goal_xy)
 
     def plan(self) -> Dict[str, float]:
         """
         Compute velocity commands using VFH + Pure Pursuit.
         """
-        costmap = self.robot.ros_control.get_costmap()
+        costmap = self.local_costmap()
         occupancy_grid, grid_info, _ = ros_msg_to_numpy_grid(costmap)  # Use imported function
         
-        odom = self.robot.ros_control.get_odometry()
-        robot_pose = ros_msg_to_pose_tuple(odom)  # Use imported function
+        [pos, rot] = self.robot.ros_control.transform_euler("base_link", "odom")
+        robot_x, robot_y, robot_theta = pos[0], pos[1], rot[2]
+        robot_pose = (robot_x, robot_y, robot_theta)
         
-        robot_x, robot_y, robot_theta = robot_pose
         if self.goal_xy is None:
             return {'x_vel': 0.0, 'angular_vel': 0.0}
         goal_x, goal_y = self.goal_xy
@@ -122,7 +151,7 @@ class VFHPurePursuitPlanner:
         
         if goal_distance < self.goal_tolerance:
             return {'x_vel': 0.0, 'angular_vel': 0.0}
-
+            
         goal_distance_scale = 1.0
         if goal_distance < self.goal_tolerance * self.goal_distance_scale_factor:
             goal_distance_scale = 1.0 / (goal_distance / (self.goal_tolerance * self.goal_distance_scale_factor))
@@ -130,7 +159,7 @@ class VFHPurePursuitPlanner:
         self.histogram = self.build_polar_histogram(occupancy_grid, grid_info, robot_pose)
         self.selected_direction = self.select_direction(
             self.goal_weight * goal_distance_scale,
-            self.obstacle_weight,
+            self.obstacle_weight / goal_distance_scale,
             self.prev_direction_weight,
             self.histogram, 
             goal_direction,
@@ -157,12 +186,14 @@ class VFHPurePursuitPlanner:
         Generate visualization by calling the utility function.
         """
         try:
-            costmap = self.robot.ros_control.get_costmap()
-            odom = self.robot.ros_control.get_odometry()
+            costmap = self.local_costmap()
+            
+            [pos, rot] = self.robot.ros_control.transform_euler("base_link", "odom")
+            robot_x, robot_y, robot_theta = pos[0], pos[1], rot[2]
+            robot_pose = (robot_x, robot_y, robot_theta)
             
             occupancy_grid, grid_info, grid_origin = ros_msg_to_numpy_grid(costmap)
             _, _, grid_resolution = grid_info
-            robot_pose = ros_msg_to_pose_tuple(odom)
             goal_xy = self.goal_xy
             
             # Get the latest histogram and selected direction, if available
@@ -229,7 +260,7 @@ class VFHPurePursuitPlanner:
         robot_x, robot_y, robot_theta = robot_pose
         
         # Need grid origin to calculate robot position relative to grid
-        costmap = self.robot.ros_control.get_costmap()
+        costmap = self.local_costmap()
         _, _, grid_origin = ros_msg_to_numpy_grid(costmap) 
         grid_origin_x, grid_origin_y, _ = grid_origin
 
@@ -327,7 +358,7 @@ class VFHPurePursuitPlanner:
             bool: True if collision detected, False otherwise
         """
         # Get the latest costmap and robot pose
-        costmap = self.robot.ros_control.get_costmap()
+        costmap = self.local_costmap()
         if costmap is None:
             return False  # No costmap available
             
@@ -335,12 +366,8 @@ class VFHPurePursuitPlanner:
         _, _, grid_resolution = grid_info
         grid_origin_x, grid_origin_y, _ = grid_origin
         
-        odom = self.robot.ros_control.get_odometry()
-        if odom is None:
-            return False  # No odometry available
-            
-        robot_pose = ros_msg_to_pose_tuple(odom)
-        robot_x, robot_y, robot_theta = robot_pose
+        [pos, rot] = self.robot.ros_control.transform_euler("base_link", "odom")
+        robot_x, robot_y, robot_theta = pos[0], pos[1], rot[2]
         
         # Convert robot position to grid coordinates
         robot_rel_x = robot_x - grid_origin_x
@@ -380,25 +407,21 @@ class VFHPurePursuitPlanner:
         if self.goal_xy is None:
             return False
             
-        odom = self.robot.ros_control.get_odometry()
-        if odom is None: return False # Cannot check if no odometry
-        robot_pose = ros_msg_to_pose_tuple(odom)
-        robot_x, robot_y, _ = robot_pose
+        [pos, rot] = self.robot.ros_control.transform_euler("base_link", "odom")
+        robot_x, robot_y = pos[0], pos[1]
+        
         goal_x, goal_y = self.goal_xy
         distance_to_goal = np.linalg.norm([goal_x - robot_x, goal_y - robot_y])
         return distance_to_goal < self.goal_tolerance
 
-    def check_goal_collision(self) -> bool:
+    def check_goal_collision(self, goal_xy: VectorLike) -> bool:
         """Check if the current goal is in collision with obstacles in the costmap.
         
         Returns:
             bool: True if goal is in collision, False if goal is safe or cannot be checked
         """
-        if self.goal_xy is None:
-            logger.warning("Cannot check collision: No goal set")
-            return False
             
-        costmap_msg = self.robot.ros_control.get_costmap()
+        costmap_msg = self.local_costmap()
         if costmap_msg is None:
             logger.warning("Cannot check collision: No costmap available")
             return False
@@ -410,7 +433,7 @@ class VFHPurePursuitPlanner:
         height, width = occupancy_grid.shape
             
         # Convert goal from odom coordinates to grid cells
-        goal_x, goal_y = self.goal_xy
+        goal_x, goal_y = goal_xy
         goal_rel_x = goal_x - grid_origin_x
         goal_rel_y = goal_y - grid_origin_y
         goal_cell_x = int(goal_rel_x / grid_resolution)
@@ -430,28 +453,55 @@ class VFHPurePursuitPlanner:
             logger.warning(f"Goal ({goal_cell_x}, {goal_cell_y}) is outside costmap bounds")
             return False  # Can't determine collision if outside bounds
 
-    def adjust_goal_to_valid_position(self, goal_xy: Tuple[float, float], minimum_distance: float = None) -> Tuple[float, float]:
+    def is_goal_in_costmap_bounds(self, goal_xy: VectorLike) -> bool:
+        """Check if the goal position is within the bounds of the costmap.
+        
+        Args:
+            goal_xy: Goal position (x, y) in odom frame
+            
+        Returns:
+            bool: True if the goal is within the costmap bounds, False otherwise
+        """
+        costmap_msg = self.local_costmap()
+        if costmap_msg is None:
+            logger.warning("Cannot check bounds: No costmap available")
+            return False
+            
+        # Get costmap data
+        occupancy_grid, grid_info, grid_origin = ros_msg_to_numpy_grid(costmap_msg)
+        _, _, grid_resolution = grid_info
+        grid_origin_x, grid_origin_y, _ = grid_origin
+        grid_width, grid_height = occupancy_grid.shape
+        # Convert goal from odom coordinates to grid cells
+        goal_x, goal_y = to_tuple(goal_xy)
+        goal_rel_x = goal_x - grid_origin_x
+        goal_rel_y = goal_y - grid_origin_y
+        goal_cell_x = int(goal_rel_x / grid_resolution)
+        goal_cell_y = int(goal_rel_y / grid_resolution)
+        
+        # Check if goal is within the costmap bounds
+        is_in_bounds = 0 <= goal_cell_x < grid_width and 0 <= goal_cell_y < grid_height
+        
+        if not is_in_bounds:
+            logger.warning(f"Goal ({goal_x:.2f}, {goal_y:.2f}) is outside costmap bounds")
+            
+        return is_in_bounds
+
+    def adjust_goal_to_valid_position(self, goal_xy: VectorLike) -> Tuple[float, float]:
         """Find a valid (non-colliding) goal position by moving it towards the robot.
         
         Args:
             goal_xy: Original goal position (x, y) in odom frame
-            minimum_distance: Minimum distance in meters to keep from obstacles.
-                             If None, uses the planner's safety_threshold.
         
         Returns:
             Tuple[float, float]: A valid goal position, or the original goal if already valid
-        """
-            
-        # Get robot position
-        odom = self.robot.ros_control.get_odometry()
-        if odom is None:
-            return goal_xy
-            
-        robot_pose = ros_msg_to_pose_tuple(odom)
-        robot_x, robot_y = robot_pose[0], robot_pose[1]
+        """    
+        [pos, rot] = self.robot.ros_control.transform_euler("base_link", "odom")
+        
+        robot_x, robot_y = pos[0], pos[1]
         
         # Original goal
-        goal_x, goal_y = goal_xy
+        goal_x, goal_y = to_tuple(goal_xy)
         
         # Calculate vector from goal to robot
         dx = robot_x - goal_x
@@ -459,7 +509,7 @@ class VFHPurePursuitPlanner:
         distance = np.sqrt(dx*dx + dy*dy)
         
         if distance < 0.001:  # Goal is at robot position
-            return goal_xy
+            return to_tuple(goal_xy)
             
         # Normalize direction vector
         dx /= distance
@@ -489,8 +539,7 @@ class VFHPurePursuitPlanner:
                 break
                 
             # Check if this position is valid
-            self.goal_xy = (current_x, current_y)
-            if not self.check_goal_collision():
+            if not self.check_goal_collision((current_x, current_y)) and self.is_goal_in_costmap_bounds((current_x, current_y)):
                 logger.info(f"Found valid goal at ({current_x:.2f}, {current_y:.2f})")
                 return (current_x, current_y)
                 

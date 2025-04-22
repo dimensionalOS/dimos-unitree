@@ -30,7 +30,7 @@ __all__ = ["ROSTransformAbility"]
 def transform_to_euler(msg: TransformStamped) -> [Vector, Vector]:
     q = msg.transform.rotation
     rotation = R.from_quat([q.x, q.y, q.z, q.w])
-    return [Vector(msg.transform.translation).to_2d(), Vector(rotation.as_euler("zyx", degrees=False))]
+    return [Vector(msg.transform.translation).to_2d(), Vector(rotation.as_euler("xyz", degrees=False))]
 
 
 class ROSTransformAbility:
