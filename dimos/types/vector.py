@@ -114,7 +114,7 @@ class Vector:
 
     def serialize(self) -> Tuple:
         """Serialize the vector to a tuple."""
-        pickle.dumps(self)
+        return {"type": "vector", "c": self._data.tolist()}
 
     def __eq__(self, other) -> bool:
         if isinstance(other, Vector):

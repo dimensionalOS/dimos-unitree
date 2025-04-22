@@ -19,7 +19,8 @@ def main():
     websocket_vis.connect(planner.vis_stream())
 
     time.sleep(1)  # Allow time for the server to start
-    planner.plan(Vector([3, 4, 0]))
+    planner.plan(Vector([5, 5, 0]))
+    planner.vis("testvector", Vector([3, 4, 1]))
 
     print(f"WebSocket server started on port {websocket_vis.port}")
     try:

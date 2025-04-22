@@ -106,5 +106,5 @@ class AstarPlanner(Planner):
     def plan(self, goal: VectorLike) -> Path:
         [pos, rot] = self.base_link()
         costmap = self.costmap().smudge()
-        self.vis("costmap", costmap)
+        self.vis("global_costmap", costmap)
         return astar(costmap, goal, pos)

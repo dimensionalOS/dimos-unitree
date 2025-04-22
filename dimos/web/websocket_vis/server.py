@@ -35,7 +35,10 @@ starlette_app.mount("/", StaticFiles(directory=static_dir), name="static")
 # Create the ASGI app
 app = socketio.ASGIApp(sio, starlette_app)
 
-main_state = {"status": "idle", "connected_clients": 0, "data": {}}
+main_state = {
+    "status": "idle",
+    "connected_clients": 0,
+}
 
 
 @sio.event
@@ -124,9 +127,9 @@ class WebsocketVis:
         """Process a drawable object and return a dictionary representation"""
         if isinstance(drawable, tuple):
             obj, config = drawable
-            return {"data": obj.serialize(), "config": config}
+            return [obj.serialize(), config]
         else:
-            return {"data": drawable.serialize(), "config": {}}
+            return drawable.serialize()
 
     def connect(self, obs: Observable[Tuple[str, Drawable]], window_name: str = "main"):
         """Connect to an Observable stream and update state on new data"""
@@ -136,7 +139,7 @@ class WebsocketVis:
         def new_update(data):
             print("RECEIVECD UPDATE", data)
             [name, drawable] = data
-            self.update_state({name: self.process_drawable(drawable)})
+            self.update_state({"draw": {name: self.process_drawable(drawable)}})
 
         obs.subscribe(
             on_next=new_update,

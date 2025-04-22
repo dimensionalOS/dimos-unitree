@@ -1,7 +1,6 @@
 import { io } from "npm:socket.io-client";
-import pickleparser from "npm:pickleparser";
-
-const parser = new pickleparser.Parser();
+import { decode, EncodedSomething } from "./decoder.ts";
+import { Drawable } from "./types.ts";
 
 // Store server state locally
 let serverState = {
@@ -49,30 +48,37 @@ function deepMerge(source: any, destination: any): any {
 }
 
 type DrawConfig = { [key: string]: any };
-type Drawable = { config: DrawConfig; data: ArrayBuffer };
-type StateUpdate = { [entity: string]: Drawable };
 
-function update_entity(name: string, data?: ArrayBuffer, config?: DrawConfig) {
-  // ensure that data exists and is ArrayBuffer
-  if (!data || !(data instanceof ArrayBuffer)) {
-    return;
+type EncodedDrawable = EncodedSomething;
+type EncodedDrawables = {
+  [key: string]: EncodedDrawable;
+};
+type Drawables = {
+  [key: string]: Drawable;
+};
+
+type Drawable = [];
+
+function decodeDrawables(encoded: EncodedDrawables): Drawables {
+  const drawbles: Drawables = {};
+  for (const [key, value] of Object.entries(encoded)) {
+    // @ts-ignore
+    drawbles[key] = decode(value);
   }
-
-  console.log("update_entity", name, data, config);
-  console.log(parser.parse(new Uint8Array(data)));
+  return drawbles;
 }
 
-function state_update(state: StateUpdate) {
-  console.log("Received partial state update:", state);
+function state_update(state: { [key: string]: any }) {
+  console.log("Received state update:", state);
   // Use deep merge to update nested properties
-  serverState = deepMerge(state, { ...serverState });
 
-  for (const [key, value] of Object.entries(state)) {
-    // Handle the entity update
-    update_entity(key, value.data, value.config);
+  if (state.draw) {
+    state.draw = decodeDrawables(state.draw);
   }
 
-  // Trigger UI updates
+  console.log("Decoded state update:", state);
+  serverState = deepMerge(state, { ...serverState });
+
   updateUI();
 }
 
