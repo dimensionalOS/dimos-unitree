@@ -18,7 +18,7 @@ from geometry_msgs.msg import TransformStamped
 from tf2_ros import Buffer
 import tf2_ros
 from dimos.utils.logging_config import setup_logger
-from dimos.robot.global_planner.vector import Vector
+from dimos.types.vector import Vector
 from scipy.spatial.transform import Rotation as R
 
 
