@@ -173,7 +173,7 @@ class UnitreeGo2(Robot):
         self.global_planner = AstarPlanner(robot=self)
 
         # Create the visualization stream at 5Hz
-        # self.local_planner_viz_stream = self.local_planner.create_stream(frequency_hz=5.0)
+        self.local_planner_viz_stream = self.local_planner.create_stream(frequency_hz=5.0)
 
     def follow_human(self, distance: int = 1.5, timeout: float = 20.0, point: Tuple[int, int] = None):
         person_visual_servoing = VisualServoing(tracking_stream=self.person_tracking_stream)
