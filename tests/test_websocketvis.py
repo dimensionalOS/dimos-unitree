@@ -1,8 +1,8 @@
 import time
 from dimos.web.websocket_vis.server import WebsocketVis
 from dimos.robot.global_planner.planner import AstarPlanner
-from dimos.robot.global_planner.costmap import Costmap
-from dimos.robot.global_planner.vector import Vector
+from dimos.types.costmap import Costmap
+from dimos.types.vector import Vector
 
 
 def main():
