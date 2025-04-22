@@ -214,6 +214,11 @@ input[type="range"]::-moz-range-thumb:hover {
     flex-direction: column;
 }
 
+#vis {
+    min-height: 100vh;
+    min-width: 100vw;
+}
+
 .window-title {
     position: absolute;
     top: 5px;
@@ -302,13 +307,4 @@ svg {
     color: white;
     padding: 5px;
     z-index: 1000;
-}
-
-#json {
-    font-family: var(--font-family);
-    color: var(--text-color);
-    background-color: var(--background-color-alt);
-    padding: 10px;
-    white-space: pre;
-    overflow: auto;
 }
