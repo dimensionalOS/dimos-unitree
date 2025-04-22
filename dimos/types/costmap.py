@@ -4,7 +4,7 @@ import numpy as np
 from typing import Optional
 from scipy import ndimage
 from nav_msgs.msg import OccupancyGrid
-from dimos.robot.global_planner.vector import Vector, VectorLike, x, y, to_vector
+from dimos.types.vector import Vector, VectorLike, x, y, to_vector
 
 
 class Costmap:

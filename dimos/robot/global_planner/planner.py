@@ -18,13 +18,11 @@ from dataclasses import dataclass
 from abc import abstractmethod
 from typing import Tuple, Callable
 
-from dimos.robot.robot import Robot
-from dimos.utils.logging_config import setup_logger
-from dimos.robot.global_planner.vector import VectorLike, to_vector, Vector
-from dimos.robot.global_planner.path import Path
-from dimos.robot.global_planner.costmap import Costmap
+from dimos.types.vector import VectorLike, to_vector, Vector
+from dimos.types.path import Path
+from dimos.types.costmap import Costmap
 from dimos.robot.global_planner.algo import astar
-from nav_msgs import msg
+from dimos.utils.logging_config import setup_logger
 from dimos.web.websocket_vis.types import Drawable, Visualizable
 from reactivex.subject import Subject
 from reactivex import Observable

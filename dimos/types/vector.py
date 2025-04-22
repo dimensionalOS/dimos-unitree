@@ -7,8 +7,6 @@ from typing import (
     Protocol,
     runtime_checkable,
 )
-import numpy as np
-from geometry_msgs.msg import Vector3
 
 T = TypeVar("T", bound="Vector")
 

@@ -1,9 +1,9 @@
 import math
 import heapq
 from typing import Optional
-from dimos.robot.global_planner.path import Path
-from dimos.robot.global_planner.vector import VectorLike
-from dimos.robot.global_planner.costmap import Costmap
+from dimos.types.path import Path
+from dimos.types.vector import VectorLike
+from dimos.types.costmap import Costmap
 
 
 def astar(
@@ -32,9 +32,7 @@ def astar(
 
     print("RUNNING ASTAR", costmap, "\n", goal, "\n", start)
     # Check if start or goal is out of bounds or in an obstacle
-    if not (
-        0 <= start_vector.x < costmap.width and 0 <= start_vector.y < costmap.height
-    ) or not (
+    if not (0 <= start_vector.x < costmap.width and 0 <= start_vector.y < costmap.height) or not (
         0 <= goal_vector.x < costmap.width and 0 <= goal_vector.y < costmap.height
     ):
         print("Start or goal position is out of bounds")
@@ -66,11 +64,7 @@ def astar(
         directions = [(0, 1), (1, 0), (0, -1), (-1, 0)]
 
     # Cost for each movement (straight vs diagonal)
-    movement_costs = (
-        [1.0, 1.0, 1.0, 1.0, 1.414, 1.414, 1.414, 1.414]
-        if allow_diagonal
-        else [1.0, 1.0, 1.0, 1.0]
-    )
+    movement_costs = [1.0, 1.0, 1.0, 1.0, 1.414, 1.414, 1.414, 1.414] if allow_diagonal else [1.0, 1.0, 1.0, 1.0]
 
     # A* algorithm implementation
     open_set = []  # Priority queue for nodes to explore
@@ -89,9 +83,7 @@ def astar(
         return math.sqrt((x2 - x1) ** 2 + (y2 - y1) ** 2)
 
     # Start with the starting node
-    f_score = g_score[start_tuple] + heuristic(
-        start_tuple[0], start_tuple[1], goal_tuple[0], goal_tuple[1]
-    )
+    f_score = g_score[start_tuple] + heuristic(start_tuple[0], start_tuple[1], goal_tuple[0], goal_tuple[1])
     heapq.heappush(open_set, (f_score, start_tuple))
 
     while open_set:
@@ -132,9 +124,7 @@ def astar(
             neighbor = (neighbor_x, neighbor_y)
 
             # Check if the neighbor is valid
-            if not (
-                0 <= neighbor_x < costmap.width and 0 <= neighbor_y < costmap.height
-            ):
+            if not (0 <= neighbor_x < costmap.width and 0 <= neighbor_y < costmap.height):
                 continue
 
             # Check if the neighbor is already explored
@@ -156,9 +146,7 @@ def astar(
                 # Update the neighbor's scores and parent
                 parents[neighbor] = current
                 g_score[neighbor] = tentative_g_score
-                f_score = tentative_g_score + heuristic(
-                    neighbor_x, neighbor_y, goal_tuple[0], goal_tuple[1]
-                )
+                f_score = tentative_g_score + heuristic(neighbor_x, neighbor_y, goal_tuple[0], goal_tuple[1])
 
                 # Add the neighbor to the open set with its f_score
                 heapq.heappush(open_set, (f_score, neighbor))
