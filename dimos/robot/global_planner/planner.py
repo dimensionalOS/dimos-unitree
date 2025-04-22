@@ -18,11 +18,11 @@ from dataclasses import dataclass
 from abc import ABC, abstractmethod
 
 from dimos.robot.robot import Robot
-from dimos.utils.logging_config import setup_logger
-from dimos.robot.global_planner.vector import VectorLike, to_vector
-from dimos.robot.global_planner.path import Path
-from dimos.robot.global_planner.costmap import Costmap
+from dimos.types.vector import VectorLike, to_vector
+from dimos.types.path import Path
+from dimos.types.costmap import Costmap
 from dimos.robot.global_planner.algo import astar
+from dimos.utils.logging_config import setup_logger
 from nav_msgs import msg
 
 logger = setup_logger("dimos.robot.unitree.global_planner", level=logging.DEBUG)
