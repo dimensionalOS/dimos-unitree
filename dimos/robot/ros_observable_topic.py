@@ -23,7 +23,7 @@ from rxpy_backpressure import BackPressure
 from nav_msgs import msg
 from dimos.utils.logging_config import setup_logger
 from dimos.utils.threadpool import get_scheduler
-from dimos.robot.global_planner.costmap import Costmap
+from dimos.types.costmap import Costmap
 
 from rclpy.qos import (
     QoSProfile,
@@ -92,12 +92,7 @@ class ROSObservableTopicAbility:
 
         # upstream ROS callback
         def _on_subscribe(obs, _):
-            cb = obs.on_next
-            if msg_type == Costmap:
-                msg_type = msg.OccupancyGrid
-                cb = lambda msg: Costmap.from_msg(msg)
-
-            ros_sub = self._node.create_subscription(msg_type, topic_name, cb, qos_profile)
+            ros_sub = self._node.create_subscription(msg_type, topic_name, obs.on_next, qos_profile)
             return Disposable(lambda: self._node.destroy_subscription(ros_sub))
 
         upstream = rx.create(_on_subscribe)

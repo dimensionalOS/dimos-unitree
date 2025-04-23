@@ -56,7 +56,7 @@ class Costmap:
         """Initialize Costmap with its core attributes."""
         self.grid = grid
         self.resolution = resolution
-        self.origin = to_vector(origin)
+        self.origin = to_vector(origin).to_2d()
         self.origin_theta = origin_theta
         self.width = self.grid.shape[1]
         self.height = self.grid.shape[0]

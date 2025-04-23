@@ -128,6 +128,7 @@ class Vector:
 
     def __sub__(self: T, other) -> T:
         if isinstance(other, Vector):
+            print(self, other)
             return self.__class__(self._data - other._data)
         return self.__class__(self._data - np.array(other, dtype=float))
 
