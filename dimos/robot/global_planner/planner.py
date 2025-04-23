@@ -63,7 +63,7 @@ class Planner(Visualizable):
         # pop the next goal from the path
         local_goal = path.head()
         print("path head", local_goal)
-        result = self.robot.navigate_to_goal_local(local_goal.to_list(), is_robot_frame=False)
+        result = self.local_nav(local_goal)
 
         if not result:
             # do we need to re-plan here?

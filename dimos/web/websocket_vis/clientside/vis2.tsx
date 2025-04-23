@@ -14,11 +14,11 @@ const VisualizerComponent: React.FC<{ state: Record<string, Drawable> }> = ({
     const height = 600
 
     /** Build a world→pixel transformer from the *first* cost‑map we see. */
-    const worldToPx = React.useMemo(() => {
+    const { worldToPx, pxToWorld } = React.useMemo(() => {
         const ref = Object.values(state).find(
             (d): d is Costmap => d instanceof Costmap,
         )
-        if (!ref) return undefined
+        if (!ref) return { worldToPx: undefined, pxToWorld: undefined }
 
         const {
             grid: { shape },
@@ -43,13 +43,50 @@ const VisualizerComponent: React.FC<{ state: Record<string, Drawable> }> = ({
             .domain([origin.coords[1], origin.coords[1] + rows * resolution])
             .range([offsetY + gridH, offsetY]) // invert y (world ↑ => svg ↑)
 
-        return (
+        // World coordinates to pixel coordinates
+        const worldToPxFn = (
             x: number,
             y: number,
         ): [number, number] => [xScale(x), yScale(y)]
+        
+        // Pixel coordinates to world coordinates (inverse transform)
+        const pxToWorldFn = (
+            x: number,
+            y: number,
+        ): [number, number] => [
+            xScale.invert(x),
+            yScale.invert(y)
+        ]
+            
+        return { 
+            worldToPx: worldToPxFn, 
+            pxToWorld: pxToWorldFn 
+        }
     }, [state])
 
     // ── main draw effect ────────────────────────────────────────────────────────
+    const handleClick = React.useCallback((event: MouseEvent) => {
+        if (!svgRef.current || !pxToWorld) return
+        
+        // Get SVG element position and dimensions
+        const svgRect = svgRef.current.getBoundingClientRect()
+        
+        // Calculate click position relative to SVG viewport
+        const viewportX = event.clientX - svgRect.left
+        const viewportY = event.clientY - svgRect.top
+        
+        // Convert to SVG coordinate space (accounting for viewBox)
+        const svgPoint = new DOMPoint(viewportX, viewportY)
+        const transformedPoint = svgPoint.matrixTransform(
+            svgRef.current.getScreenCTM()?.inverse()
+        )
+        
+        // Convert to world coordinates
+        const [worldX, worldY] = pxToWorld(transformedPoint.x, transformedPoint.y)
+        
+        console.log("Click at world coordinates:", worldX.toFixed(2), worldY.toFixed(2))
+    }, [pxToWorld])
+
     React.useEffect(() => {
         if (!svgRef.current) return
         const svg = d3.select(svgRef.current)
@@ -73,7 +110,15 @@ const VisualizerComponent: React.FC<{ state: Record<string, Drawable> }> = ({
                 visualiseVector(svg, d, key, worldToPx, width, height)
             }
         })
-    }, [state, worldToPx])
+        
+        // Add click handler
+        const svgElement = svgRef.current
+        svgElement.addEventListener('click', handleClick)
+        
+        return () => {
+            svgElement.removeEventListener('click', handleClick)
+        }
+    }, [state, worldToPx, handleClick])
 
     return (
         <div
@@ -357,6 +402,7 @@ export class Visualizer {
     private state: Record<string, Drawable> = {}
     private resizeObserver: ResizeObserver | null = null
     private root: ReactDOMClient.Root
+    private onClickCallback: ((worldX: number, worldY: number) => void) | null = null
 
     constructor(selector: string) {
         this.container = document.querySelector(selector)
@@ -371,6 +417,84 @@ export class Visualizer {
             this.resizeObserver = new ResizeObserver(() => this.render())
             this.resizeObserver.observe(this.container)
         }
+        
+        // Set up global click handler to capture world coordinates
+        document.addEventListener('click', this.handleGlobalClick.bind(this))
+    }
+    
+    /** Register a callback for when user clicks on the visualization */
+    public onWorldClick(callback: (worldX: number, worldY: number) => void): void {
+        this.onClickCallback = callback
+    }
+    
+    /** Handle global click events, filtering for clicks within our SVG */
+    private handleGlobalClick(event: MouseEvent): void {
+        if (!this.onClickCallback || !this.container) return
+        
+        // Check if click was inside our container
+        const containerRect = this.container.getBoundingClientRect()
+        if (
+            event.clientX < containerRect.left ||
+            event.clientX > containerRect.right ||
+            event.clientY < containerRect.top ||
+            event.clientY > containerRect.bottom
+        ) {
+            return // Click was outside our container
+        }
+        
+        // Find our SVG element
+        const svgElement = this.container.querySelector('svg')
+        if (!svgElement) return
+        
+        // Calculate click position relative to SVG viewport
+        const svgRect = svgElement.getBoundingClientRect()
+        const viewportX = event.clientX - svgRect.left
+        const viewportY = event.clientY - svgRect.top
+        
+        // Convert to SVG coordinate space (accounting for viewBox)
+        const svgPoint = new DOMPoint(viewportX, viewportY)
+        const transformedPoint = svgPoint.matrixTransform(
+            svgElement.getScreenCTM()?.inverse() || new DOMMatrix()
+        )
+        
+        // Find a costmap to use for coordinate conversion
+        const costmap = Object.values(this.state).find(
+            (d): d is Costmap => d instanceof Costmap
+        )
+        
+        if (!costmap) return
+        
+        const { 
+            grid: { shape }, 
+            origin, 
+            resolution 
+        } = costmap
+        const [rows, cols] = shape
+        const width = 800
+        const height = 600
+        
+        // Calculate scales (same logic as in the component)
+        const cell = Math.min(width / cols, height / rows)
+        const gridW = cols * cell
+        const gridH = rows * cell
+        const offsetX = (width - gridW) / 2
+        const offsetY = (height - gridH) / 2
+        
+        const xScale = d3
+            .scaleLinear()
+            .domain([offsetX, offsetX + gridW])
+            .range([origin.coords[0], origin.coords[0] + cols * resolution])
+        const yScale = d3
+            .scaleLinear()
+            .domain([offsetY + gridH, offsetY])
+            .range([origin.coords[1], origin.coords[1] + rows * resolution])
+        
+        // Convert to world coordinates
+        const worldX = xScale(transformedPoint.x)
+        const worldY = yScale(transformedPoint.y)
+        
+        // Call the callback with the world coordinates
+        this.onClickCallback(worldX, worldY)
     }
 
     /** Push a new application‑state snapshot to the visualiser */
@@ -390,6 +514,7 @@ export class Visualizer {
             this.resizeObserver.unobserve(this.container)
             this.resizeObserver.disconnect()
         }
+        document.removeEventListener('click', this.handleGlobalClick.bind(this))
     }
 }
 

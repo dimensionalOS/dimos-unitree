@@ -1,5 +1,6 @@
 import os
 import time
+import threading
 from dimos.robot.unitree.unitree_go2 import UnitreeGo2
 from dimos.robot.unitree.unitree_ros_control import UnitreeROSControl
 from dimos.web.websocket_vis.server import WebsocketVis
@@ -38,17 +39,33 @@ def main():
             local_nav=lambda x: time.sleep(1) and True,
         )
 
+    def msg_handler(msgtype, data):
+        if msgtype == "click":
+            target = Vector(data["position"])
+            print("TARGET IS", target)
+            try:
+                res = planner.set_goal(target)
+            except Exception as e:
+                print(f"Error setting goal: {e}")
+                return
+            print("WALK RESULT IS", res)
+
+    def threaded_msg_handler(msgtype, data):
+        thread = threading.Thread(target=msg_handler, args=(msgtype, data))
+        thread.daemon = True
+        thread.start()
+
+    websocket_vis.msg_handler = threaded_msg_handler
+
     websocket_vis.connect(planner.vis_stream())
     print(f"WebSocket server started on port {websocket_vis.port}")
-
-    time.sleep(1)
-    while True:
-        planner.plan(Vector(0, 0))
-        time.sleep(1)
+    planner.plan(Vector(0, 0))
 
     try:
         # Keep the server running
+
         while True:
+            time.sleep(0.1)
             pass
     except KeyboardInterrupt:
         print("Stopping WebSocket server...")

@@ -89,7 +89,7 @@ socket.on("state_update", state_update)
 socket.on("full_state", state_update)
 
 // Function to send data to server
-function sendData(data: any) {
+function emitMessage(data: any) {
     socket.emit("message", data)
 }
 
@@ -109,6 +109,12 @@ function updateUI() {
 function initializeApp() {
     console.log("DOM loaded, initializing UI")
     reactVisualizer = new ReactVisualizer("#vis")
+
+    // Set up click handler to convert clicks to world coordinates and send to server
+    reactVisualizer.onWorldClick((worldX, worldY) => {
+        emitMessage({ type: "click", position: [worldX, worldY] })
+    })
+
     updateUI()
 }
 

@@ -56,8 +56,12 @@ async def disconnect(sid):
 
 @sio.event
 async def message(sid, data):
-    print(f"Message received from {sid}: {data}")
-    await sio.emit("message", {"response": "Server received your message"}, room=sid)
+    # print(f"Message received from {sid}: {data}")
+    # Call WebsocketVis.handle_message if there's an active instance
+    if hasattr(sio, "vis_instance") and sio.vis_instance:
+        msgtype = data.get("type", "unknown")
+        sio.vis_instance.handle_message(msgtype, data)
+    # await sio.emit("message", {"response": "Server received your message"}, room=sid)
 
 
 # Deep merge function for nested dictionaries
@@ -87,13 +91,24 @@ async def update_state(new_data):
 
 
 class WebsocketVis:
-    def __init__(self, port=7778, use_reload=False):
+    def __init__(self, port=7778, use_reload=False, msg_handler=None):
         self.port = port
         self.server = None
         self.server_thread = None
         self.sio = sio  # Use the global sio instance
         self.use_reload = use_reload
         self.main_state = main_state  # Reference to global main_state
+        self.msg_handler = msg_handler
+
+        # Store reference to this instance on the sio object for message handling
+        sio.vis_instance = self
+
+    def handle_message(self, msgtype, msg):
+        """Handle incoming messages from the client"""
+        if self.msg_handler:
+            self.msg_handler(msgtype, msg)
+        else:
+            print("No message handler defined. Ignoring message.")
 
     def start(self):
         # If reload is requested, run in main thread
@@ -137,7 +152,6 @@ class WebsocketVis:
         print("Subing to", obs)
 
         def new_update(data):
-            print("RECEIVECD UPDATE", data)
             [name, drawable] = data
             self.update_state({"draw": {name: self.process_drawable(drawable)}})
 

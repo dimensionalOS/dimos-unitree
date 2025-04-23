@@ -173,7 +173,7 @@ class UnitreeGo2(Robot):
         self.global_planner = AstarPlanner(
             costmap=lambda: Costmap.from_msg(self.ros_control.topic_latest("map", msg.OccupancyGrid)()),
             base_link=lambda: self.ros_control.transform_euler("base_link"),
-            local_nav=lambda x: True,
+            local_nav=lambda target: self.navigate_to_goal_local([target.x, target.y], is_robot_frame=False),
         )
 
         # Create the visualization stream at 5Hz
@@ -310,6 +310,7 @@ class UnitreeGo2(Robot):
     def navigate_to_goal_local(
         self, goal_xy_robot: Tuple[float, float], is_robot_frame=True, timeout: float = 60.0
     ) -> bool:
+        print("OCAL NASVNCAJFNASF", goal_xy_robot)
         """
         Navigates the robot to a goal specified in the robot's local frame
         using the VFHPurePursuitPlanner.
