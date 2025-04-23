@@ -16193,11 +16193,10 @@ var Vector = class _Vector {
 };
 var Path = class _Path {
   constructor(coords) {
-    __publicField(this, "coords");
     this.coords = coords;
   }
   static decode(data) {
-    return new _Path(data.points.map((p) => new Vector(...p)));
+    return new _Path(data.points);
   }
 };
 var Costmap = class _Costmap {
@@ -19725,8 +19724,15 @@ var VisualizerComponent = ({
     const transformedPoint = svgPoint.matrixTransform(
       svgRef.current.getScreenCTM()?.inverse()
     );
-    const [worldX, worldY] = pxToWorld(transformedPoint.x, transformedPoint.y);
-    console.log("Click at world coordinates:", worldX.toFixed(2), worldY.toFixed(2));
+    const [worldX, worldY] = pxToWorld(
+      transformedPoint.x,
+      transformedPoint.y
+    );
+    console.log(
+      "Click at world coordinates:",
+      worldX.toFixed(2),
+      worldY.toFixed(2)
+    );
   }, [pxToWorld]);
   React.useEffect(() => {
     if (!svgRef.current) return;
@@ -19765,7 +19771,11 @@ var VisualizerComponent = ({
         height: "100%",
         viewBox: `0 0 ${width} ${height}`,
         preserveAspectRatio: "xMidYMid meet",
-        style: { backgroundColor: "#f8f9fa" }
+        style: {
+          backgroundColor: "#14151a",
+          borderRadius: "8px",
+          boxShadow: "0 4px 12px rgba(0, 0, 0, 0.15)"
+        }
       }
     )
   );
@@ -19780,7 +19790,12 @@ function visualiseCostmap(svg, costmap, width, height) {
     "transform",
     `translate(${(width - gridW) / 2}, ${(height - gridH) / 2})`
   );
-  const colour = sequential(Greys_default).domain([
+  const customColorScale = (t) => {
+    if (t < 0.1) return "#ffffff";
+    if (t > 0.9) return "#000000";
+    return Greys_default(t * 0.5);
+  };
+  const colour = sequential(customColorScale).domain([
     0,
     100
   ]);
@@ -19841,44 +19856,62 @@ function addCoordinateSystem(group, width, height, origin, resolution) {
     maxX,
     gridSize
   )) {
-    gridGroup.append("line").attr("x1", xScale(x2)).attr("y1", 0).attr("x2", xScale(x2)).attr("y2", height).attr("stroke", gridColour).attr("stroke-width", 0.25).attr("opacity", 0.7);
+    gridGroup.append("line").attr("x1", xScale(x2)).attr("y1", 0).attr("x2", xScale(x2)).attr("y2", height).attr("stroke", gridColour).attr("stroke-width", 0.5).attr("opacity", 0.5);
   }
   for (const y2 of range(
     Math.ceil(minY / gridSize) * gridSize,
     maxY,
     gridSize
   )) {
-    gridGroup.append("line").attr("x1", 0).attr("y1", yScale(y2)).attr("x2", width).attr("y2", yScale(y2)).attr("stroke", gridColour).attr("stroke-width", 0.25).attr("opacity", 0.7);
+    gridGroup.append("line").attr("x1", 0).attr("y1", yScale(y2)).attr("x2", width).attr("y2", yScale(y2)).attr("stroke", gridColour).attr("stroke-width", 0.5).attr("opacity", 0.5);
   }
-  const stylise = (sel) => sel.selectAll("line,path").attr("stroke", "black").attr(
-    "stroke-width",
-    1
-  );
-  group.append("g").attr("transform", `translate(0, ${height})`).call(axisBottom(xScale).ticks(5)).call(stylise);
-  group.append("g").call(axisLeft(yScale).ticks(5)).call(stylise);
+  const stylise = (sel) => {
+    sel.selectAll("line,path").attr("stroke", "#ffffff").attr("stroke-width", 1);
+    sel.selectAll("text").attr("fill", "#ffffff");
+  };
+  group.append("g").attr("transform", `translate(0, ${height})`).call(axisBottom(xScale).ticks(7)).call(stylise);
+  group.append("g").call(axisLeft(yScale).ticks(7)).call(stylise);
   if (minX <= 0 && 0 <= maxX && minY <= 0 && 0 <= maxY) {
-    group.append("circle").attr("cx", xScale(0)).attr("cy", yScale(0)).attr("r", 3).attr("fill", "green").attr("opacity", 0.7).append("title").text("World Origin (0,0)");
+    const originPoint = group.append("g").attr("class", "origin-marker").attr("transform", `translate(${xScale(0)}, ${yScale(0)})`);
+    originPoint.append("circle").attr("r", 8).attr("fill", "none").attr("stroke", "#00e676").attr("stroke-width", 1).attr("opacity", 0.5);
+    originPoint.append("circle").attr("r", 4).attr("fill", "#00e676").attr("opacity", 0.9).append("title").text("World Origin (0,0)");
   }
 }
 function visualisePath(svg, path2, label, wp, width, height) {
   if (path2.coords.length < 2) return;
-  const points = path2.coords.map((vector) => {
-    return wp ? wp(vector.coords[0], vector.coords[1]) : [width / 2 + vector.coords[0], height / 2 - vector.coords[1]];
+  const points = path2.coords.map(([x2, y2]) => {
+    return wp ? wp(x2, y2) : [width / 2 + x2, height / 2 - y2];
   });
   const colour = ordinal(category10_default)(label);
   const line = line_default();
-  svg.append("path").datum(points).attr("fill", "none").attr("stroke", "red").attr("stroke-width", 1).attr("stroke-dasharray", "5,5").attr("d", line).append("title").text(label);
-  const midIdx = Math.floor(points.length / 2);
-  const [mx, my] = points[midIdx];
-  svg.append("text").attr("x", mx + 7).attr("y", my - 7).attr("font-size", "10px").attr("fill", colour).text(label);
+  const pathId = `path-gradient-${label.replace(/\s+/g, "-")}`;
+  svg.append("defs").append("linearGradient").attr("id", pathId).attr("gradientUnits", "userSpaceOnUse").attr("x1", points[0][0]).attr("y1", points[0][1]).attr("x2", points[points.length - 1][0]).attr("y2", points[points.length - 1][1]).selectAll("stop").data([
+    { offset: "0%", color: "#4fc3f7" },
+    { offset: "100%", color: "#f06292" }
+  ]).enter().append("stop").attr("offset", (d) => d.offset).attr("stop-color", (d) => d.color);
+  const pathElement = svg.append("path").datum(points).attr("fill", "none").attr("stroke", `url(#${pathId})`).attr("stroke-width", 3).attr("stroke-linecap", "round").attr("filter", "url(#glow)").attr("opacity", 0.9).attr("d", line);
+  const [mx, my] = points[Math.floor(points.length / 2)];
+  const textGroup = svg.append("g");
+  const text = `${label} (${path2.coords.length})`;
+  const textElement = textGroup.append("text").attr("x", mx + 10).attr("y", my - 10).attr("font-size", "10px").attr("fill", "white").text(text);
+  const bbox = textElement.node()?.getBBox();
+  if (bbox) {
+    textGroup.insert("rect", "text").attr("x", bbox.x - 1).attr("y", bbox.y - 1).attr("width", bbox.width + 2).attr("height", bbox.height + 2).attr("fill", "black").attr("stroke", "black").attr("opacity", 0.7);
+  }
 }
 function visualiseVector(svg, vector, label, wp, width, height) {
   const [cx, cy] = wp ? wp(vector.coords[0], vector.coords[1]) : [width / 2 + vector.coords[0], height / 2 - vector.coords[1]];
   const colour = ordinal(category10_default)(label);
-  svg.append("circle").attr("cx", cx).attr("cy", cy).attr("r", 3).attr("fill", colour).append("title").text(
-    `${label}: (${vector.coords[0].toFixed(2)}, ${vector.coords[1].toFixed(2)})`
-  );
-  svg.append("text").attr("x", cx + 7).attr("y", cy - 7).attr("font-size", "10px").attr("fill", colour).text(label);
+  const vectorGroup = svg.append("g").attr("class", "vector-marker").attr("transform", `translate(${cx}, ${cy})`);
+  vectorGroup.append("circle").attr("r", 8).attr("fill", "none").attr("stroke", "#4fc3f7").attr("stroke-width", 1).attr("opacity", 0.9).attr("filter", "url(#glow)");
+  vectorGroup.append("circle").attr("r", 4).attr("fill", "#4fc3f7").attr("filter", "url(#glow)");
+  const text = `${label} (${vector.coords[0].toFixed(2)}, ${vector.coords[1].toFixed(2)})`;
+  const textGroup = svg.append("g");
+  const textElement = textGroup.append("text").attr("x", cx + 10).attr("y", cy - 10).attr("font-size", "10px").attr("fill", "white").text(text);
+  const bbox = textElement.node()?.getBBox();
+  if (bbox) {
+    textGroup.insert("rect", "text").attr("x", bbox.x - 1).attr("y", bbox.y - 1).attr("width", bbox.width + 2).attr("height", bbox.height + 2).attr("fill", "black").attr("stroke", "black").attr("opacity", 0.7);
+  }
 }
 var Visualizer = class {
   constructor(selector) {
