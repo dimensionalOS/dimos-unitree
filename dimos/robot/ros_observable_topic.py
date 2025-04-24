@@ -140,7 +140,7 @@ class ROSObservableTopicAbility:
     # odom.dispose()  # clean up the subscription
     #
     # see test_ros_observable_topic.py test_topic_latest for more details
-    def topic_latest(self, topic_name: str, msg_type: msg, timeout: float | None = 10.0, qos=QOS.SENSOR):
+    def topic_latest(self, topic_name: str, msg_type: msg, timeout: float | None = 30.0, qos=QOS.SENSOR):
         """
         Blocks the current thread until the first message is received, then
         returns `reader()` (sync) and keeps one ROS subscription alive
@@ -186,7 +186,7 @@ class ROSObservableTopicAbility:
     # odom.dispose()  # clean up the subscription
     #
     # see test_ros_observable_topic.py test_topic_latest for more details
-    async def topic_latest_async(self, topic_name: str, msg_type: msg, qos=QOS.SENSOR, timeout: float = 10.0):
+    async def topic_latest_async(self, topic_name: str, msg_type: msg, qos=QOS.SENSOR, timeout: float = 30.0):
         loop = asyncio.get_running_loop()
         first = loop.create_future()
         cache = {"val": None}
