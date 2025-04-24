@@ -23,6 +23,7 @@ from rxpy_backpressure import BackPressure
 from nav_msgs import msg
 from dimos.utils.logging_config import setup_logger
 from dimos.utils.threadpool import get_scheduler
+from dimos.types.costmap import Costmap
 
 from rclpy.qos import (
     QoSProfile,
@@ -56,14 +57,6 @@ class QOS(enum.Enum):
 
         raise ValueError(f"Unknown QoS enum value: {self}")
 
-
-# TODO: should go to some shared file, this is copy pasted from ros_control.py
-sensor_qos = QoSProfile(
-    reliability=QoSReliabilityPolicy.BEST_EFFORT,
-    history=QoSHistoryPolicy.KEEP_LAST,
-    durability=QoSDurabilityPolicy.VOLATILE,
-    depth=1,
-)
 
 logger = setup_logger("dimos.robot.ros_control.observable_topic")
 

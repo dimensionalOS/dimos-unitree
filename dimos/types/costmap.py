@@ -1,3 +1,17 @@
+# Copyright 2025 Dimensional Inc.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+import base64
 import pickle
 import math
 import numpy as np
@@ -6,6 +20,28 @@ from scipy import ndimage
 from nav_msgs.msg import OccupancyGrid
 from dimos.types.vector import Vector, VectorLike, x, y, to_vector
 
+DTYPE2STR = {
+    np.float32: "f32",
+    np.float64: "f64",
+    np.int32: "i32",
+    np.int8: "i8",
+}
+
+STR2DTYPE = {v: k for k, v in DTYPE2STR.items()}
+
+
+def encode_ndarray(arr: np.ndarray, compress: bool = False):
+    arr_c = np.ascontiguousarray(arr)
+    payload = arr_c.tobytes()
+    b64 = base64.b64encode(payload).decode("ascii")
+
+    return {
+        "type": "grid",
+        "shape": arr_c.shape,
+        "dtype": DTYPE2STR[arr_c.dtype.type],
+        "data": b64,
+    }
+
 
 class Costmap:
     """Class to hold ROS OccupancyGrid data."""
@@ -13,17 +49,27 @@ class Costmap:
     def __init__(
         self,
         grid: np.ndarray,
-        origin: VectorLike,
         origin_theta: float,
+        origin: VectorLike,
         resolution: float = 0.05,
     ):
         """Initialize Costmap with its core attributes."""
         self.grid = grid
         self.resolution = resolution
-        self.origin = to_vector(origin)
+        self.origin = to_vector(origin).to_2d()
         self.origin_theta = origin_theta
         self.width = self.grid.shape[1]
         self.height = self.grid.shape[0]
+
+    def serialize(self) -> tuple:
+        """Serialize the Costmap instance to a tuple."""
+        return {
+            "type": "costmap",
+            "grid": encode_ndarray(self.grid),
+            "origin": self.origin.serialize(),
+            "resolution": self.resolution,
+            "origin_theta": self.origin_theta,
+        }
 
     @classmethod
     def from_msg(cls, costmap_msg: OccupancyGrid) -> "Costmap":
@@ -73,8 +119,9 @@ class Costmap:
     def from_pickle(cls, pickle_path: str) -> "Costmap":
         """Load costmap from a pickle file containing a ROS OccupancyGrid message."""
         with open(pickle_path, "rb") as f:
-            costmap_msg = pickle.load(f)
-        return cls.from_msg(costmap_msg)
+            data = pickle.load(f)
+            costmap = cls(*data)
+        return costmap
 
     @classmethod
     def create_empty(cls, width: int = 100, height: int = 100, resolution: float = 0.1) -> "Costmap":
@@ -134,9 +181,9 @@ class Costmap:
 
     def smudge(
         self,
-        kernel_size: int = 7,
-        iterations: int = 10,
-        decay_factor: float = 0.8,
+        kernel_size: int = 10,
+        iterations: int = 2,
+        decay_factor: float = 0.7,
         threshold: int = 80,
         preserve_unknown: bool = False,
     ) -> "Costmap":

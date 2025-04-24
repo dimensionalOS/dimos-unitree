@@ -12,88 +12,60 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import logging
-
 from dataclasses import dataclass
-from abc import ABC, abstractmethod
+from abc import abstractmethod
+from typing import Tuple, Callable
 
-from dimos.robot.robot import Robot
-from dimos.types.vector import VectorLike, to_vector
+from dimos.types.vector import VectorLike, to_vector, Vector
 from dimos.types.path import Path
 from dimos.types.costmap import Costmap
 from dimos.robot.global_planner.algo import astar
 from dimos.utils.logging_config import setup_logger
-from nav_msgs import msg
+from dimos.web.websocket_vis.types import Visualizable
 
-logger = setup_logger("dimos.robot.unitree.global_planner", level=logging.DEBUG)
+logger = setup_logger("dimos.robot.unitree.global_planner")
 
 
 @dataclass
-class Planner(ABC):
-    robot: Robot
+class Planner(Visualizable):
+    local_nav: Callable[[Path], bool]
 
     @abstractmethod
     def plan(self, goal: VectorLike) -> Path: ...
 
-    def walk_loop(self, path: Path) -> bool:
-        """Navigate through a path of waypoints.
-        
-        This method now passes the entire path to the local planner at once,
-        utilizing the waypoint following capabilities.
-        
-        Args:
-            path: Path object containing waypoints
-            
-        Returns:
-            bool: True if successfully reached the goal, False otherwise
-        """
-        if not path or len(path) == 0:
-            logger.warning("Cannot follow empty path")
-            return False
-            
-        logger.info(f"Following path with {len(path)} waypoints")
-        
-        # Use the robot's waypoint navigation capability
-        result = self.robot.navigate_path_local(path)
-        
-        if not result:
-            logger.warning("Failed to navigate the path")
-            return False
-            
-        logger.info("Successfully reached the goal")
-        return True
-
     def set_goal(self, goal: VectorLike):
-        """Plan and navigate to a goal position.
-        
-        Args:
-            goal: Goal position as a vector-like object
-            
-        Returns:
-            bool: True if planning and navigation succeeded, False otherwise
-        """
         goal = to_vector(goal).to_2d()
         path = self.plan(goal)
         if not path:
             logger.warning("No path found to the goal.")
             return False
 
-        return self.walk_loop(path)
+        return self.local_nav(path.resample(1.0))
 
 
 class AstarPlanner(Planner):
-    def __init__(self, robot: Robot):
-        super().__init__(robot)
-        self.costmap = self.robot.ros_control.topic_latest("map", msg.OccupancyGrid)
-
-    def start(self):
-        return self
-
-    def stop(self):
-        if hasattr(self, "costmap"):
-            self.costmap.dispose()
-            del self.costmap
+    def __init__(
+        self,
+        costmap: Callable[[], Costmap],
+        base_link: Callable[[], Tuple[Vector, Vector]],
+        local_nav: Callable[[Vector], bool],
+    ):
+        super().__init__(local_nav)
+        self.base_link = base_link
+        self.costmap = costmap
 
     def plan(self, goal: VectorLike) -> Path:
-        [pos, rot] = self.robot.ros_control.transform_euler("base_link")
-        return astar(Costmap.from_msg(self.costmap()).smudge(kernel_size=3), goal, pos)
+        [pos, rot] = self.base_link()
+        costmap = self.costmap()
+        costmap.save_pickle("costmap3.pickle")
+        smudge = costmap.smudge()
+
+        self.vis("global_costmap", smudge)
+        self.vis("pos", pos)
+        self.vis("target", goal)
+
+        path = astar(smudge, goal, pos).resample(0.5)
+
+        if path:
+            self.vis("a*", path)
+        return path
