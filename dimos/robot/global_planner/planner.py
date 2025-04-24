@@ -12,8 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import logging
-
 from dataclasses import dataclass
 from abc import abstractmethod
 from typing import Tuple, Callable
@@ -27,7 +25,7 @@ from dimos.web.websocket_vis.types import Drawable, Visualizable
 from reactivex.subject import Subject
 from reactivex import Observable
 
-logger = setup_logger("dimos.robot.unitree.global_planner", level=logging.DEBUG)
+logger = setup_logger("dimos.robot.unitree.global_planner")
 
 
 @dataclass
