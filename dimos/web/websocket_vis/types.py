@@ -5,6 +5,7 @@ from dimos.types.vector import Vector
 from dimos.types.path import Path
 from dimos.types.costmap import Costmap
 from reactivex.observable import Observable
+from reactivex.subject import Subject
 
 
 class VectorDrawConfig(TypedDict, total=False):
@@ -39,26 +40,15 @@ Drawables = Iterable[Drawable]
 
 class Visualizable(ABC):
     """
-    Abstract base class for objects that can provide visualization data.
+    Base class for objects that can provide visualization data.
     """
 
-    @abstractmethod
-    def vis_stream(self) -> Observable[List[Drawable]]:
-        """
-        Returns an Observable stream of Drawable objects that can be
-        visualized in the websocket visualization system.
+    def vis_stream(self) -> Observable[Tuple[str, Drawable]]:
+        if not hasattr(self, "_vis_subject"):
+            self._vis_subject = Subject()
+        return self._vis_subject
 
-        Returns:
-            Observable[List[Drawable]]: An observable stream of lists of drawable objects
-        """
-        pass
-
-    @abstractmethod
     def vis(self, name: str, drawable: Drawable) -> None:
-        """
-        Visualizes the provided drawables.
-
-        Args:
-            drawables (List[Drawable]): A list of drawable objects to visualize.
-        """
-        pass
+        if not hasattr(self, "_vis_subject"):
+            return
+        self._vis_subject.on_next((name, drawable))
