@@ -64,6 +64,8 @@ class Planner(Visualizable):
         local_goal = path.head()
         print("path head", local_goal)
         result = self.local_nav(local_goal)
+        [pos, rot] = self.base_link()
+        self.vis("pos", pos)
 
         if not result:
             # do we need to re-plan here?
@@ -88,7 +90,7 @@ class Planner(Visualizable):
             logger.warning("No path found to the goal.")
             return False
 
-        return self.walk_loop(path)
+        return self.walk_loop(path.resample(1.0))
 
 
 class AstarPlanner(Planner):
@@ -112,6 +114,6 @@ class AstarPlanner(Planner):
         self.vis("target", goal)
         path = astar(smudge, goal, pos)
         if path:
-            path = path.resample(0.25)
+            path = path.resample(1)
             self.vis("a*", path)
         return path
