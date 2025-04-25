@@ -41,7 +41,7 @@ class Planner(Visualizable):
             logger.warning("No path found to the goal.")
             return False
 
-        return self.local_nav(path.resample(1.0), stop_event=stop_event)
+        return self.local_nav(path, stop_event=stop_event)
 
 
 class AstarPlanner(Planner):
@@ -58,7 +58,7 @@ class AstarPlanner(Planner):
     def plan(self, goal: VectorLike) -> Path:
         [pos, rot] = self.base_link()
         costmap = self.costmap()
-        smudge = costmap.smudge()
+        smudge = costmap.smudge(iterations=3)
 
         self.vis("planner_costmap", smudge)
         self.vis("target", goal)
