@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import pickle
 import numpy as np
 from geometry_msgs.msg import Vector3
 from typing import (
@@ -228,6 +227,12 @@ class Vector:
 
         scalar_projection = np.dot(self._data, onto_data) / onto_length_sq
         return self.__class__(scalar_projection * onto_data)
+
+    # this is here to test ros_observable_topic
+    # doesn't happen irl afaik that we want a vector from ros message
+    @classmethod
+    def from_msg(cls: type[T], msg) -> T:
+        return cls(*msg)
 
     @classmethod
     def zeros(cls: type[T], dim: int) -> T:

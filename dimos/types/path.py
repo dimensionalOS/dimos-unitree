@@ -339,6 +339,12 @@ class Path:
         """Get a point at the given index as a Vector object."""
         return Vector(self._points[idx])
 
+    def last(self) -> Vector:
+        """Get the first point in the path as a Vector object."""
+        if len(self._points) == 0:
+            return None
+        return Vector(self._points[-1])
+
     def head(self) -> Vector:
         """Get the first point in the path as a Vector object."""
         if len(self._points) == 0:
@@ -359,6 +365,29 @@ class Path:
     def __repr__(self) -> str:
         """String representation of the path."""
         return f"↶ Path ({len(self._points)} Points)"
+
+    def ipush(self, point: Union[Vector, np.ndarray, Tuple]) -> "Path":
+        """Return a new Path with `point` appended."""
+        if isinstance(point, Vector):
+            p = point.data
+        else:
+            p = np.asarray(point, dtype=float)
+
+        if len(self._points) == 0:
+            new_pts = p.reshape(1, -1)
+        else:
+            new_pts = np.vstack((self._points, p))
+        return self.__class__(new_pts)
+
+    def iclip_tail(self, max_len: int) -> "Path":
+        """Return a new Path containing only the last `max_len` points."""
+        if max_len < 0:
+            raise ValueError("max_len must be ≥ 0")
+        return self.__class__(self._points[-max_len:])
+
+    def __add__(self, point):
+        """path + vec  ->  path.pushed(vec)"""
+        return self.pushed(point)
 
 
 if __name__ == "__main__":

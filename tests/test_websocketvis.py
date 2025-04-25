@@ -4,6 +4,7 @@ import threading
 from dimos.robot.unitree.unitree_go2 import UnitreeGo2
 from dimos.robot.unitree.unitree_ros_control import UnitreeROSControl
 from dimos.web.websocket_vis.server import WebsocketVis
+from dimos.web.websocket_vis.helpers import vector_stream, topic_stream
 from dimos.robot.global_planner.planner import AstarPlanner
 from dimos.types.costmap import Costmap
 from dimos.types.vector import Vector
@@ -58,6 +59,10 @@ def main():
     websocket_vis.msg_handler = threaded_msg_handler
 
     websocket_vis.connect(planner.vis_stream())
+
+    websocket_vis.connect(topic_stream("global_costmap", robot.ros_control.topic("costmap_global", Costmap)))
+    websocket_vis.connect(vector_stream("robot", robot.ros_control.transform_euler_pos("base_link")))
+
     print(f"WebSocket server started on port {websocket_vis.port}")
     planner.plan(Vector(0, 0))
 
