@@ -111,6 +111,8 @@ class Robot(ABC):
     def move(self, distance: float, speed: float = 0.5) -> bool:
         """Move the robot using velocity commands.
         
+        DEPRECATED: Use move_vel instead for direct velocity control.
+        
         Args:
             distance: Distance to move forward in meters (must be positive).
             speed: Speed to move at in m/s. Defaults to 0.5.
@@ -121,13 +123,12 @@ class Robot(ABC):
         Raises:
             RuntimeError: If no ROS control interface is available.
         """
-        if self.ros_control is None:
-            raise RuntimeError(
-                "No ROS control interface available for movement")
-        return self.ros_control.move(distance, speed)
+        pass
 
     def reverse(self, distance: float, speed: float = 0.5) -> bool:
         """Move the robot backward by a specified distance.
+        
+        DEPRECATED: Use move_vel with negative x value instead for direct velocity control.
         
         Args:
             distance: Distance to move backward in meters (must be positive).
@@ -139,10 +140,7 @@ class Robot(ABC):
         Raises:
             RuntimeError: If no ROS control interface is available.
         """
-        if self.ros_control is None:
-            raise RuntimeError(
-                "No ROS control interface available for movement")
-        return self.ros_control.reverse(distance, speed)
+        pass
 
     def spin(self, degrees: float, speed: float = 45.0) -> bool:
         """Rotate the robot by a specified angle.
