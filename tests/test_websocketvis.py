@@ -4,10 +4,11 @@ import threading
 from dimos.robot.unitree.unitree_go2 import UnitreeGo2
 from dimos.robot.unitree.unitree_ros_control import UnitreeROSControl
 from dimos.web.websocket_vis.server import WebsocketVis
-from dimos.web.websocket_vis.helpers import vector_stream, topic_stream
+from dimos.web.websocket_vis.helpers import vector_stream
 from dimos.robot.global_planner.planner import AstarPlanner
 from dimos.types.costmap import Costmap
 from dimos.types.vector import Vector
+from reactivex import operators as ops
 import argparse
 import pickle
 
@@ -31,6 +32,10 @@ def main():
         ros_control = UnitreeROSControl(node_name="simple_nav_test", mock_connection=False)
         robot = UnitreeGo2(ros_control=ros_control, ip=os.getenv("ROBOT_IP"))
         planner = robot.global_planner
+
+        websocket_vis.connect(vector_stream("robot", lambda: robot.ros_control.transform_euler_pos("base_link")))
+        websocket_vis.connect(robot.ros_control.topic("map", Costmap).pipe(ops.map(lambda x: ["costmap", x])))
+
     else:
         pickle_path = f"{__file__.rsplit('/', 1)[0]}/mockdata/costmap.pickle"
         print(f"Loading costmap from {pickle_path}")
@@ -43,32 +48,25 @@ def main():
     def msg_handler(msgtype, data):
         if msgtype == "click":
             target = Vector(data["position"])
-            print("TARGET IS", target)
             try:
-                res = planner.set_goal(target)
+                planner.set_goal(target)
             except Exception as e:
                 print(f"Error setting goal: {e}")
                 return
-            print("WALK RESULT IS", res)
 
     def threaded_msg_handler(msgtype, data):
         thread = threading.Thread(target=msg_handler, args=(msgtype, data))
         thread.daemon = True
         thread.start()
 
-    websocket_vis.msg_handler = threaded_msg_handler
-
     websocket_vis.connect(planner.vis_stream())
-
-    websocket_vis.connect(topic_stream("global_costmap", robot.ros_control.topic("costmap_global", Costmap)))
-    websocket_vis.connect(vector_stream("robot", robot.ros_control.transform_euler_pos("base_link")))
+    websocket_vis.msg_handler = threaded_msg_handler
 
     print(f"WebSocket server started on port {websocket_vis.port}")
     planner.plan(Vector(0, 0))
 
     try:
         # Keep the server running
-
         while True:
             time.sleep(0.1)
             pass

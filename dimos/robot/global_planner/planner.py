@@ -21,7 +21,7 @@ from dimos.types.path import Path
 from dimos.types.costmap import Costmap
 from dimos.robot.global_planner.algo import astar
 from dimos.utils.logging_config import setup_logger
-from dimos.web.websocket_vis.types import Visualizable
+from dimos.web.websocket_vis.helpers import Visualizable
 
 logger = setup_logger("dimos.robot.unitree.global_planner")
 

@@ -98,7 +98,7 @@ class ROSObservableTopicAbility:
         if msg_type == Vector:
             return msg.Odometry
 
-        return msg
+        return msg_type
 
     @functools.lru_cache(maxsize=None)
     def topic(
