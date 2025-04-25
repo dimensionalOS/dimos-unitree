@@ -17,7 +17,7 @@ from rclpy.node import Node
 from rclpy.executors import MultiThreadedExecutor
 from rclpy.action import ActionClient
 from geometry_msgs.msg import Twist
-from nav2_msgs.action import DriveOnHeading, Spin, BackUp
+from nav2_msgs.action import Spin
 
 from sensor_msgs.msg import Image, CompressedImage
 from cv_bridge import CvBridge
@@ -35,7 +35,7 @@ from rclpy.qos import (
 from dimos.stream.ros_video_provider import ROSVideoProvider
 import math
 from builtin_interfaces.msg import Duration
-from geometry_msgs.msg import Point, Vector3
+from geometry_msgs.msg import Point, Vector3, Twist
 from dimos.robot.ros_command_queue import ROSCommandQueue
 from dimos.utils.logging_config import setup_logger
 
@@ -229,17 +229,11 @@ class ROSControl(ROSTransformAbility, ROSObservableTopicAbility, ABC):
             logger.warning("No costmap topic provided - costmap data tracking will be unavailable")
 
         # Nav2 Action Clients
-        self._drive_client = ActionClient(
-            self._node, DriveOnHeading, "drive_on_heading"
-        )
         self._spin_client = ActionClient(self._node, Spin, "spin")
-        self._backup_client = ActionClient(self._node, BackUp, "backup")
 
         # Wait for action servers
         if not mock_connection:
-            self._drive_client.wait_for_server()
             self._spin_client.wait_for_server()
-            self._backup_client.wait_for_server()
 
         # Publishers
         self._move_vel_pub = self._node.create_publisher(
