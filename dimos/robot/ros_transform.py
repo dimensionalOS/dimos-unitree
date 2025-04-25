@@ -28,10 +28,17 @@ logger = setup_logger("dimos.robot.ros_transform")
 __all__ = ["ROSTransformAbility"]
 
 
-def transform_to_euler(msg: TransformStamped) -> [Vector, Vector]:
+def to_euler_rot(msg: TransformStamped) -> [Vector, Vector]:
     q = msg.transform.rotation
     rotation = R.from_quat([q.x, q.y, q.z, q.w])
-    return [Vector(msg.transform.translation).to_2d(), Vector(rotation.as_euler("xyz", degrees=False))]
+    return Vector(rotation.as_euler("xyz", degrees=False))
+
+
+def to_euler_pos(msg: TransformStamped) -> [Vector, Vector]:
+    return Vector(msg.transform.translation).to_2d()
+
+def to_euler(msg: TransformStamped) -> [Vector, Vector]:
+    return [to_euler_pos(msg), to_euler_rot(msg)]
 
 
 class ROSTransformAbility:
@@ -46,8 +53,15 @@ class ROSTransformAbility:
 
         return self._tf_buffer
 
+    def transform_euler_pos(self, child_frame: str, parent_frame: str = "map", timeout: float = 1.0):
+        return to_euler_pos(self.transform(child_frame, parent_frame, timeout))
+
+    def transform_euler_rot(self, child_frame: str, parent_frame: str = "map", timeout: float = 1.0):
+        return to_euler_rot(self.transform(child_frame, parent_frame, timeout))
+
     def transform_euler(self, child_frame: str, parent_frame: str = "map", timeout: float = 1.0):
-        return transform_to_euler(self.transform(child_frame, parent_frame, timeout))
+        res = self.transform(child_frame, parent_frame, timeout)
+        return to_euler(res)
 
     def transform(
         self, child_frame: str, parent_frame: str = "map", timeout: float = 1.0
@@ -67,28 +81,25 @@ class ROSTransformAbility:
         ) as e:
             logger.error(f"Transform lookup failed: {e}")
             return None
-        
+
     def transform_point(self, point: Vector, source_frame: str, target_frame: str = "map", timeout: float = 1.0):
         """Transform a point from child_frame to parent_frame.
-        
+
         Args:
             point: The point to transform (x, y, z)
             source_frame: The source frame of the point
             target_frame: The target frame to transform to
             timeout: Time to wait for the transform to become available (seconds)
-            
+
         Returns:
             The transformed point as a Vector, or None if the transform failed
         """
         try:
             # Wait for transform to become available
             self.tf_buffer.can_transform(
-                target_frame,
-                source_frame,
-                rclpy.time.Time(),
-                rclpy.duration.Duration(seconds=timeout)
+                target_frame, source_frame, rclpy.time.Time(), rclpy.duration.Duration(seconds=timeout)
             )
-            
+
             # Create a PointStamped message
             ps = PointStamped()
             ps.header.frame_id = source_frame
@@ -96,33 +107,28 @@ class ROSTransformAbility:
             ps.point.x = point[0]
             ps.point.y = point[1]
             ps.point.z = point[2] if len(point) > 2 else 0.0
-            
+
             # Transform point
-            transformed_ps = self.tf_buffer.transform(
-                ps, 
-                target_frame,
-                rclpy.duration.Duration(seconds=timeout)
-            )
-            
+            transformed_ps = self.tf_buffer.transform(ps, target_frame, rclpy.duration.Duration(seconds=timeout))
+
             # Return as Vector type
             if len(point) > 2:
                 return Vector(transformed_ps.point.x, transformed_ps.point.y, transformed_ps.point.z)
             else:
                 return Vector(transformed_ps.point.x, transformed_ps.point.y)
-        except (tf2_ros.LookupException, tf2_ros.ConnectivityException, 
-                tf2_ros.ExtrapolationException) as e:
+        except (tf2_ros.LookupException, tf2_ros.ConnectivityException, tf2_ros.ExtrapolationException) as e:
             logger.error(f"Transform from {source_frame} to {target_frame} failed: {e}")
             return None
-        
+
     def transform_path(self, path: Path, source_frame: str, target_frame: str = "map", timeout: float = 1.0):
         """Transform a path from source_frame to target_frame.
-        
+
         Args:
             path: The path to transform
-            source_frame: The source frame of the path  
+            source_frame: The source frame of the path
             target_frame: The target frame to transform to
             timeout: Time to wait for the transform to become available (seconds)
-            
+
         Returns:
             The transformed path as a Path, or None if the transform failed
         """

@@ -1,11 +1,8 @@
-from typing import Union, Iterable, Tuple, TypedDict, List
-from abc import ABC, abstractmethod
+from typing import Union, Iterable, Tuple, TypedDict
 
 from dimos.types.vector import Vector
 from dimos.types.path import Path
 from dimos.types.costmap import Costmap
-from reactivex.observable import Observable
-from reactivex.subject import Subject
 
 
 class VectorDrawConfig(TypedDict, total=False):
@@ -35,20 +32,5 @@ Drawable = Union[
     Tuple[Path, PathDrawConfig],
     Tuple[Costmap, CostmapDrawConfig],
 ]
+
 Drawables = Iterable[Drawable]
-
-
-class Visualizable(ABC):
-    """
-    Base class for objects that can provide visualization data.
-    """
-
-    def vis_stream(self) -> Observable[Tuple[str, Drawable]]:
-        if not hasattr(self, "_vis_subject"):
-            self._vis_subject = Subject()
-        return self._vis_subject
-
-    def vis(self, name: str, drawable: Drawable) -> None:
-        if not hasattr(self, "_vis_subject"):
-            return
-        self._vis_subject.on_next((name, drawable))

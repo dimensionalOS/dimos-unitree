@@ -24,6 +24,9 @@ from nav_msgs import msg
 from dimos.utils.logging_config import setup_logger
 from dimos.utils.threadpool import get_scheduler
 from dimos.types.costmap import Costmap
+from dimos.types.vector import Vector
+
+from typing import Union, Callable, Any
 
 from rclpy.qos import (
     QoSProfile,
@@ -33,6 +36,9 @@ from rclpy.qos import (
 )
 
 __all__ = ["ROSObservableTopicAbility", "QOS"]
+
+ConversionType = Costmap
+TopicType = Union[ConversionType, msg.OccupancyGrid, msg.Odometry]
 
 
 class QOS(enum.Enum):
@@ -75,11 +81,28 @@ class ROSObservableTopicAbility:
     #                          ├──► observe_on(pool) ─► backpressure.latest ─► sub2 (slow)
     #                          └──► observe_on(pool) ─► backpressure.latest ─► sub3 (slower)
     #
+    def _maybe_conversion(self, msg_type: TopicType, callback) -> Callable[[TopicType], Any]:
+        if msg_type == Costmap:
+            return lambda msg: callback(Costmap.from_msg(msg))
+        # just for test, not sure if this Vector auto-instantiation is used irl
+        if msg_type == Vector:
+            return lambda msg: callback(Vector.from_msg(msg))
+        return callback
+
+    def _sub_msg_type(self, msg_type):
+        if msg_type == Costmap:
+            return msg.OccupancyGrid
+
+        if msg_type == Vector:
+            return msg.Odometry
+
+        return msg_type
+
     @functools.lru_cache(maxsize=None)
     def topic(
         self,
         topic_name: str,
-        msg_type: msg,
+        msg_type: TopicType,
         qos=QOS.SENSOR,
         scheduler: ThreadPoolScheduler | None = None,
         drop_unprocessed: bool = True,
@@ -92,7 +115,9 @@ class ROSObservableTopicAbility:
 
         # upstream ROS callback
         def _on_subscribe(obs, _):
-            ros_sub = self._node.create_subscription(msg_type, topic_name, obs.on_next, qos_profile)
+            ros_sub = self._node.create_subscription(
+                self._sub_msg_type(msg_type), topic_name, self._maybe_conversion(msg_type, obs.on_next), qos_profile
+            )
             return Disposable(lambda: self._node.destroy_subscription(ros_sub))
 
         upstream = rx.create(_on_subscribe)
@@ -133,7 +158,7 @@ class ROSObservableTopicAbility:
     # odom.dispose()  # clean up the subscription
     #
     # see test_ros_observable_topic.py test_topic_latest for more details
-    def topic_latest(self, topic_name: str, msg_type: msg, timeout: float | None = 30.0, qos=QOS.SENSOR):
+    def topic_latest(self, topic_name: str, msg_type: TopicType, timeout: float | None = 30.0, qos=QOS.SENSOR):
         """
         Blocks the current thread until the first message is received, then
         returns `reader()` (sync) and keeps one ROS subscription alive
@@ -179,7 +204,7 @@ class ROSObservableTopicAbility:
     # odom.dispose()  # clean up the subscription
     #
     # see test_ros_observable_topic.py test_topic_latest for more details
-    async def topic_latest_async(self, topic_name: str, msg_type: msg, qos=QOS.SENSOR, timeout: float = 30.0):
+    async def topic_latest_async(self, topic_name: str, msg_type: TopicType, qos=QOS.SENSOR, timeout: float = 30.0):
         loop = asyncio.get_running_loop()
         first = loop.create_future()
         cache = {"val": None}

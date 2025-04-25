@@ -5,6 +5,8 @@ from nav_msgs import msg
 import pytest
 from dimos.robot.ros_observable_topic import ROSObservableTopicAbility
 from dimos.utils.logging_config import setup_logger
+from dimos.types.costmap import Costmap
+from dimos.types.vector import Vector
 import asyncio
 
 
@@ -34,7 +36,10 @@ class MockROSNode:
             while not stop_event.is_set():
                 message_count += 1
                 time.sleep(0.1)  # 20Hz default publication rate
-                callback(message_count)
+                if topic_name == "/vector":
+                    callback([message_count, message_count])
+                else:
+                    callback(message_count)
             # cleanup
             self.subs.pop(sub_id)
 
@@ -181,6 +186,13 @@ async def test_topic_latest_async():
     odom.dispose()
     await asyncio.sleep(0.1)
     assert robot._node.subs == {}
+
+
+def test_topic_auto_conversion():
+    robot = MockRobot()
+    odom = robot.topic("/vector", Vector).subscribe(lambda x: print(x))
+    time.sleep(0.5)
+    odom.dispose()
 
 
 def test_topic_latest_sync():
