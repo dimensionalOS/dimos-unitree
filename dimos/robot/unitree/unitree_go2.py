@@ -183,82 +183,10 @@ class UnitreeGo2(Robot):
 
         # Create the visualization stream at 5Hz
         self.local_planner_viz_stream = self.local_planner.create_stream(frequency_hz=5.0)
-        
-        # Add visual navigation skills if the skill library exists
-        if self.skill_library is not None:
-            self.skill_library.add(FollowHuman)
-            self.skill_library.add(NavigateToObject)
-            
-            # Create instances of the skills
-            self.skill_library.create_instance("FollowHuman", robot=self)
-            self.skill_library.create_instance("NavigateToObject", robot=self)
-
-    def follow_human(self, distance: int = 1.5, timeout: float = 20.0, point: Tuple[int, int] = None):
-        """
-        Follow a human using visual servoing.
-        
-        Args:
-            distance: Desired distance to maintain from person in meters
-            timeout: Maximum time to follow in seconds
-            point: Optional starting point for tracking (x,y pixel coordinates)
-            
-        Returns:
-            bool: True if successful, False otherwise
-        """
-        if self.skill_library is None:
-            logger.error("Skill library is None, cannot call FollowHuman skill")
-            return False
-            
-        try:
-            # Call the skill with the appropriate parameters
-            result = self.skill_library.call("FollowHuman", 
-                                            robot=self, 
-                                            distance=distance,
-                                            timeout=timeout,
-                                            point=point)
-            
-            # For backward compatibility, return a boolean success indicator
-            return "Failed" not in result if isinstance(result, str) else False
-        except Exception as e:
-            logger.error(f"Error calling FollowHuman skill: {e}")
-            return False
-
-    def navigate_to(self, object_name: str, distance: float = 1.0, timeout: float = 40.0, max_retries: int = 3):
-        """
-        Navigate to an object identified by name using vision-based tracking and local planner.
-
-        Args:
-            object_name: Name of the object to navigate to
-            distance: Desired distance to maintain from object in meters
-            timeout: Maximum time to spend navigating in seconds
-            max_retries: Maximum number of retries when getting bounding box from Qwen
-
-        Returns:
-            bool: True if navigation was successful, False otherwise
-        """
-        if self.skill_library is None:
-            logger.error("Skill library is None, cannot call NavigateToObject skill")
-            return False
-            
-        try:
-            # Call the skill with the appropriate parameters
-            result = self.skill_library.call("NavigateToObject",
-                                            robot=self,
-                                            object_name=object_name,
-                                            distance=distance,
-                                            timeout=timeout,
-                                            max_retries=max_retries)
-            
-            # For backward compatibility, return a boolean success indicator
-            return "Failed" not in result if isinstance(result, str) else False
-        except Exception as e:
-            logger.error(f"Error calling NavigateToObject skill: {e}")
-            return False
 
     def navigate_to_goal_local(
         self, goal_xy_robot: Tuple[float, float], is_robot_frame=True, timeout: float = 60.0
     ) -> bool:
-        print("OCAL NASVNCAJFNASF", goal_xy_robot)
         """
         Navigates the robot to a goal specified in the robot's local frame
         using the VFHPurePursuitPlanner.
