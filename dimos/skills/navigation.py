@@ -147,7 +147,7 @@ class BuildSemanticMap(AbstractRobotSkill):
         combined_stream = video_stream.pipe(
             ops.map(lambda video_frame: {
                 "frame": video_frame,
-                **self._extract_transform_data(ros_control.transform("base_link"))
+                **self._extract_transform_data(*ros_control.transform_euler("base_link"))
             })
         )
         
@@ -207,27 +207,28 @@ class BuildSemanticMap(AbstractRobotSkill):
         
         return chromadb.PersistentClient(path=self.db_path)
 
-    def _extract_transform_data(self, transform):
+    def _extract_transform_data(self, position, rotation):
         """
         Extract both position and rotation data from a transform message in a single operation.
         
         Args:
-            transform: The transform message
+            position: The position message
+            rotation: The rotation message
             
         Returns:
             A dictionary containing:
             - 'position': tuple of (x, y, z) coordinates
             - 'rotation': the quaternion object for complete orientation data
         """
-        if transform is None:
+        if position is None or rotation is None:
             return {
                 "position": None,
                 "rotation": None
             }
-            
+
         return {
-            "position": transform.transform.translation,
-            "rotation": transform.transform.rotation  # Store the complete quaternion for maximum flexibility
+            "position": position,
+            "rotation": rotation
         }
     
     def _on_stored_frame(self, result):
