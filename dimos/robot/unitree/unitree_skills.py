@@ -239,22 +239,29 @@ class MyUnitreeSkills(SkillLibrary):
     # region Class-based Skills
     
     class Move(AbstractRobotSkill):
-        """Move the robot forward using distance commands."""
+        """Move the robot using direct velocity commands."""
 
-        distance: float = Field(..., description="Distance to move in meters")
+        x: float = Field(..., description="Forward velocity (m/s).")
+        y: float = Field(default=0.0, description="Left/right velocity (m/s)")
+        yaw: float = Field(default=0.0, description="Rotational velocity (rad/s)")
+        duration: float = Field(default=0.0, description="How long to move (seconds). If 0, command is continuous")
 
         def __call__(self):
             super().__call__()
-            return self._robot.move(distance=self.distance)
+            return self._robot.move_vel(x=self.x, y=self.y, yaw=self.yaw, duration=self.duration)
 
     class Reverse(AbstractRobotSkill):
-        """Reverse the robot using distance commands."""
+        """Reverse the robot using direct velocity commands."""
 
-        distance: float = Field(..., description="Distance to reverse in meters")
-        
+        x: float = Field(..., description="Backward velocity (m/s). Positive values move backward.")
+        y: float = Field(default=0.0, description="Left/right velocity (m/s)")
+        yaw: float = Field(default=0.0, description="Rotational velocity (rad/s)")
+        duration: float = Field(default=0.0, description="How long to move (seconds). If 0, command is continuous")
+
         def __call__(self):
             super().__call__()
-            return self._robot.reverse(distance=self.distance)
+            # Use move_vel with negative x for backward movement
+            return self._robot.move_vel(x=-self.x, y=self.y, yaw=self.yaw, duration=self.duration)
 
     class SpinLeft(AbstractRobotSkill):
         """Spin the robot left using degree commands."""
@@ -274,18 +281,6 @@ class MyUnitreeSkills(SkillLibrary):
             super().__call__()
             return self._robot.spin(degrees=-self.degrees)  # Spinning right is negative degrees
 
-    class MoveVel(AbstractRobotSkill):
-        """Move the robot using direct velocity commands."""
-
-        x: float = Field(..., description="Forward/backward velocity (m/s). Negative for reverse, positive for forward")
-        y: float = Field(..., description="Left/right velocity (m/s)")
-        yaw: float = Field(..., description="Rotational velocity (rad/s)")
-        duration: float = Field(..., description="How long to move (seconds). If 0, command is continuous")
-
-        def __call__(self):
-            super().__call__()
-            return self._robot.move_vel(x=self.x, y=self.y, yaw=self.yaw, duration=self.duration)
-
     class Wait(AbstractRobotSkill):
         """Wait for a specified amount of time."""
 
@@ -294,22 +289,3 @@ class MyUnitreeSkills(SkillLibrary):
         def __call__(self):
             super().__call__()
             return time.sleep(self.seconds)
-
-    class FollowHuman(AbstractRobotSkill):
-        """Follow a human using a camera."""
-
-        def __call__(self):
-            super().__call__()
-            return self._robot.follow_human()
-
-    class NavigateToObject(AbstractRobotSkill):
-        """Navigate to an object using a camera."""
-
-        object_name: str = Field(..., description="Object to navigate to")
-
-        def __init__(self, robot: Optional[Robot] = None, **data):
-            super().__init__(robot=robot, **data)
-
-        def __call__(self):
-            super().__call__()
-            return self._robot.navigate_to(object_name=self.object_name)

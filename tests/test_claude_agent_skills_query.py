@@ -25,6 +25,7 @@ from dimos.web.robot_web_interface import RobotWebInterface
 from dimos.skills.observe_stream import ObserveStream
 from dimos.skills.kill_skill import KillSkill
 from dimos.skills.navigation import Navigate, BuildSemanticMap
+from dimos.skills.visual_navigation_skills import NavigateToObject, FollowHuman
 import reactivex as rx
 import reactivex.operators as ops
 # Load API key from environment
@@ -69,11 +70,15 @@ robot_skills.add(ObserveStream)
 robot_skills.add(KillSkill)
 robot_skills.add(Navigate)
 robot_skills.add(BuildSemanticMap)
+robot_skills.add(NavigateToObject)
+robot_skills.add(FollowHuman)
 
 robot_skills.create_instance("ObserveStream", robot=robot, agent=agent)
 robot_skills.create_instance("KillSkill", robot=robot, skill_library=robot_skills)
 robot_skills.create_instance("Navigate", robot=robot)
 robot_skills.create_instance("BuildSemanticMap", robot=robot)
+robot_skills.create_instance("NavigateToObject", robot=robot)
+robot_skills.create_instance("FollowHuman", robot=robot)
 
 # Subscribe to agent responses and send them to the subject
 agent.get_response_observable().subscribe(

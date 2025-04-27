@@ -34,15 +34,13 @@ class Planner(Visualizable):
     @abstractmethod
     def plan(self, goal: VectorLike) -> Path: ...
 
-    def set_goal(self, goal: VectorLike, stop_event: Optional[threading.Event] = None):
+    def set_goal(self, goal: VectorLike, goal_theta: float, stop_event: Optional[threading.Event] = None):
         goal = to_vector(goal).to_2d()
         path = self.plan(goal)
         if not path:
             logger.warning("No path found to the goal.")
             return False
-
-        return self.set_local_nav(path, stop_event=stop_event)
-
+        return self.set_local_nav(path, stop_event=stop_event, goal_theta = goal_theta)
 
 @dataclass
 class AstarPlanner(Planner):
