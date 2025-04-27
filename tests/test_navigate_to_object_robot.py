@@ -2,6 +2,7 @@ import os
 import time
 import sys
 import argparse
+import threading
 from reactivex import Subject, operators as RxOps
 
 from dimos.robot.unitree.unitree_go2 import UnitreeGo2
@@ -9,6 +10,7 @@ from dimos.robot.unitree.unitree_ros_control import UnitreeROSControl
 from dimos.robot.unitree.unitree_skills import MyUnitreeSkills
 from dimos.web.robot_web_interface import RobotWebInterface
 from dimos.utils.logging_config import logger
+from dimos.skills.visual_navigation_skills import NavigateToObject
 import tests.test_header
 
 def parse_args():
@@ -36,6 +38,11 @@ def main():
         ros_control=UnitreeROSControl(),
         skills=MyUnitreeSkills(),
     )
+
+    # Add and create instance of NavigateToObject skill
+    robot_skills = robot.get_skills()
+    robot_skills.add(NavigateToObject)
+    robot_skills.create_instance("NavigateToObject", robot=robot)
 
     # Set up tracking and visualization streams
     object_tracking_stream = robot.object_tracking_stream
@@ -72,10 +79,19 @@ def main():
         print("Waiting for camera and tracking to initialize...")
         time.sleep(3)
         
-        # Start navigating to object in a separate thread
-        import threading
+        def navigate_to_object():
+            try:
+                result = robot_skills.call("NavigateToObject", 
+                                          robot=robot,
+                                          object_name=object_name,
+                                          distance=distance,
+                                          timeout=timeout)
+                print(f"Navigation result: {result}")
+            except Exception as e:
+                print(f"Error during navigation: {e}")
+        
         navigate_thread = threading.Thread(
-            target=lambda: robot.navigate_to(object_name=object_name, distance=distance, timeout=timeout),
+            target=navigate_to_object,
             daemon=True
         )
         navigate_thread.start()
