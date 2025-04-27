@@ -13,10 +13,7 @@
 # limitations under the License.
 
 """
-Spatial perception module for creating a semantic map of the environment.
-
-This module implements the approach described in "Semantic Spatial Perception for Embodied Agents"
-(https://arxiv.org/pdf/2410.20666v1) to build a vectorDB of images tagged with XY locations.
+Spatial Memory module for creating a semantic map of the environment.
 """
 
 import logging
@@ -24,6 +21,7 @@ import uuid
 import time
 import uuid
 import os
+import math
 from typing import Dict, List, Tuple, Optional, Any
 
 import numpy as np
@@ -37,6 +35,7 @@ from dimos.utils.logging_config import setup_logger
 from dimos.agents.memory.spatial_vector_db import SpatialVectorDB
 from dimos.agents.memory.image_embedding import ImageEmbeddingProvider
 from dimos.agents.memory.visual_memory import VisualMemory
+from dimos.types.vector import Vector
 
 logger = setup_logger("dimos.perception.spatial_memory")
 
@@ -94,7 +93,7 @@ class SpatialMemory:
             dimensions=embedding_dimensions
         )
         
-        self.last_position: Optional[Tuple[float, float]] = None
+        self.last_position: Optional[Vector] = None
         self.last_record_time: Optional[float] = None
         
         self.frame_count = 0
@@ -102,87 +101,6 @@ class SpatialMemory:
         
         logger.info(f"SpatialMemory initialized with model {embedding_model}")
     
-    def process_video_stream(self, video_stream: Observable, position_stream: Observable) -> Observable:
-        """
-        Process video frames and position updates, storing frames in the vector database.
-        
-        Args:
-            video_stream: Observable stream of video frames
-            position_stream: Observable stream of position updates (x, y coordinates)
-            
-        Returns:
-            Observable of processing results, including the stored frame and its metadata
-        """
-        self.current_position: Optional[Tuple[float, float]] = None
-        
-        def on_position(position: Tuple[float, float]):
-            self.current_position = position
-            logger.debug(f"Position updated: ({position[0]:.2f}, {position[1]:.2f})")
-        
-        position_stream.subscribe(on_position)
-        
-        def process_frame(frame):
-            self.frame_count += 1
-            
-            if self.current_position is None:
-                logger.debug("No position data available yet, skipping frame")
-                return None
-            
-            current_time = time.time()
-            x, y = self.current_position
-            
-            should_store = False
-            
-            if self.last_position is None or self.last_record_time is None:
-                should_store = True
-            else:
-                last_x, last_y = self.last_position
-                distance = np.sqrt((x - last_x)**2 + (y - last_y)**2)
-                time_diff = current_time - self.last_record_time
-                
-                if (distance >= self.min_distance_threshold or 
-                    time_diff >= self.min_time_threshold):
-                    should_store = True
-            
-            if should_store:
-                frame_embedding = self.embedding_provider.get_embedding(frame)
-                
-                frame_id = f"frame_{datetime.now().strftime('%Y%m%d_%H%M%S')}_{uuid.uuid4().hex[:8]}"
-                
-                metadata = {
-                    "x": float(x),
-                    "y": float(y),
-                    "timestamp": current_time,
-                    "frame_id": frame_id
-                }
-                
-                self.vector_db.add_image_vector(
-                    vector_id=frame_id,
-                    image=frame,
-                    embedding=frame_embedding,
-                    metadata=metadata
-                )
-                
-                self.last_position = (x, y)
-                self.last_record_time = current_time
-                self.stored_frame_count += 1
-                
-                logger.info(f"Stored frame at position ({x:.2f}, {y:.2f}), "
-                            f"stored {self.stored_frame_count}/{self.frame_count} frames")
-                
-                return {
-                    "frame": frame,
-                    "position": (x, y),
-                    "frame_id": frame_id,
-                    "timestamp": current_time
-                }
-            
-            return None
-        
-        return video_stream.pipe(
-            ops.map(process_frame),
-            ops.filter(lambda result: result is not None)
-        )
     
     def query_by_location(self, x: float, y: float, radius: float = 2.0, limit: int = 5) -> List[Dict]:
         """
@@ -219,65 +137,64 @@ class SpatialMemory:
         def process_combined_data(data):
             self.frame_count += 1
             
-            frame = data['frame']
-            position = data['position']
+            frame = data.get('frame')
+            position_vec = data.get('position')  # Use .get() for consistency
+            rotation_vec = data.get('rotation')  # Get rotation data if available
             
-            if not position:
-                logger.debug("No position data available, skipping frame")
+            
+            if not position_vec or not rotation_vec:
+                logger.info("No position or rotation data available, skipping frame")
                 return None
-                
+            
+            if self.last_position is not None and (self.last_position - position_vec).length() < self.min_distance_threshold:
+                logger.debug("Position has not moved, skipping frame")
+                return None
+
+            if self.last_record_time is not None and (time.time() - self.last_record_time) < self.min_time_threshold:
+                logger.debug("Time since last record too short, skipping frame")
+                return None
+            
             current_time = time.time()
-            x, y, z = position  # Extract all three dimensions from the transform
+                        
+            frame_embedding = self.embedding_provider.get_embedding(frame)
             
-            should_store = False
+            frame_id = f"frame_{datetime.now().strftime('%Y%m%d_%H%M%S')}_{uuid.uuid4().hex[:8]}"
             
-            if self.last_position is None or self.last_record_time is None:
-                should_store = True
-            else:
-                last_x, last_y, *_ = self.last_position  # Handle both 2D and 3D positions
-                distance = np.sqrt((x - last_x)**2 + (y - last_y)**2)
-                time_diff = current_time - self.last_record_time
-                
-                if (distance >= self.min_distance_threshold or 
-                    time_diff >= self.min_time_threshold):
-                    should_store = True
+            # Create metadata dictionary with primitive types only
+            metadata = {
+                "pos_x": float(position_vec.x),
+                "pos_y": float(position_vec.y),
+                "pos_z": float(position_vec.z),
+                "rot_x": float(rotation_vec.x),
+                "rot_y": float(rotation_vec.y),
+                "rot_z": float(rotation_vec.z),
+                "timestamp": current_time,
+                "frame_id": frame_id
+            }
             
-            if should_store:
-                frame_embedding = self.embedding_provider.get_embedding(frame)
-                
-                frame_id = f"frame_{datetime.now().strftime('%Y%m%d_%H%M%S')}_{uuid.uuid4().hex[:8]}"
-                
-                metadata = {
-                    "x": float(x),
-                    "y": float(y),
-                    "z": float(z),
-                    "timestamp": current_time,
-                    "frame_id": frame_id
-                }
-                
-                self.vector_db.add_image_vector(
-                    vector_id=frame_id,
-                    image=frame,
-                    embedding=frame_embedding,
-                    metadata=metadata
-                )
-                
-                self.last_position = (x, y, z)
-                self.last_record_time = current_time
-                self.stored_frame_count += 1
-                
-                logger.info(f"Stored frame at position ({x:.2f}, {y:.2f}, {z:.2f}), "
-                            f"stored {self.stored_frame_count}/{self.frame_count} frames")
-                
-                return {
-                    "frame": frame,
-                    "position": (x, y, z),
-                    "frame_id": frame_id,
-                    "timestamp": current_time
-                }
+            self.vector_db.add_image_vector(
+                vector_id=frame_id,
+                image=frame,
+                embedding=frame_embedding,
+                metadata=metadata
+            )
             
-            return None
-        
+            self.last_position = position_vec
+            self.last_record_time = current_time
+            self.stored_frame_count += 1
+            
+            logger.info(f"Stored frame at position {position_vec}, rotation {rotation_vec})"
+                        f" stored {self.stored_frame_count}/{self.frame_count} frames")
+            
+            # Create return dictionary with primitive-compatible values
+            return {
+                "frame": frame,
+                "position": (position_vec.x, position_vec.y, position_vec.z),
+                "rotation": (rotation_vec.x, rotation_vec.y, rotation_vec.z),
+                "frame_id": frame_id,
+                "timestamp": current_time
+            }
+                    
         return combined_stream.pipe(
             ops.map(process_combined_data),
             ops.filter(lambda result: result is not None)
