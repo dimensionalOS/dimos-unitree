@@ -17,6 +17,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, List, Optional, Tuple, Type, Union
 import time
 from pydantic import Field
+import threading
 
 if TYPE_CHECKING:
     from dimos.robot.robot import Robot, MockRobot
@@ -281,11 +282,11 @@ class MyUnitreeSkills(SkillLibrary):
             super().__call__()
             return self._robot.spin(degrees=-self.degrees)  # Spinning right is negative degrees
 
-    class Wait(AbstractRobotSkill):
+    class Wait(AbstractSkill):
         """Wait for a specified amount of time."""
 
         seconds: float = Field(..., description="Seconds to wait")
 
         def __call__(self):
-            super().__call__()
-            return time.sleep(self.seconds)
+            time.sleep(self.seconds)            
+            return f"Wait completed with length={self.seconds}s"
