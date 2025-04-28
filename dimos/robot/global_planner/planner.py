@@ -59,7 +59,7 @@ class AstarPlanner(Planner):
         path = astar(costmap, goal, pos)
 
         if path:
-            path = path.resample(0.5)
+            path = path.resample(0.1)
             self.vis("a*", path)
             return path
 
