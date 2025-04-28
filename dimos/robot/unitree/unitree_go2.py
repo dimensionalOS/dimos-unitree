@@ -176,7 +176,7 @@ class UnitreeGo2(Robot):
         )
 
         self.global_planner = AstarPlanner(
-            conservativism=4,  # how close to obstacles robot is allowed to path plan
+            conservativism=20,  # how close to obstacles robot is allowed to path plan
             set_local_nav=self.navigate_path_local,
             get_costmap=self.ros_control.topic_latest("map", Costmap),
             get_robot_pos=lambda: self.ros_control.transform_euler_pos("base_link"),

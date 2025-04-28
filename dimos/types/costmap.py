@@ -181,10 +181,10 @@ class Costmap:
 
     def smudge(
         self,
-        kernel_size: int = 10,
-        iterations: int = 2,
-        decay_factor: float = 0.7,
-        threshold: int = 80,
+        kernel_size: int = 5,
+        iterations: int = 20,
+        decay_factor: float = 0.9,
+        threshold: int = 90,
         preserve_unknown: bool = False,
     ) -> "Costmap":
         """
