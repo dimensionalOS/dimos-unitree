@@ -195,6 +195,7 @@ class UnitreeGo2(Robot):
         Args:
             goal_xy_robot: Tuple (x, y) representing the goal position relative
                            to the robot's current position and orientation.
+            is_robot_frame: Whether the goal is specified in robot frame (True) or odom frame (False)
             timeout: Maximum time (in seconds) allowed to reach the goal.
 
         Returns:
@@ -203,7 +204,7 @@ class UnitreeGo2(Robot):
         logger.info(f"Starting navigation to local goal {goal_xy_robot} with timeout {timeout}s.")
 
         # Set the single goal in the robot's frame. Adjustment will happen internally.
-        self.local_planner.set_goal(goal_xy_robot, is_robot_frame=is_robot_frame)
+        self.local_planner.set_goal(goal_xy_robot, frame="base_link" if is_robot_frame else "odom")
 
         start_time = time.time()
         goal_reached = False
@@ -299,3 +300,16 @@ class UnitreeGo2(Robot):
 
     def get_skills(self) -> Optional[SkillLibrary]:
         return self.skill_library
+
+    def get_pose(self) -> Tuple[Tuple[float, float, float], Tuple[float, float, float]]:
+        """
+        Get the current pose (position and rotation) of the robot in the map frame.
+        
+        Returns:
+            Tuple containing:
+                - position: Tuple[float, float, float] (x, y, z)
+                - rotation: Tuple[float, float, float] (roll, pitch, yaw) in radians
+        """
+        [position, rotation] = self.ros_control.transform_euler("base_link")
+
+        return position, rotation

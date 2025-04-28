@@ -24,7 +24,7 @@ from dimos.robot.unitree.unitree_skills import MyUnitreeSkills
 from dimos.web.robot_web_interface import RobotWebInterface
 from dimos.skills.observe_stream import ObserveStream
 from dimos.skills.kill_skill import KillSkill
-from dimos.skills.navigation import Navigate, BuildSemanticMap
+from dimos.skills.navigation import Navigate, BuildSemanticMap, GetPose, NavigateToGoal
 from dimos.skills.visual_navigation_skills import NavigateToObject, FollowHuman
 import reactivex as rx
 import reactivex.operators as ops
@@ -39,8 +39,10 @@ robot = UnitreeGo2(ip=os.getenv('ROBOT_IP'),
 # Create a subject for agent responses
 agent_response_subject = rx.subject.Subject()
 agent_response_stream = agent_response_subject.pipe(ops.share())
+local_planner_viz_stream = robot.local_planner_viz_stream.pipe(ops.share())
 
-streams = {"unitree_video": robot.get_ros_video_stream()}
+streams = {"unitree_video": robot.get_ros_video_stream(),
+           "local_planner_viz": local_planner_viz_stream}
 text_streams = {
     "agent_responses": agent_response_stream,
 }
@@ -72,13 +74,16 @@ robot_skills.add(Navigate)
 robot_skills.add(BuildSemanticMap)
 robot_skills.add(NavigateToObject)
 robot_skills.add(FollowHuman)
-
+robot_skills.add(GetPose)
+robot_skills.add(NavigateToGoal)
 robot_skills.create_instance("ObserveStream", robot=robot, agent=agent)
 robot_skills.create_instance("KillSkill", robot=robot, skill_library=robot_skills)
 robot_skills.create_instance("Navigate", robot=robot)
 robot_skills.create_instance("BuildSemanticMap", robot=robot)
 robot_skills.create_instance("NavigateToObject", robot=robot)
 robot_skills.create_instance("FollowHuman", robot=robot)
+robot_skills.create_instance("GetPose", robot=robot)
+robot_skills.create_instance("NavigateToGoal", robot=robot)
 
 # Subscribe to agent responses and send them to the subject
 agent.get_response_observable().subscribe(
