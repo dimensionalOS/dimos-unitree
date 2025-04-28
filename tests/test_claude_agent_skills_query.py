@@ -28,6 +28,7 @@ from dimos.skills.navigation import Navigate, BuildSemanticMap, GetPose, Navigat
 from dimos.skills.visual_navigation_skills import NavigateToObject, FollowHuman
 import reactivex as rx
 import reactivex.operators as ops
+from dimos.stream.audio.pipelines import tts, stt
 # Load API key from environment
 load_dotenv()
 
@@ -49,10 +50,12 @@ text_streams = {
 
 web_interface = RobotWebInterface(port=5555, text_streams=text_streams, **streams)
 
+stt_node = stt()
+
 # Create a ClaudeAgent instance
 agent = ClaudeAgent(
     dev_name="test_agent",
-    input_query_stream=web_interface.query_stream,
+    input_query_stream=stt_node.emit_text(),
     skills=robot.get_skills(),
     system_query="""You are an agent controlling a virtual robot. When given a query, respond by using the appropriate tool calls if needed to execute commands on the robot.
 
@@ -66,6 +69,9 @@ Example: If the user asks to move forward 1 meter, call the Move function with d
     model_name="claude-3-7-sonnet-latest",
     thinking_budget_tokens=2000
 )
+
+tts_node = tts()
+tts_node.consume_text(agent.get_response_observable())
 
 robot_skills = robot.get_skills()
 robot_skills.add(ObserveStream)
