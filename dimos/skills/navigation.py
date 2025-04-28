@@ -56,7 +56,7 @@ class BuildSemanticMap(AbstractRobotSkill):
                         description="Path to store the ChromaDB database")
     collection_name: str = Field("spatial_memory", 
                                 description="Name of the collection in the ChromaDB database")
-    min_distance_threshold: float = Field(1.0, 
+    min_distance_threshold: float = Field(0.01, 
                                         description="Min distance in meters to record a new frame")
     min_time_threshold: float = Field(1.0, 
                                     description="Min time in seconds to record a new frame")
@@ -378,7 +378,7 @@ class Navigate(AbstractRobotSkill):
             # Define a navigation function that will run on a separate thread
             def run_navigation():
                 try:
-                    logger.info(f"Starting navigation to ({x:.2f}, {y:.2f})")
+                    logger.info(f"Starting navigation to ({pos_x:.2f}, {pos_y:.2f}) with rotation {theta:.2f}")
                     # Pass our stop_event to allow cancellation
                     result = False
                     try:
@@ -411,7 +411,8 @@ class Navigate(AbstractRobotSkill):
             return {
                 "success": True,
                 "query": self.query,
-                "position": (x, y, z),
+                "position": (pos_x, pos_y),
+                "rotation": theta,
                 "similarity": similarity,
                 "metadata": metadata
             }

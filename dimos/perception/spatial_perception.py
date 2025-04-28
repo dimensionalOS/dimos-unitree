@@ -52,7 +52,7 @@ class SpatialMemory:
         collection_name: str = "spatial_memory",
         embedding_model: str = "clip", 
         embedding_dimensions: int = 512,
-        min_distance_threshold: float = 1.0,  # Min distance in meters to store a new frame
+        min_distance_threshold: float = 0.01,  # Min distance in meters to store a new frame
         min_time_threshold: float = 1.0,  # Min time in seconds to store a new frame
         chroma_client = None,  # Optional ChromaDB client for persistence
         visual_memory = None,  # Optional VisualMemory instance for storing images

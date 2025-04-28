@@ -49,7 +49,7 @@ logger = setup_logger("simple_navigation_test")
 
 def parse_args():
 
-    spatial_memory_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "../assets/spatial_memory"))
+    spatial_memory_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "../assets/spatial_memory_vegas"))
     
     parser = argparse.ArgumentParser(description="Simple test for semantic map skills.")
     parser.add_argument("--skip-build", action="store_true", help="Skip building the map and run navigation with existing semantic and visual memory")
@@ -122,7 +122,7 @@ def query_map(robot, args):
     if isinstance(result, dict) and result.get("success", False):
         position = result.get("position", (0, 0, 0))
         similarity = result.get("similarity", 0)
-        logger.info(f"Found '{args.query}' at position: ({position[0]:.2f}, {position[1]:.2f}, {position[2]:.2f})")
+        logger.info(f"Found '{args.query}' at position: {position}")
         logger.info(f"Similarity score: {similarity:.4f}")
         return position
 
