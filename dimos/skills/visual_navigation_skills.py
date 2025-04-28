@@ -251,13 +251,9 @@ class NavigateToObject(AbstractRobotSkill):
                     else:
                         logger.warning("No distance or angle data in tracking data")
                         continue
-                else:
-                    logger.warning("No tracking data available")
-                    continue
-                
     
                 # Check if goal has been reached (near to object at desired distance)
-                if self._robot.local_planner.is_goal_reached():
+                if tracking_started and self._robot.local_planner.is_goal_reached():
                     goal_reached = True
                     logger.info(f"Goal reached! Arrived at {self.object_name} at desired distance.")
                     success = True
