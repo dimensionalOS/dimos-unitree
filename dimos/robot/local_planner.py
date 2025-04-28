@@ -130,7 +130,7 @@ class VFHPurePursuitPlanner:
         # Set goal orientation if provided
         if goal_theta is not None:
             transformed_rot = self.robot.ros_control.transform_rot(Vector(0.0, 0.0, goal_theta), source_frame=frame, target_frame="odom")
-            self.goal_theta = normalize_angle(transformed_rot[2])
+            self.goal_theta = transformed_rot[2]
 
     def set_goal_waypoints(self, waypoints: Path, frame: str = "map", goal_theta: Optional[float] = None):
         """Sets a path of waypoints for the robot to follow. 
@@ -173,7 +173,7 @@ class VFHPurePursuitPlanner:
         # Set goal orientation if provided
         if goal_theta is not None:
             transformed_rot = self.robot.ros_control.transform_rot(Vector(0.0, 0.0, goal_theta), source_frame=frame, target_frame="odom")
-            self.goal_theta = normalize_angle(transformed_rot[2])
+            self.goal_theta = transformed_rot[2]
 
     def _update_waypoint_target(self, robot_pos_np: np.ndarray) -> bool:
         """Helper function to manage waypoint progression and update the target goal.
@@ -378,7 +378,6 @@ class VFHPurePursuitPlanner:
         # Get current robot orientation
         [_, rot] = self.robot.ros_control.transform_euler("base_link", "odom")
         _, _, robot_theta = rot
-        robot_theta = normalize_angle(robot_theta)
         
         # Calculate the angle difference
         angle_diff = normalize_angle(self.goal_theta - robot_theta)

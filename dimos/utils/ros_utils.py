@@ -253,7 +253,7 @@ def visualize_local_planner_state(
             cv2.circle(vis_img, (goal_img_x, goal_img_y), 8, (0, 0, 0), 1)      # Black outline
 
     # Draw goal orientation
-    if goal_theta is not None and goal_xy is not None:
+    if goal_theta is not None and goal_xy is not None and current_waypoint_index == len(waypoints) - 1:
         goal_x, goal_y = goal_xy
         goal_rel_x_map = goal_x - robot_x
         goal_rel_y_map = goal_y - robot_y
@@ -262,14 +262,14 @@ def visualize_local_planner_state(
         
         # Calculate goal orientation vector direction in visualization frame
         # goal_theta is already in odom frame, need to adjust for visualization orientation
-        goal_dir_length = 15  # Length of direction indicator in pixels
+        goal_dir_length = 30  # Length of direction indicator in pixels
         goal_dir_end_x = int(goal_img_x + goal_dir_length * math.cos(goal_theta))
         goal_dir_end_y = int(goal_img_y - goal_dir_length * math.sin(goal_theta))  # Flip y-axis
         
         # Draw goal orientation arrow
         if 0 <= goal_img_x < vis_size and 0 <= goal_img_y < vis_size:
             cv2.arrowedLine(vis_img, (goal_img_x, goal_img_y), (goal_dir_end_x, goal_dir_end_y), 
-                         (255, 0, 255), 2)  # Magenta arrow
+                         (255, 0, 255), 4)  # Magenta arrow
 
     # Add scale bar
     scale_bar_length_px = int(1.0 * scale)
