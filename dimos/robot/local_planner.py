@@ -17,7 +17,7 @@ from dimos.utils.ros_utils import (
     visualize_local_planner_state
 )
 
-from dimos.types.vector import VectorLike, to_tuple
+from dimos.types.vector import VectorLike, Vector, to_tuple
 from dimos.types.path import Path
 from nav_msgs.msg import OccupancyGrid
 
@@ -97,35 +97,6 @@ class VFHPurePursuitPlanner:
         # topics
         self.local_costmap = self.robot.ros_control.topic_latest("/local_costmap/costmap", OccupancyGrid)
 
-    def _transform_orientation_to_odom(self, orientation: float, source_frame: str) -> float:
-        """Transform an orientation angle from source frame to odom frame.
-        
-        Args:
-            orientation: Orientation angle in radians (in source frame)
-            source_frame: The source frame of the orientation
-            
-        Returns:
-            float: Transformed orientation in odom frame, or original if transform fails
-        """
-        # If already in odom frame, no need to transform
-        if source_frame == "odom":
-            return orientation
-            
-        try:
-            # Use existing transform_euler_rot to get the rotation offset between frames
-            rot_offset = self.robot.ros_control.transform_euler_rot(source_frame, "odom")
-            if rot_offset is not None:
-                # Add the yaw component of the offset to transform the orientation
-                transformed_orientation = normalize_angle(orientation + rot_offset[2])
-                logger.info(f"Orientation transformed from {source_frame} to odom: {transformed_orientation:.2f} rad")
-                return transformed_orientation
-            else:
-                logger.warning(f"Could not transform orientation from {source_frame} to odom frame. Using as is.")
-                return orientation
-        except Exception as e:
-            logger.warning(f"Error transforming orientation: {e}. Using orientation as is.")
-            return orientation
-
     def set_goal(self, goal_xy: VectorLike, frame: str = "odom", goal_theta: Optional[float] = None):
         """Set a single goal position, converting to odom frame if necessary.
            This clears any existing waypoints being followed.
@@ -158,8 +129,8 @@ class VFHPurePursuitPlanner:
             
         # Set goal orientation if provided
         if goal_theta is not None:
-            self.goal_theta = self._transform_orientation_to_odom(goal_theta, frame)
-            logger.info(f"Goal orientation set in odom frame: {self.goal_theta:.2f} rad")
+            transformed_rot = self.robot.ros_control.transform_rot(Vector(0.0, 0.0, goal_theta), source_frame=frame, target_frame="odom")
+            self.goal_theta = transformed_rot[2]
 
     def set_goal_waypoints(self, waypoints: Path, frame: str = "map", goal_theta: Optional[float] = None):
         """Sets a path of waypoints for the robot to follow. 
@@ -201,8 +172,8 @@ class VFHPurePursuitPlanner:
             
         # Set goal orientation if provided
         if goal_theta is not None:
-            self.goal_theta = self._transform_orientation_to_odom(goal_theta, frame)
-            logger.info(f"Final waypoint orientation set in odom frame: {self.goal_theta:.2f} rad")
+            transformed_rot = self.robot.ros_control.transform_rot(Vector(0.0, 0.0, goal_theta), source_frame=frame, target_frame="odom")
+            self.goal_theta = transformed_rot[2]
 
     def _update_waypoint_target(self, robot_pos_np: np.ndarray) -> bool:
         """Helper function to manage waypoint progression and update the target goal.
@@ -463,6 +434,7 @@ class VFHPurePursuitPlanner:
                 grid_origin=grid_origin,
                 robot_pose=robot_pose,
                 goal_xy=goal_xy, # Current target (lookahead or final)
+                goal_theta=self.goal_theta, # Pass goal orientation if available
                 visualization_size=self.visualization_size,
                 robot_width=self.robot_width,
                 robot_length=self.robot_length,
