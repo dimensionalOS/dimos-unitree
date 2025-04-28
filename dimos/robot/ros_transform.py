@@ -53,23 +53,23 @@ class ROSTransformAbility:
 
         return self._tf_buffer
 
-    def transform_euler_pos(self, child_frame: str, parent_frame: str = "map", timeout: float = 1.0):
-        return to_euler_pos(self.transform(child_frame, parent_frame, timeout))
+    def transform_euler_pos(self, source_frame: str, target_frame: str = "map", timeout: float = 1.0):
+        return to_euler_pos(self.transform(source_frame, target_frame, timeout))
 
-    def transform_euler_rot(self, child_frame: str, parent_frame: str = "map", timeout: float = 1.0):
-        return to_euler_rot(self.transform(child_frame, parent_frame, timeout))
+    def transform_euler_rot(self, source_frame: str, target_frame: str = "map", timeout: float = 1.0):
+        return to_euler_rot(self.transform(source_frame, target_frame, timeout))
 
-    def transform_euler(self, child_frame: str, parent_frame: str = "map", timeout: float = 1.0):
-        res = self.transform(child_frame, parent_frame, timeout)
+    def transform_euler(self, source_frame: str, target_frame: str = "map", timeout: float = 1.0):
+        res = self.transform(source_frame, target_frame, timeout)
         return to_euler(res)
 
     def transform(
-        self, child_frame: str, parent_frame: str = "map", timeout: float = 1.0
+        self, source_frame: str, target_frame: str = "map", timeout: float = 1.0
     ) -> Optional[TransformStamped]:
         try:
             transform = self.tf_buffer.lookup_transform(
-                parent_frame,
-                child_frame,
+                target_frame,
+                source_frame,
                 rclpy.time.Time(),
                 rclpy.duration.Duration(seconds=timeout),
             )
@@ -83,7 +83,7 @@ class ROSTransformAbility:
             return None
 
     def transform_point(self, point: Vector, source_frame: str, target_frame: str = "map", timeout: float = 1.0):
-        """Transform a point from child_frame to parent_frame.
+        """Transform a point from source_frame to target_frame.
 
         Args:
             point: The point to transform (x, y, z)
@@ -119,6 +119,8 @@ class ROSTransformAbility:
         except (tf2_ros.LookupException, tf2_ros.ConnectivityException, tf2_ros.ExtrapolationException) as e:
             logger.error(f"Transform from {source_frame} to {target_frame} failed: {e}")
             return None
+        
+    
 
     def transform_path(self, path: Path, source_frame: str, target_frame: str = "map", timeout: float = 1.0):
         """Transform a path from source_frame to target_frame.
@@ -138,3 +140,47 @@ class ROSTransformAbility:
             if transformed_point is not None:
                 transformed_path.append(transformed_point)
         return transformed_path
+
+    def transform_rot(self, rotation: Vector, source_frame: str, target_frame: str = "map", timeout: float = 1.0):
+        """Transform a rotation from source_frame to target_frame.
+
+        Args:
+            rotation: The rotation to transform as Euler angles (x, y, z) in radians
+            source_frame: The source frame of the rotation
+            target_frame: The target frame to transform to
+            timeout: Time to wait for the transform to become available (seconds)
+
+        Returns:
+            The transformed rotation as a Vector of Euler angles (x, y, z), or None if the transform failed
+        """
+        try:
+            # Wait for transform to become available
+            self.tf_buffer.can_transform(
+                target_frame, source_frame, rclpy.time.Time(), rclpy.duration.Duration(seconds=timeout)
+            )
+            
+            # Create a rotation matrix from the input Euler angles
+            input_rotation = R.from_euler('xyz', rotation, degrees=False)
+            
+            # Get the transform from source to target frame
+            transform = self.transform(source_frame, target_frame, timeout)
+            if transform is None:
+                return None
+                
+            # Extract the rotation from the transform
+            q = transform.transform.rotation
+            transform_rotation = R.from_quat([q.x, q.y, q.z, q.w])
+            
+            # Compose the rotations
+            # The resulting rotation is the composition of the transform rotation and input rotation
+            result_rotation = transform_rotation * input_rotation
+            
+            # Convert back to Euler angles
+            euler_angles = result_rotation.as_euler('xyz', degrees=False)
+            
+            # Return as Vector type
+            return Vector(euler_angles)
+            
+        except (tf2_ros.LookupException, tf2_ros.ConnectivityException, tf2_ros.ExtrapolationException) as e:
+            logger.error(f"Transform rotation from {source_frame} to {target_frame} failed: {e}")
+            return None

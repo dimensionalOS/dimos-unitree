@@ -77,6 +77,7 @@ def visualize_local_planner_state(
     robot_length: float = 0.7,
     map_size_meters: float = 10.0,
     goal_xy: Optional[Tuple[float, float]] = None, 
+    goal_theta: Optional[float] = None,
     histogram: Optional[np.ndarray] = None,
     selected_direction: Optional[float] = None,
     waypoints: Optional['Path'] = None,
@@ -95,6 +96,7 @@ def visualize_local_planner_state(
         robot_length: Length of the robot in meters
         map_size_meters: Size of the map to visualize in meters
         goal_xy: Optional tuple (x, y) of the goal position in the odom frame
+        goal_theta: Optional goal orientation in radians (in odom frame)
         histogram: Optional numpy array of the VFH histogram
         selected_direction: Optional selected direction angle in radians
         waypoints: Optional Path object containing waypoints to visualize
@@ -249,6 +251,25 @@ def visualize_local_planner_state(
         if 0 <= goal_img_x < vis_size and 0 <= goal_img_y < vis_size:
             cv2.circle(vis_img, (goal_img_x, goal_img_y), 5, (0, 255, 0), -1)  # Green circle
             cv2.circle(vis_img, (goal_img_x, goal_img_y), 8, (0, 0, 0), 1)      # Black outline
+
+    # Draw goal orientation
+    if goal_theta is not None and goal_xy is not None:
+        goal_x, goal_y = goal_xy
+        goal_rel_x_map = goal_x - robot_x
+        goal_rel_y_map = goal_y - robot_y
+        goal_img_x = int(center_x + goal_rel_x_map * scale)
+        goal_img_y = int(center_y - goal_rel_y_map * scale)  # Flip y-axis
+        
+        # Calculate goal orientation vector direction in visualization frame
+        # goal_theta is already in odom frame, need to adjust for visualization orientation
+        goal_dir_length = 15  # Length of direction indicator in pixels
+        goal_dir_end_x = int(goal_img_x + goal_dir_length * math.cos(goal_theta))
+        goal_dir_end_y = int(goal_img_y - goal_dir_length * math.sin(goal_theta))  # Flip y-axis
+        
+        # Draw goal orientation arrow
+        if 0 <= goal_img_x < vis_size and 0 <= goal_img_y < vis_size:
+            cv2.arrowedLine(vis_img, (goal_img_x, goal_img_y), (goal_dir_end_x, goal_dir_end_y), 
+                         (255, 0, 255), 2)  # Magenta arrow
 
     # Add scale bar
     scale_bar_length_px = int(1.0 * scale)
