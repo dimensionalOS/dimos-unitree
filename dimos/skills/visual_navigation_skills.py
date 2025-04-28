@@ -28,10 +28,11 @@ import numpy as np
 from dimos.skills.skills import AbstractRobotSkill
 from dimos.utils.logging_config import setup_logger
 from dimos.perception.visual_servoing import VisualServoing
-from dimos.models.qwen.video_query import get_bbox_from_qwen
+from dimos.models.qwen.video_query import get_bbox_from_qwen_frame
 from dimos.utils.generic_subscriber import GenericSubscriber
 from dimos.utils.ros_utils import distance_angle_to_goal_xy
 from pydantic import Field
+from reactivex import operators as ops
 
 logger = setup_logger("dimos.skills.visual_navigation", level=logging.DEBUG)
 
@@ -192,7 +193,10 @@ class NavigateToObject(AbstractRobotSkill):
                     time.sleep(1.0)
     
                 try:
-                    bbox, object_size = get_bbox_from_qwen(self._robot.video_stream_ros, object_name=self.object_name)
+                    # Capture a single frame from the video stream
+                    frame = self._robot.video_stream_ros.pipe(ops.take(1)).run()
+                    # Use the frame-based function
+                    bbox, object_size = get_bbox_from_qwen_frame(frame, object_name=self.object_name)
                 except Exception as e:
                     logger.error(f"Error querying Qwen: {e}")
     
@@ -205,7 +209,7 @@ class NavigateToObject(AbstractRobotSkill):
             logger.info(f"Found {self.object_name} at {bbox} with size {object_size}")
     
             # Start the object tracker with the detected bbox
-            self._robot.object_tracker.track(bbox, size=object_size)
+            self._robot.object_tracker.track(bbox, frame=frame)
     
             # Create a GenericSubscriber to get latest tracking data
             self._tracking_subscriber = GenericSubscriber(self._robot.object_tracking_stream)

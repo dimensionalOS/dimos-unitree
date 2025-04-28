@@ -19,14 +19,6 @@ from dimos.robot.robot import Robot
 from dimos.robot.unitree.unitree_skills import MyUnitreeSkills
 from dimos.skills.skills import AbstractRobotSkill, AbstractSkill, SkillLibrary
 from dimos.stream.video_providers.unitree import UnitreeVideoProvider
-from dimos.stream.videostream import VideoStream
-from dimos.stream.video_provider import AbstractVideoProvider
-from dimos.stream.video_operators import VideoOperators as vops
-from dimos.models.qwen.video_query import get_bbox_from_qwen
-from reactivex import operators as RxOps
-import json
-from reactivex import Observable, create
-from reactivex import operators as ops
 from reactivex.disposable import CompositeDisposable
 import logging
 import time
@@ -36,17 +28,12 @@ from dimos.robot.unitree.unitree_ros_control import UnitreeROSControl
 from reactivex.scheduler import ThreadPoolScheduler
 import threading
 from dimos.utils.logging_config import setup_logger
-from dimos.perception.visual_servoing import VisualServoing
 from dimos.perception.person_tracker import PersonTrackingStream
 from dimos.perception.object_tracker import ObjectTrackingStream
 from dimos.robot.local_planner import VFHPurePursuitPlanner
 from dimos.robot.global_planner.planner import AstarPlanner
-from dimos.utils.ros_utils import distance_angle_to_goal_xy
-from dimos.utils.generic_subscriber import GenericSubscriber
-from nav_msgs import msg
 from dimos.types.path import Path
 from dimos.types.costmap import Costmap
-from dimos.skills.visual_navigation_skills import FollowHuman, NavigateToObject
 
 # Set up logging
 logger = setup_logger("dimos.robot.unitree.unitree_go2", level=logging.DEBUG)
