@@ -254,7 +254,15 @@ def visualize_local_planner_state(
 
     # Draw goal orientation
     if goal_theta is not None and goal_xy is not None:
-        goal_x, goal_y = goal_xy
+        # For waypoint mode, only draw orientation at the final waypoint
+        if waypoints is not None and len(waypoints) > 0:
+            # Use the final waypoint position
+            final_waypoint = waypoints[-1]
+            goal_x, goal_y = final_waypoint[0], final_waypoint[1]
+        else:
+            # Use the current goal position
+            goal_x, goal_y = goal_xy
+            
         goal_rel_x_map = goal_x - robot_x
         goal_rel_y_map = goal_y - robot_y
         goal_img_x = int(center_x + goal_rel_x_map * scale)
