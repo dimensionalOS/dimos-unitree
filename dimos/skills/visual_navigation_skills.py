@@ -37,10 +37,12 @@ logger = setup_logger("dimos.skills.visual_navigation", level=logging.DEBUG)
 
 class FollowHuman(AbstractRobotSkill):
     """
-    A skill that makes the robot follow a human using visual servoing.
+    A skill that makes the robot follow a human using visual servoing continuously. 
     
     This skill uses the robot's person tracking stream to follow a human
-    while maintaining a specified distance.
+    while maintaining a specified distance. It will keep following the human
+    until the timeout is reached or the skill is stopped. Don't use this skill
+    if you want to navigate to a specific person, use NavigateTo instead.
     """
     
     distance: float = Field(1.5, description="Desired distance to maintain from the person in meters")
@@ -142,10 +144,13 @@ class FollowHuman(AbstractRobotSkill):
 
 class NavigateToObject(AbstractRobotSkill):
     """
-    A skill that makes the robot navigate to an object using visual servoing and local planning.
-    
-    This skill uses the robot's object tracking stream to identify and navigate to
-    a specified object while maintaining a desired distance.
+    A skill that makes the robot navigate to an object/location/person that is in the view of its camera
+    given a description of the object/location/person.
+
+    This skill uses the robot's local planner to navigate to the object/location/person. It gets the bounding
+    box of the object/location/person from a VLM and then sends the distance and angle to the local planner.
+    USE THIS IF YOU'RE NAVIGATING TO SOMETHING SPECIFIC such as "white door", "person wearing hat". Use this when
+    semantic map hasn't been built yet. 
     """
     
     object_name: str = Field(..., description="Name of the object to navigate to")

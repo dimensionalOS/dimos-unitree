@@ -466,3 +466,156 @@ class Navigate(AbstractRobotSkill):
             self._spatial_memory = None
         
         return "Navigate skill stopped successfully."
+
+class GetPose(AbstractRobotSkill):
+    """
+    A skill that returns the current position and orientation of the robot.
+
+    This skill is useful for getting the current pose of the robot in the map frame. You call this skill
+    if you want to remember a location, for example, "remember this is where my favorite chair is" and then
+    call this skill to get the position and rotation of approximately where the chair is. You can then use 
+    the position to navigate to the chair.
+
+    """
+    
+    def __init__(self, robot=None, **data):
+        """
+        Initialize the GetPose skill.
+        
+        Args:
+            robot: The robot instance
+            **data: Additional data for configuration
+        """
+        super().__init__(robot=robot, **data)
+    
+    def __call__(self):
+        """
+        Get the current pose of the robot.
+        
+        Returns:
+            A dictionary containing the position and rotation of the robot
+        """
+        super().__call__()
+        
+        if self._robot is None:
+            error_msg = "No robot instance provided to GetPose skill"
+            logger.error(error_msg)
+            return {"success": False, "error": error_msg}
+        
+        try:
+            # Get the current pose using the robot's get_pose method
+            position, rotation = self._robot.get_pose()
+
+            # Format the response
+            result = {
+                "success": True,
+                "position": {
+                    "x": position[0],
+                    "y": position[1],
+                    "z": 0.0 if len(position) == 2 else position[2]
+                },
+                "rotation": {
+                    "roll": rotation[0],
+                    "pitch": rotation[1],
+                    "yaw": rotation[2]
+                }
+            }
+            
+            return result
+        except Exception as e:
+            error_msg = f"Error getting robot pose: {e}"
+            logger.error(error_msg)
+            return {"success": False, "error": error_msg}
+
+
+class NavigateToGoal(AbstractRobotSkill):
+    """
+    A skill that navigates the robot to a specified position and orientation.
+    
+    This skill uses the global planner to generate a path to the target position
+    and then uses navigate_path_local to follow that path, achieving the desired
+    orientation at the goal position.
+    """
+    
+    position: Tuple[float, float] = Field((0.0, 0.0), description="Target position (x, y) in map frame")
+    rotation: Optional[float] = Field(None, description="Target orientation (yaw) in radians")
+    frame: str = Field("map", description="Reference frame for the position and rotation")
+    timeout: float = Field(120.0, description="Maximum time (in seconds) allowed for navigation")
+    
+    def __init__(self, robot=None, **data):
+        """
+        Initialize the NavigateToGoal skill.
+        
+        Args:
+            robot: The robot instance
+            **data: Additional data for configuration
+        """
+        super().__init__(robot=robot, **data)
+        self._stop_event = threading.Event()
+    
+    def __call__(self):
+        """
+        Navigate to the specified goal position and orientation.
+        
+        Returns:
+            A dictionary containing the result of the navigation attempt
+        """
+        super().__call__()
+        
+        if self._robot is None:
+            error_msg = "No robot instance provided to NavigateToGoal skill"
+            logger.error(error_msg)
+            return {"success": False, "error": error_msg}
+        
+        # Reset stop event to make sure we don't immediately abort
+        self._stop_event.clear()
+        
+        logger.info(f"Starting navigation to position=({self.position[0]:.2f}, {self.position[1]:.2f}) "
+                    f"with rotation={self.rotation if self.rotation is not None else 'None'} "
+                    f"in frame={self.frame}")
+        
+        try:
+            # Use the global planner to set the goal and generate a path
+            result = self._robot.global_planner.set_goal(
+                self.position, 
+                goal_theta=self.rotation,
+                stop_event=self._stop_event
+            )
+            
+            if result:
+                logger.info("Navigation completed successfully")
+                return {
+                    "success": True,
+                    "position": self.position,
+                    "rotation": self.rotation,
+                    "message": "Goal reached successfully"
+                }
+            else:
+                logger.warning("Navigation did not complete successfully")
+                return {
+                    "success": False,
+                    "position": self.position,
+                    "rotation": self.rotation,
+                    "message": "Goal could not be reached"
+                }
+            
+        except Exception as e:
+            error_msg = f"Error during navigation: {e}"
+            logger.error(error_msg)
+            return {
+                "success": False,
+                "position": self.position,
+                "rotation": self.rotation,
+                "error": error_msg
+            }
+    
+    def stop(self):
+        """
+        Stop the navigation.
+        
+        Returns:
+            A message indicating that the navigation was stopped
+        """
+        logger.info("Stopping NavigateToGoal")
+        self._stop_event.set()
+        return "Navigation stopped"
