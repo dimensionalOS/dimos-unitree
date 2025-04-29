@@ -59,7 +59,7 @@ def astar(
             (-1, -1),
         ]
     else:
-        # 4-connected grid: only horizontal and vertical movements
+        # 4-connected grid: only horizontal and vertical ts
         directions = [(0, 1), (1, 0), (0, -1), (-1, 0)]
 
     # Cost for each movement (straight vs diagonal)
@@ -133,7 +133,8 @@ def astar(
                 continue
 
             # Check if the neighbor is an obstacle
-            if costmap.grid[neighbor_y, neighbor_x] >= cost_threshold:
+            neighbor_val = costmap.grid[neighbor_y, neighbor_x]
+            if neighbor_val >= cost_threshold:  # or neighbor_val < 0:
                 continue
 
             obstacle_proximity_penalty = costmap.grid[neighbor_y, neighbor_x] / 25

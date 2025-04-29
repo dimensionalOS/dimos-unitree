@@ -199,10 +199,13 @@ function visualiseCostmap(
     // Custom color interpolation function that maps 0 to white and other values to Inferno scale
     const customColorScale = (t: number) => {
         // If value is 0 (or very close to it), return dark bg color
-        if (t < 0.1) return "#ffffff"
+        // bluest #2d2136
+        if (t < 0) return "white"
+        if (t <= 0) return "#2d2136"
+        //if (t < 0.8) return "green"
         if (t > 0.9) return "#000000"
 
-        const color = d3.interpolateTurbo(t)
+        const color = d3.interpolateTurbo((t * 2) - 1)
         const hsl = d3.hsl(color)
         hsl.s *= 0.75
         return hsl.toString()
@@ -403,8 +406,8 @@ function visualisePath(
         .attr("y2", points[points.length - 1][1])
         .selectAll("stop")
         .data([
-            /* { offset: "0%", color: "#4fc3f7" },
-            * { offset: "100%", color: "#f06292" }, */
+            //{ offset: "0%", color: "#4fc3f7" },
+            //{ offset: "100%", color: "#f06292" },
             { offset: "0%", color: "#000000" },
             { offset: "100%", color: "#000000" },
         ])
@@ -417,7 +420,7 @@ function visualisePath(
         .datum(points)
         .attr("fill", "none")
         .attr("stroke", `url(#${pathId})`)
-        .attr("stroke-width", 1)
+        .attr("stroke-width", 2)
         .attr("stroke-linecap", "round")
         .attr("filter", "url(#glow)")
         .attr("opacity", 0.9)
@@ -448,16 +451,16 @@ function visualiseVector(
     vectorGroup.append("circle")
         .attr("r", ".7em")
         .attr("fill", "none")
-        .attr("stroke", "#4fc3f7")
+        //                           .attr("stroke", "#4fc3f7")
+        .attr("stroke", "red")
         .attr("stroke-width", "1")
         .attr("opacity", 0.9)
-        .attr("filter", "url(#glow)")
 
     // Add inner dot
     vectorGroup.append("circle")
         .attr("r", ".4em")
-        .attr("fill", "#4fc3f7")
-        .attr("filter", "url(#glow)")
+        //                           .attr("fill", "#4fc3f7")
+        .attr("fill", "red")
 
     // Add text with background
     const text = `${label} (${vector.coords[0].toFixed(2)}, ${
