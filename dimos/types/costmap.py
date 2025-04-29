@@ -181,7 +181,7 @@ class Costmap:
 
     def smudge(
         self,
-        kernel_size: int = 5,
+        kernel_size: int = 6,
         iterations: int = 20,
         decay_factor: float = 0.9,
         threshold: int = 90,

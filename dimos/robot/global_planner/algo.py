@@ -10,7 +10,7 @@ def astar(
     costmap: Costmap,
     goal: VectorLike,
     start: VectorLike = (0.0, 0.0),
-    cost_threshold: int = 80,
+    cost_threshold: int = 90,
     allow_diagonal: bool = True,
 ) -> Optional[Path]:
     """
@@ -63,7 +63,9 @@ def astar(
         directions = [(0, 1), (1, 0), (0, -1), (-1, 0)]
 
     # Cost for each movement (straight vs diagonal)
-    movement_costs = [1.0, 1.0, 1.0, 1.0, 3.5, 3.5, 3.5, 3.5] if allow_diagonal else [1.0, 1.0, 1.0, 1.0]
+    sc = 1.0
+    dc = 1.42
+    movement_costs = [sc, sc, sc, sc, dc, dc, dc, dc] if allow_diagonal else [sc, sc, sc, sc]
 
     # A* algorithm implementation
     open_set = []  # Priority queue for nodes to explore
@@ -134,8 +136,9 @@ def astar(
             if costmap.grid[neighbor_y, neighbor_x] >= cost_threshold:
                 continue
 
-            obstacle_proximity_penalty = (costmap.grid[neighbor_y, neighbor_x] / cost_threshold) * 3
-            tentative_g_score = g_score[current] + movement_costs[i] + obstacle_proximity_penalty
+            obstacle_proximity_penalty = costmap.grid[neighbor_y, neighbor_x] / 25
+
+            tentative_g_score = g_score[current] + movement_costs[i] + (obstacle_proximity_penalty * movement_costs[i])
 
             # Get the current g_score for the neighbor or set to infinity if not yet explored
             neighbor_g_score = g_score.get(neighbor, float("inf"))
