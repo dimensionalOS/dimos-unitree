@@ -1,5 +1,6 @@
 import pytest
 import time
+import numpy as np
 import reactivex as rx
 from reactivex import operators as ops
 from typing import Callable, TypeVar, Any
@@ -49,7 +50,11 @@ def dispose_spy(source: rx.Observable[T]) -> rx.Observable[T]:
 def test_backpressure_handling():
     received_fast = []
     received_slow = []
-    source = dispose_spy(rx.interval(0.1).pipe(ops.take(50)))
+    # Create an observable that emits numpy arrays instead of integers
+    source = dispose_spy(rx.interval(0.1).pipe(
+        ops.map(lambda i: np.array([i, i+1, i+2])),
+        ops.take(50)
+    ))
 
     # Wrap with backpressure handling
     safe_source = backpressure(source)
@@ -69,8 +74,8 @@ def test_backpressure_handling():
     assert source.is_disposed(), "Observable should be disposed"
 
     # Check results
-    print("Fast observer received:", len(received_fast), received_fast)
-    print("Slow observer received:", len(received_slow), received_slow)
+    print("Fast observer received:", len(received_fast), [arr[0] for arr in received_fast])
+    print("Slow observer received:", len(received_slow), [arr[0] for arr in received_slow])
     
     # Fast observer should get all or nearly all items
     assert len(received_fast) > 15, f"Expected fast observer to receive most items, got {len(received_fast)}"
@@ -81,26 +86,29 @@ def test_backpressure_handling():
     assert 7 <= len(received_slow) <= 11, f"Expected 7-11 items, got {len(received_slow)}"
     
     # The slow observer should skip items (not process them in sequence)
-    # We test this by checking that the difference between consecutive items is sometimes > 1
+    # We test this by checking that the difference between consecutive arrays is sometimes > 1
     has_skips = False
     for i in range(1, len(received_slow)):
-        if received_slow[i] - received_slow[i-1] > 1:
+        if received_slow[i][0] - received_slow[i-1][0] > 1:
             has_skips = True
             break
     assert has_skips, "Slow observer should skip items due to backpressure"
 
 
 def test_getter_streaming_blocking():
-    source = dispose_spy(rx.interval(0.2).pipe(ops.take(50)))
+    source = dispose_spy(rx.interval(0.2).pipe(
+        ops.map(lambda i: np.array([i, i+1, i+2])),
+        ops.take(50)
+    ))
     assert source.is_disposed()
 
     getter = min_time(lambda: getter_streaming(source), 0.2, "Latest getter needs to block until first msg is ready")
-    assert getter() == 0, f"Expected to get the first value of 0, got {getter()}"
+    assert np.array_equal(getter(), np.array([0, 1, 2])), f"Expected to get the first array [0,1,2], got {getter()}"
 
     time.sleep(0.5)
-    assert getter() >= 2, f"Expected value >= 2, got {getter()}"
+    assert getter()[0] >= 2, f"Expected array with first value >= 2, got {getter()}"
     time.sleep(0.5)
-    assert getter() >= 4, f"Expected value >= 4, got {getter()}"
+    assert getter()[0] >= 4, f"Expected array with first value >= 4, got {getter()}"
 
     getter.dispose()
     assert source.is_disposed(), "Observable should be disposed"
