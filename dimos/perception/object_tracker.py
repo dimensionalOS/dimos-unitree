@@ -4,10 +4,10 @@ from reactivex import operators as ops
 import numpy as np
 from dimos.perception.common.ibvs import ObjectDistanceEstimator
 from dimos.models.depth.metric3d import Metric3D
-
+from dimos.perception.detection2d.utils import calculate_depth_from_bbox
 class ObjectTrackingStream:
     def __init__(self, camera_intrinsics=None, camera_pitch=0.0, camera_height=1.0, 
-                 reid_threshold=5, reid_fail_tolerance=10, gt_depth_scale=1100.0):
+                 reid_threshold=5, reid_fail_tolerance=10, gt_depth_scale=1000.0):
         """
         Initialize an object tracking stream using OpenCV's CSRT tracker with ORB re-ID.
         
@@ -85,7 +85,7 @@ class ObjectTrackingStream:
 
         # Calculate depth only if distance and size not provided
         if frame is not None and distance is None and size is None:
-            depth_estimate = self.calculate_depth_from_bbox(frame, bbox)
+            depth_estimate = calculate_depth_from_bbox(self.depth_model, frame, bbox)
             if depth_estimate is not None:
                 print(f"Estimated depth for object: {depth_estimate:.2f}m")
 
