@@ -32,11 +32,13 @@ def astar(
 
     print("RUNNING ASTAR", costmap, "\n", goal, "\n", start)
     # Check if start or goal is out of bounds or in an obstacle
-    if 0 <= start_vector.x < costmap.width and 0 <= start_vector.y < costmap.height:
-        print("Start position is out of bounds, continuing")
+    if not (0 <= start_vector.x < costmap.width and 0 <= start_vector.y < costmap.height):
+        print("Start position is out of bounds, cannot proceed")
+        #return None
 
-    if 0 <= goal_vector.x < costmap.width and 0 <= goal_vector.y < costmap.height:
-        print("Goal position is out of bounds")
+    if not (0 <= goal_vector.x < costmap.width and 0 <= goal_vector.y < costmap.height):
+        print("Goal position is out of bounds, cannot proceed")
+        #return None
 
     # Check if start or goal is in an obstacle
     if costmap.grid[int(start_vector.y), int(start_vector.x)] >= cost_threshold:
