@@ -184,3 +184,26 @@ class ROSTransformAbility:
         except (tf2_ros.LookupException, tf2_ros.ConnectivityException, tf2_ros.ExtrapolationException) as e:
             logger.error(f"Transform rotation from {source_frame} to {target_frame} failed: {e}")
             return None
+
+    def transform_pose(self, position: Vector, rotation: Vector, source_frame: str, target_frame: str = "map", timeout: float = 1.0):
+        """Transform a pose from source_frame to target_frame.
+
+        Args:
+            position: The position to transform
+            rotation: The rotation to transform
+            source_frame: The source frame of the pose
+            target_frame: The target frame to transform to
+            timeout: Time to wait for the transform to become available (seconds)
+
+        Returns:
+            Tuple of (transformed_position, transformed_rotation) as Vectors, 
+            or (None, None) if either transform failed
+        """
+        # Transform position
+        transformed_position = self.transform_point(position, source_frame, target_frame, timeout)
+        
+        # Transform rotation
+        transformed_rotation = self.transform_rot(rotation, source_frame, target_frame, timeout)
+        
+        # Return results (both might be None if transforms failed)
+        return transformed_position, transformed_rotation

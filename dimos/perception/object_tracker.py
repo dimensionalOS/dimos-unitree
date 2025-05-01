@@ -4,10 +4,10 @@ from reactivex import operators as ops
 import numpy as np
 from dimos.perception.common.ibvs import ObjectDistanceEstimator
 from dimos.models.depth.metric3d import Metric3D
-
+from dimos.perception.detection2d.utils import calculate_depth_from_bbox
 class ObjectTrackingStream:
     def __init__(self, camera_intrinsics=None, camera_pitch=0.0, camera_height=1.0, 
-                 reid_threshold=5, reid_fail_tolerance=10, gt_depth_scale=1100.0):
+                 reid_threshold=5, reid_fail_tolerance=10, gt_depth_scale=1000.0):
         """
         Initialize an object tracking stream using OpenCV's CSRT tracker with ORB re-ID.
         
@@ -85,7 +85,7 @@ class ObjectTrackingStream:
 
         # Calculate depth only if distance and size not provided
         if frame is not None and distance is None and size is None:
-            depth_estimate = self.calculate_depth_from_bbox(frame, bbox)
+            depth_estimate = calculate_depth_from_bbox(self.depth_model, frame, bbox)
             if depth_estimate is not None:
                 print(f"Estimated depth for object: {depth_estimate:.2f}m")
 
@@ -97,46 +97,6 @@ class ObjectTrackingStream:
             else: print("No distance or size provided. Cannot estimate object size.")
 
         return True # Indicate intention to track is set
-        
-    def calculate_depth_from_bbox(self, frame, bbox):
-        """
-        Calculate the average depth of an object within a bounding box.
-        Uses the 25th to 75th percentile range to filter outliers.
-        
-        Args:
-            frame: The image frame
-            bbox: Bounding box in format [x1, y1, x2, y2]
-            
-        Returns:
-            float: Average depth in meters, or None if depth estimation fails
-        """
-        try:
-            # Get depth map for the entire frame
-            depth_map = self.depth_model.infer_depth(frame)
-            depth_map = np.array(depth_map)
-            
-            # Extract region of interest from the depth map
-            x1, y1, x2, y2 = map(int, bbox)
-            roi_depth = depth_map[y1:y2, x1:x2]
-            
-            if roi_depth.size == 0:
-                return None
-                
-            # Calculate 25th and 75th percentile to filter outliers
-            p25 = np.percentile(roi_depth, 25)
-            p75 = np.percentile(roi_depth, 75)
-            
-            # Filter depth values within this range
-            filtered_depth = roi_depth[(roi_depth >= p25) & (roi_depth <= p75)]
-            
-            # Calculate average depth (convert to meters)
-            if filtered_depth.size > 0:
-                return np.mean(filtered_depth) / 1000.0  # Convert mm to meters
-                
-            return None
-        except Exception as e:
-            print(f"Error calculating depth from bbox: {e}")
-            return None
     
     def reid(self, frame, current_bbox) -> bool:
         """Check if features in current_bbox match stored original features."""

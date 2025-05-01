@@ -1,6 +1,8 @@
 import numpy as np
 import cv2
 
+from dimos.utils.ros_utils import distance_angle_to_goal_xy
+
 def filter_detections(bboxes, track_ids, class_ids, confidences, names,
                     class_filter=None, name_filter=None, track_id_filter=None):
     """
@@ -190,3 +192,135 @@ def plot_results(image, bboxes, track_ids, class_ids, confidences, names, alpha=
         )
 
     return vis_img
+
+def calculate_depth_from_bbox(depth_model, frame, bbox):
+    """
+    Calculate the average depth of an object within a bounding box.
+    Uses the 25th to 75th percentile range to filter outliers.
+    
+    Args:
+        depth_model: Depth model
+        frame: The image frame
+        bbox: Bounding box in format [x1, y1, x2, y2]
+        
+    Returns:
+        float: Average depth in meters, or None if depth estimation fails
+    """
+    try:
+        # Get depth map for the entire frame
+        depth_map = depth_model.infer_depth(frame)
+        depth_map = np.array(depth_map)
+        
+        # Extract region of interest from the depth map
+        x1, y1, x2, y2 = map(int, bbox)
+        roi_depth = depth_map[y1:y2, x1:x2]
+        
+        if roi_depth.size == 0:
+            return None
+            
+        # Calculate 25th and 75th percentile to filter outliers
+        p25 = np.percentile(roi_depth, 25)
+        p75 = np.percentile(roi_depth, 75)
+        
+        # Filter depth values within this range
+        filtered_depth = roi_depth[(roi_depth >= p25) & (roi_depth <= p75)]
+        
+        # Calculate average depth (convert to meters)
+        if filtered_depth.size > 0:
+            return np.mean(filtered_depth) / 1000.0  # Convert mm to meters
+            
+        return None
+    except Exception as e:
+        print(f"Error calculating depth from bbox: {e}")
+        return None
+
+def calculate_distance_angle_from_bbox(bbox, depth, camera_intrinsics):
+    """
+    Calculate distance and angle to object center based on bbox and depth.
+    
+    Args:
+        bbox: Bounding box [x1, y1, x2, y2]
+        depth: Depth value in meters
+        camera_intrinsics: List [fx, fy, cx, cy] with camera parameters
+        
+    Returns:
+        tuple: (distance, angle) in meters and radians
+    """
+    if camera_intrinsics is None:
+        raise ValueError("Camera intrinsics required for distance calculation")
+        
+    # Extract camera parameters
+    fx, fy, cx, cy = camera_intrinsics
+    
+    # Calculate center of bounding box in pixels
+    x1, y1, x2, y2 = bbox
+    center_x = (x1 + x2) / 2
+    center_y = (y1 + y2) / 2
+    
+    # Calculate normalized image coordinates
+    x_norm = (center_x - cx) / fx
+    
+    # Calculate angle (positive to the right)
+    angle = np.arctan(x_norm)
+    
+    # Calculate distance using depth and angle
+    distance = depth / np.cos(angle) if np.cos(angle) != 0 else depth
+    
+    return distance, angle
+
+def calculate_object_size_from_bbox(bbox, depth, camera_intrinsics):
+    """
+    Estimate physical width and height of object in meters.
+    
+    Args:
+        bbox: Bounding box [x1, y1, x2, y2]
+        depth: Depth value in meters
+        camera_intrinsics: List [fx, fy, cx, cy] with camera parameters
+        
+    Returns:
+        tuple: (width, height) in meters
+    """
+    if camera_intrinsics is None:
+        return 0.0, 0.0
+        
+    fx, fy, _, _ = camera_intrinsics
+    
+    # Calculate bbox dimensions in pixels
+    x1, y1, x2, y2 = bbox
+    width_px = x2 - x1
+    height_px = y2 - y1
+    
+    # Convert to meters using similar triangles and depth
+    width_m = (width_px * depth) / fx
+    height_m = (height_px * depth) / fy
+    
+    return width_m, height_m
+
+def calculate_position_rotation_from_bbox(bbox, depth, camera_intrinsics):
+    """
+    Calculate position (xyz) and rotation (roll, pitch, yaw) for an object 
+    based on its bounding box and depth.
+    
+    Args:
+        bbox: Bounding box [x1, y1, x2, y2]
+        depth: Depth value in meters
+        camera_intrinsics: List [fx, fy, cx, cy] with camera parameters
+        
+    Returns:
+        Tuple of (position_dict, rotation_dict)
+    """
+    # Calculate distance and angle to object
+    distance, angle = calculate_distance_angle_from_bbox(bbox, depth, camera_intrinsics)
+    
+    # Convert distance and angle to x,y coordinates (in camera frame)
+    # Note: We negate the angle since positive angle means object is to the right,
+    # but we want positive y to be to the left in the standard coordinate system
+    x, y = distance_angle_to_goal_xy(distance, -angle)
+    
+    # For now, rotation is only in yaw (around z-axis)
+    # We can use the negative of the angle as an estimate of the object's yaw
+    # assuming objects tend to face the camera
+    position = {"x": x, "y": y, "z": 0.0}  # z=0 assuming objects are on the ground
+    rotation = {"roll": 0.0, "pitch": 0.0, "yaw": -angle}  # Only yaw is meaningful with monocular camera
+    
+    return position, rotation
