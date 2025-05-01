@@ -19712,9 +19712,9 @@ function visualiseCostmap(svg, costmap, width, height) {
     `translate(${(width - gridW) / 2}, ${(height - gridH) / 2})`
   );
   const customColorScale = (t) => {
-    if (t < 0) return "white";
-    if (t <= 0) return "#2d2136";
-    if (t > 0.9) return "#000000";
+    if (t == 0) return "white";
+    if (t < 0) return "#2d2136";
+    if (t > 0.95) return "#000000";
     const color2 = turbo_default(t * 2 - 1);
     const hsl2 = hsl(color2);
     hsl2.s *= 0.75;

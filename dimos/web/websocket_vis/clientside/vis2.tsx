@@ -200,9 +200,9 @@ function visualiseCostmap(
     const customColorScale = (t: number) => {
         // If value is 0 (or very close to it), return dark bg color
         // bluest #2d2136
-        if (t < 0) return "white"
-        if (t <= 0) return "#2d2136"
-        if (t > 0.9) return "#000000"
+        if (t == 0) return "white"
+        if (t < 0) return "#2d2136"
+        if (t > 0.95) return "#000000"
 
         const color = d3.interpolateTurbo((t * 2) - 1)
         const hsl = d3.hsl(color)
