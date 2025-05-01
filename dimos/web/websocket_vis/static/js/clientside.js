@@ -19813,10 +19813,10 @@ function visualisePath(svg, path2, label, wp, width, height) {
   svg.append("defs").append("linearGradient").attr("id", pathId).attr("gradientUnits", "userSpaceOnUse").attr("x1", points[0][0]).attr("y1", points[0][1]).attr("x2", points[points.length - 1][0]).attr("y2", points[points.length - 1][1]).selectAll("stop").data([
     //{ offset: "0%", color: "#4fc3f7" },
     //{ offset: "100%", color: "#f06292" },
-    { offset: "0%", color: "#000000" },
-    { offset: "100%", color: "#000000" }
+    { offset: "0%", color: "#ff3333" },
+    { offset: "100%", color: "#ff3333" }
   ]).enter().append("stop").attr("offset", (d) => d.offset).attr("stop-color", (d) => d.color);
-  svg.append("path").datum(points).attr("fill", "none").attr("stroke", `url(#${pathId})`).attr("stroke-width", 2).attr("stroke-linecap", "round").attr("filter", "url(#glow)").attr("opacity", 0.9).attr("d", line);
+  svg.append("path").datum(points).attr("fill", "none").attr("stroke", `url(#${pathId})`).attr("stroke-width", 5).attr("stroke-linecap", "round").attr("filter", "url(#glow)").attr("opacity", 0.9).attr("d", line);
 }
 function visualiseVector(svg, vector, label, wp, width, height) {
   const [cx, cy] = wp ? wp(vector.coords[0], vector.coords[1]) : [width / 2 + vector.coords[0], height / 2 - vector.coords[1]];
