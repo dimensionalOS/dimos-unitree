@@ -197,3 +197,47 @@ def get_bbox_from_qwen(
         print(f"Raw response: {response}")
 
     return None
+
+def get_bbox_from_qwen_frame(
+    frame,
+    object_name: Optional[str] = None
+) -> Optional[tuple]:
+    """Get bounding box coordinates from Qwen for a specific object or any object using a single frame.
+    
+    Args:
+        frame: A single image frame (PIL Image or numpy array)
+        object_name: Optional name of object to detect
+        
+    Returns:
+        tuple: (bbox, size) where bbox is [x1, y1, x2, y2] or None if no detection
+               and size is the estimated height in meters
+    """
+    # Convert numpy array to PIL Image if needed
+    if isinstance(frame, np.ndarray):
+        from PIL import Image
+        frame = Image.fromarray(frame)
+        
+    prompt = (
+        f"Look at this image and find the {object_name if object_name else 'most prominent object'}. Estimate the approximate height of the subject."
+        "Return ONLY a JSON object with format: {'name': 'object_name', 'bbox': [x1, y1, x2, y2], 'size': height_in_meters} "
+        "where x1,y1 is the top-left and x2,y2 is the bottom-right corner of the bounding box. If not found, return None."
+    )
+
+    response = query_single_frame(frame, prompt)
+
+    try:
+        # Extract JSON from response
+        start_idx = response.find('{')
+        end_idx = response.rfind('}') + 1
+        if start_idx >= 0 and end_idx > start_idx:
+            json_str = response[start_idx:end_idx]
+            result = json.loads(json_str)
+            
+            # Extract and validate bbox
+            if 'bbox' in result and len(result['bbox']) == 4:
+                return result['bbox'], result['size']
+    except Exception as e:
+        print(f"Error parsing Qwen response: {e}")
+        print(f"Raw response: {response}")
+
+    return None

@@ -28,10 +28,11 @@ import numpy as np
 from dimos.skills.skills import AbstractRobotSkill
 from dimos.utils.logging_config import setup_logger
 from dimos.perception.visual_servoing import VisualServoing
-from dimos.models.qwen.video_query import get_bbox_from_qwen
+from dimos.models.qwen.video_query import get_bbox_from_qwen_frame
 from dimos.utils.generic_subscriber import GenericSubscriber
 from dimos.utils.ros_utils import distance_angle_to_goal_xy
 from pydantic import Field
+from reactivex import operators as ops
 
 logger = setup_logger("dimos.skills.visual_navigation", level=logging.DEBUG)
 
@@ -192,7 +193,10 @@ class NavigateToObject(AbstractRobotSkill):
                     time.sleep(1.0)
     
                 try:
-                    bbox, object_size = get_bbox_from_qwen(self._robot.video_stream_ros, object_name=self.object_name)
+                    # Capture a single frame from the video stream
+                    frame = self._robot.video_stream_ros.pipe(ops.take(1)).run()
+                    # Use the frame-based function
+                    bbox, object_size = get_bbox_from_qwen_frame(frame, object_name=self.object_name)
                 except Exception as e:
                     logger.error(f"Error querying Qwen: {e}")
     
@@ -205,7 +209,7 @@ class NavigateToObject(AbstractRobotSkill):
             logger.info(f"Found {self.object_name} at {bbox} with size {object_size}")
     
             # Start the object tracker with the detected bbox
-            self._robot.object_tracker.track(bbox, size=object_size)
+            self._robot.object_tracker.track(bbox, frame=frame)
     
             # Create a GenericSubscriber to get latest tracking data
             self._tracking_subscriber = GenericSubscriber(self._robot.object_tracking_stream)
@@ -241,11 +245,15 @@ class NavigateToObject(AbstractRobotSkill):
     
                         # Update the goal in the local planner
                         self._robot.local_planner.set_goal((goal_x_robot, goal_y_robot), frame="base_link", goal_theta=-target["angle"])
+                        logger.info(f"Goal set in local planner: {goal_x_robot}, {goal_y_robot}, {target['angle']}")
                         last_update_time = current_time
                         tracking_started = True
+                    else:
+                        logger.warning("No distance or angle data in tracking data")
+                        continue
     
                 # Check if goal has been reached (near to object at desired distance)
-                if self._robot.local_planner.is_goal_reached():
+                if tracking_started and self._robot.local_planner.is_goal_reached():
                     goal_reached = True
                     logger.info(f"Goal reached! Arrived at {self.object_name} at desired distance.")
                     success = True
@@ -276,6 +284,7 @@ class NavigateToObject(AbstractRobotSkill):
         finally:
             # Clean up
             self._robot.ros_control.stop()
+            self._robot.object_tracker.cleanup()
             
             # Clean up tracking subscriber
             if self._tracking_subscriber:
@@ -295,6 +304,7 @@ class NavigateToObject(AbstractRobotSkill):
             
             # Stop the robot
             self._robot.ros_control.stop()
+            self._robot.object_tracker.cleanup()
             
             # Clean up tracking subscriber if it exists
             self._tracking_subscriber.dispose()
