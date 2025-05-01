@@ -30,7 +30,6 @@ def astar(
     start_vector = costmap.world_to_grid(start)
     goal_vector = costmap.world_to_grid(goal)
 
-    print("RUNNING ASTAR", costmap, "\n", goal, "\n", start)
     # Check if start or goal is out of bounds or in an obstacle
     if 0 <= start_vector.x < costmap.width and 0 <= start_vector.y < costmap.height:
         print("Start position is out of bounds, continuing")
@@ -138,7 +137,6 @@ def astar(
                 continue
 
             obstacle_proximity_penalty = costmap.grid[neighbor_y, neighbor_x] / 25
-
             tentative_g_score = g_score[current] + movement_costs[i] + (obstacle_proximity_penalty * movement_costs[i])
 
             # Get the current g_score for the neighbor or set to infinity if not yet explored

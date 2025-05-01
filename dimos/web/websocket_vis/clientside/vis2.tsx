@@ -202,7 +202,6 @@ function visualiseCostmap(
         // bluest #2d2136
         if (t < 0) return "white"
         if (t <= 0) return "#2d2136"
-        //if (t < 0.8) return "green"
         if (t > 0.9) return "#000000"
 
         const color = d3.interpolateTurbo((t * 2) - 1)
@@ -212,7 +211,7 @@ function visualiseCostmap(
     }
 
     const colour = d3.scaleSequential(customColorScale).domain([
-        0,
+        -1,
         100,
     ])
 
@@ -220,6 +219,7 @@ function visualiseCostmap(
         "height",
         gridH,
     )
+
     const canvas = document.createElement("canvas")
     canvas.width = cols
     canvas.height = rows
@@ -229,6 +229,7 @@ function visualiseCostmap(
         objectFit: "contain",
         backgroundColor: "black",
     })
+
     fo.append("xhtml:div")
         .style("width", "100%")
         .style("height", "100%")
@@ -314,6 +315,7 @@ function addCoordinateSystem(
             .attr("stroke-width", 0.5)
             .attr("opacity", 0.25)
     }
+
     for (
         const y of d3.range(
             Math.ceil(minY / gridSize) * gridSize,
@@ -338,7 +340,6 @@ function addCoordinateSystem(
         sel.selectAll("line,path")
             .attr("stroke", "#ffffff")
             .attr("stroke-width", 1)
-
         sel.selectAll("text")
             .attr("fill", "#ffffff") // Change the color here
     }
