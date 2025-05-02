@@ -13,19 +13,13 @@
 # limitations under the License.
 
 import tests.test_header
-import os
 
-import time
+from textwrap import dedent
+from dimos.skills.skills import SkillLibrary
+
 from dotenv import load_dotenv
 from dimos.agents.claude_agent import ClaudeAgent
-from dimos.robot.unitree.unitree_go2 import UnitreeGo2
-from dimos.robot.unitree.unitree_ros_control import UnitreeROSControl
-from dimos.robot.unitree.unitree_skills import MyUnitreeSkills
 from dimos.web.robot_web_interface import RobotWebInterface
-from dimos.skills.observe_stream import ObserveStream
-from dimos.skills.kill_skill import KillSkill
-from dimos.skills.navigation import Navigate, BuildSemanticMap
-from dimos.skills.visual_navigation_skills import NavigateToObject, FollowHuman
 from dimos.skills.rest.rest import GenericRestSkill
 import reactivex as rx
 import reactivex.operators as ops
@@ -33,63 +27,48 @@ import reactivex.operators as ops
 # Load API key from environment
 load_dotenv()
 
-skills = MyUnitreeSkills()
-
-robot = UnitreeGo2(ip=os.getenv('ROBOT_IP'),
-                    ros_control=UnitreeROSControl(),
-                    skills=skills,
-                    mock_connection=True)
+# Create a skill library and add the GenericRestSkill
+skills = SkillLibrary()
+skills.add(GenericRestSkill)
 
 # Create a subject for agent responses
 agent_response_subject = rx.subject.Subject()
 agent_response_stream = agent_response_subject.pipe(ops.share())
 
-streams = {"unitree_video": robot.get_ros_video_stream()}
+# Create a text stream for agent responses in the web interface
 text_streams = {
     "agent_responses": agent_response_stream,
 }
-
-web_interface = RobotWebInterface(port=5555, text_streams=text_streams, **streams)
+web_interface = RobotWebInterface(port=5555, text_streams=text_streams)
 
 # Create a ClaudeAgent instance
 agent = ClaudeAgent(
     dev_name="test_agent",
     input_query_stream=web_interface.query_stream,
     skills=skills,
-    system_query="""You are an agent controlling a virtual robot. When given a query, respond by using the appropriate tool calls if needed to execute commands on the robot.
-
-IMPORTANT INSTRUCTIONS:
-1. Each tool call must include the exact function name and appropriate parameters
-2. If a function needs parameters like 'distance' or 'angle', be sure to include them
-3. If you're unsure which tool to use, choose the most appropriate one based on the user's query
-4. Parse the user's instructions carefully to determine correct parameter values
-
-Example: If the user asks to move forward 1 meter, call the Move function with distance=1""",
+    system_query=dedent(
+        """
+        You are a virtual agent. When given a query, respond by using 
+        the appropriate tool calls if needed to execute commands on the robot.
+        
+        IMPORTANT:
+        Only return the response directly asked of the user. E.G. if the user asks for the time,
+        only return the time. If the user asks for the weather, only return the weather.
+        """),
     model_name="claude-3-7-sonnet-latest",
     thinking_budget_tokens=2000
 )
-
-skills.add(GenericRestSkill)
-skills.add(ObserveStream)
-skills.add(KillSkill)
-skills.add(Navigate)
-skills.add(BuildSemanticMap)
-skills.add(NavigateToObject)
-skills.add(FollowHuman)
-
-skills.create_instance("ObserveStream", robot=robot, agent=agent)
-skills.create_instance("KillSkill", robot=robot, skill_library=skills)
-skills.create_instance("Navigate", robot=robot)
-skills.create_instance("BuildSemanticMap", robot=robot)
-skills.create_instance("NavigateToObject", robot=robot)
-skills.create_instance("FollowHuman", robot=robot)
 
 # Subscribe to agent responses and send them to the subject
 agent.get_response_observable().subscribe(
     lambda x: agent_response_subject.on_next(x)
 )
 
-print("ObserveStream and Kill skills registered and ready for use")
-print("Created memory.txt file")
-
+# Start the web interface
 web_interface.run()
+
+# Run this query in the web interface:
+# 
+# Make a web request to nist to get the current time. 
+# You should use http://worldclockapi.com/api/json/utc/now
+#
