@@ -17,6 +17,7 @@ from dimos.types.vector import Vector
 from dimos.utils.reactive import backpressure
 from dimos.perception.detection2d.detic_2d_det import Detic2DDetector
 
+from dotenv import load_dotenv
 
 
 def parse_args():
@@ -24,7 +25,7 @@ def parse_args():
     parser.add_argument('--mode', type=str, default="webcam", choices=["robot", "webcam"],
                         help='Mode to run: "robot" or "webcam" (default: webcam)')
     return parser.parse_args()
-
+load_dotenv()
 
 class ResultPrinter:
     def __init__(self, print_interval: float = 1.0):
@@ -97,18 +98,20 @@ def main():
             ros_control=UnitreeROSControl(),
             skills=MyUnitreeSkills(),
         )
-        
+        # Create video stream from robot's camera
+        video_stream = robot.video_stream_ros
+
         # Initialize ObjectDetectionStream with robot and transform function
-        detection_stream = ObjectDetectionStream(
+        object_detector = ObjectDetectionStream(
             camera_intrinsics=robot.camera_intrinsics,
             min_confidence=min_confidence,
             class_filter=class_filter,
             transform_to_map=robot.ros_control.transform_pose,
-            detector=detector
+            detector=detector,
+            video_stream=video_stream
         )
         
-        # Create video stream from robot's camera
-        video_stream = robot.video_stream_ros
+
         
     else:  # webcam mode
         print("Initializing in webcam mode...")
@@ -131,23 +134,24 @@ def main():
         
         # Initialize video provider and ObjectDetectionStream
         video_provider = VideoProvider("test_camera", video_source=0)  # Default camera
-        detection_stream = ObjectDetectionStream(
+        # Create video stream
+        video_stream = backpressure(video_provider.capture_video_as_observable(realtime=True, fps=30))
+
+        object_detector = ObjectDetectionStream(
             camera_intrinsics=camera_intrinsics,
             min_confidence=min_confidence,
             class_filter=class_filter,
-            detector=detector
+            detector=detector,
+            video_stream=video_stream
         )
         
-        # Create video stream
-        video_stream = backpressure(video_provider.capture_video_as_observable(realtime=True, fps=30))
+        
         
         # Set placeholder robot for cleanup
         robot = None
-    # Create object detection stream
-    detection_stream = detection_stream.create_stream(video_stream)
     
     # Create visualization stream for web interface
-    viz_stream = detection_stream.pipe(
+    viz_stream = object_detector.get_stream().pipe(
         ops.share(),
         ops.map(lambda x: x["viz_frame"] if x is not None else None),
         ops.filter(lambda x: x is not None),
@@ -175,7 +179,7 @@ def main():
     
     try:
         # Subscribe to the detection stream
-        subscription = detection_stream.subscribe(
+        subscription = object_detector.get_stream().subscribe(
             on_next=on_next,
             on_error=on_error,
             on_completed=on_completed

@@ -33,7 +33,8 @@ class ObjectDetectionStream:
         min_confidence=0.5,
         class_filter=None,  # Optional list of class names to filter (e.g., ["person", "car"])
         transform_to_map=None,  # Optional function to transform coordinates to map frame
-        detector: Optional[Union[Detic2DDetector, Yolo2DDetector]] = None
+        detector: Optional[Union[Detic2DDetector, Yolo2DDetector]] = None,
+        video_stream: Observable = None
     ):
         """
         Initialize the ObjectDetectionStream.
@@ -44,6 +45,9 @@ class ObjectDetectionStream:
             gt_depth_scale: Ground truth depth scale for Metric3D
             min_confidence: Minimum confidence for detections
             class_filter: Optional list of class names to filter
+            transform_to_map: Optional function to transform pose to map coordinates
+            detector: Optional detector instance (Detic or Yolo)
+            video_stream: Observable of video frames to process (if provided, returns a stream immediately)
         """
         self.min_confidence = min_confidence
         self.class_filter = class_filter
@@ -68,6 +72,11 @@ class ObjectDetectionStream:
             ], dtype=np.float32)
         else:
             raise ValueError("camera_intrinsics must be provided")
+            
+        # If video_stream is provided, create and store the stream immediately
+        self.stream = None
+        if video_stream is not None:
+            self.stream = self.create_stream(video_stream)
     
     def create_stream(self, video_stream: Observable) -> Observable:
         """
@@ -168,11 +177,24 @@ class ObjectDetectionStream:
                 "viz_frame": viz_frame,
                 "objects": objects
             }
-        
-        return video_stream.pipe(
+        self.stream = video_stream.pipe(
             ops.map(process_frame)
         )
+
+        return self.stream
     
+    def get_stream(self):
+        """
+        Returns the current detection stream if available.
+        Creates a new one with the provided video_stream if not already created.
+        
+        Returns:
+            Observable: The reactive stream of detection results
+        """
+        if self.stream is None:
+            raise ValueError("Stream not initialized. Either provide a video_stream during initialization or call create_stream first.")
+        return self.stream
+
     def cleanup(self):
         """Clean up resources."""
         pass
