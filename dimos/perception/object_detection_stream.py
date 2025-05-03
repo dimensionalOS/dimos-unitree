@@ -4,6 +4,7 @@ from reactivex import Observable
 from reactivex import operators as ops
 
 from dimos.perception.detection2d.yolo_2d_det import Yolo2DDetector
+from dimos.perception.detection2d.detic_2d_det import Detic2DDetector
 from dimos.models.depth.metric3d import Metric3D
 from dimos.perception.detection2d.utils import (
     calculate_depth_from_bbox,
@@ -11,12 +12,12 @@ from dimos.perception.detection2d.utils import (
     calculate_position_rotation_from_bbox
 )
 from dimos.types.vector import Vector
+from typing import Optional, Union
 
-
-class YoloQueryStream:
+class ObjectDetectionStream:
     """
     A stream processor that:
-    1. Detects objects using Yolo2DDetector
+    1. Detects objects using a Detector (Detic or Yolo)
     2. Estimates depth using Metric3D
     3. Calculates 3D position and dimensions using camera intrinsics
     4. Transforms coordinates to map frame
@@ -27,20 +28,18 @@ class YoloQueryStream:
     def __init__(
         self,
         camera_intrinsics=None,  # [fx, fy, cx, cy]
-        model_path="yolo11n.pt",
         device="cuda",
         gt_depth_scale=1000.0,
         min_confidence=0.5,
         class_filter=None,  # Optional list of class names to filter (e.g., ["person", "car"])
-        transform_to_map=None  # Optional function to transform coordinates to map frame
+        transform_to_map=None,  # Optional function to transform coordinates to map frame
+        detector: Optional[Union[Detic2DDetector, Yolo2DDetector]] = None
     ):
         """
-        Initialize the YoloQueryStream.
+        Initialize the ObjectDetectionStream.
         
         Args:
-            robot: Robot instance with ros_control for coordinate transformations
             camera_intrinsics: List [fx, fy, cx, cy] with camera parameters
-            model_path: Path to YOLO model
             device: Device to run inference on ("cuda" or "cpu")
             gt_depth_scale: Ground truth depth scale for Metric3D
             min_confidence: Minimum confidence for detections
@@ -50,7 +49,7 @@ class YoloQueryStream:
         self.class_filter = class_filter
         self.transform_to_map = transform_to_map
         # Initialize object detector
-        self.detector = Yolo2DDetector(model_path=model_path, device=device)
+        self.detector = detector or Detic2DDetector(vocabulary=None, threshold=min_confidence)
         
         # Initialize depth estimation model
         self.depth_model = Metric3D(gt_depth_scale)
@@ -177,71 +176,3 @@ class YoloQueryStream:
     def cleanup(self):
         """Clean up resources."""
         pass
-
-
-def main():
-    """Simple test of YoloQueryStream with webcam."""
-    import time
-    from reactivex.subject import Subject
-    
-    # Create a video stream from webcam
-    cap = cv2.VideoCapture(0)
-    
-    # Camera intrinsics for a typical webcam (adjust as needed)
-    camera_intrinsics = [800, 800, 320, 240]  # [fx, fy, cx, cy]
-    
-    # Create the query stream
-    query_stream = YoloQueryStream(
-        camera_intrinsics=camera_intrinsics,
-        min_confidence=0.6
-    )
-    
-    # Create a subject to emit frames
-    frame_subject = Subject()
-    
-    # Create the output stream
-    output_stream = query_stream.create_stream(frame_subject)
-    
-    # Subscribe to the output stream
-    def on_next(result):
-        viz_frame = result["viz_frame"]
-        objects = result["objects"]
-        
-        # Display the frame
-        cv2.imshow("YoloQueryStream", viz_frame)
-        
-        # Print object information
-        print(f"Detected {len(objects)} objects")
-        for obj in objects:
-            position = obj["position"]
-            label = obj["label"]
-            print(f"  {label}: Position ({position['x']:.2f}, {position['y']:.2f}, {position['z']:.2f})")
-    
-    output_stream.subscribe(on_next)
-    
-    # Main loop
-    try:
-        while True:
-            ret, frame = cap.read()
-            if not ret:
-                break
-                
-            # Emit the frame
-            frame_subject.on_next(frame)
-            
-            # Check for exit
-            if cv2.waitKey(1) & 0xFF == ord('q'):
-                break
-                
-            # Throttle to avoid overwhelming the detector
-            time.sleep(0.1)
-    
-    finally:
-        # Clean up
-        cap.release()
-        cv2.destroyAllWindows()
-        query_stream.cleanup()
-
-
-if __name__ == "__main__":
-    main()

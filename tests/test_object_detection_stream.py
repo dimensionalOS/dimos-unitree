@@ -12,7 +12,7 @@ from dimos.robot.unitree.unitree_skills import MyUnitreeSkills
 from dimos.web.robot_web_interface import RobotWebInterface
 from dimos.utils.logging_config import logger
 from dimos.stream.video_provider import VideoProvider
-from dimos.perception.yolo_query_stream import YoloQueryStream
+from dimos.perception.object_detection_stream import ObjectDetectionStream
 from dimos.types.vector import Vector
 from dimos.utils.reactive import backpressure
 from dimos.perception.detection2d.detic_2d_det import Detic2DDetector
@@ -20,7 +20,7 @@ from dimos.perception.detection2d.detic_2d_det import Detic2DDetector
 
 
 def parse_args():
-    parser = argparse.ArgumentParser(description='Test YoloQueryStream for object detection and position estimation')
+    parser = argparse.ArgumentParser(description='Test ObjectDetectionStream for object detection and position estimation')
     parser.add_argument('--mode', type=str, default="webcam", choices=["robot", "webcam"],
                         help='Mode to run: "robot" or "webcam" (default: webcam)')
     return parser.parse_args()
@@ -72,12 +72,14 @@ def main():
     
     # Set up the result printer for console output
     result_printer = ResultPrinter(print_interval=1.0)
-    
+
     # Set default parameters
-    model_path = "yolo11n.pt"
     min_confidence = 0.6
     class_filter = None  # No class filtering
     web_port = 5555
+    
+    # Initialize detector
+    detector = Detic2DDetector(vocabulary=None, threshold=min_confidence)
     
     # Initialize based on mode
     if args.mode == "robot":
@@ -96,13 +98,13 @@ def main():
             skills=MyUnitreeSkills(),
         )
         
-        # Initialize YoloQueryStream with robot and transform function
-        query_stream = YoloQueryStream(
+        # Initialize ObjectDetectionStream with robot and transform function
+        detection_stream = ObjectDetectionStream(
             camera_intrinsics=robot.camera_intrinsics,
-            model_path=model_path,
             min_confidence=min_confidence,
             class_filter=class_filter,
-            transform_to_map=robot.ros_control.transform_pose
+            transform_to_map=robot.ros_control.transform_pose,
+            detector=detector
         )
         
         # Create video stream from robot's camera
@@ -127,13 +129,13 @@ def main():
         # Camera intrinsics in [fx, fy, cx, cy] format
         camera_intrinsics = [focal_length_x_px, focal_length_y_px, cx, cy]
         
-        # Initialize video provider and YoloQueryStream
+        # Initialize video provider and ObjectDetectionStream
         video_provider = VideoProvider("test_camera", video_source=0)  # Default camera
-        query_stream = YoloQueryStream(
+        detection_stream = ObjectDetectionStream(
             camera_intrinsics=camera_intrinsics,
-            model_path=model_path,
             min_confidence=min_confidence,
-            class_filter=class_filter
+            class_filter=class_filter,
+            detector=detector
         )
         
         # Create video stream
@@ -141,9 +143,8 @@ def main():
         
         # Set placeholder robot for cleanup
         robot = None
-    query_stream.detector = Detic2DDetector(vocabulary=None, threshold=0.4)
     # Create object detection stream
-    detection_stream = query_stream.create_stream(video_stream)
+    detection_stream = detection_stream.create_stream(video_stream)
     
     # Create visualization stream for web interface
     viz_stream = detection_stream.pipe(
@@ -188,7 +189,7 @@ def main():
         )
         
         # Print configuration information
-        print("\nYoloQueryStream Test Running:")
+        print("\nObjectDetectionStream Test Running:")
         print(f"Mode: {args.mode}")
         print(f"Web Interface: http://localhost:{web_port}")
         print("\nPress Ctrl+C to stop the test\n")
@@ -214,7 +215,6 @@ def main():
             if 'video_provider' in locals():
                 video_provider.dispose_all()
         
-        query_stream.cleanup()
         print("Test completed")
 
 
