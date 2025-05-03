@@ -6,7 +6,8 @@ import sys
 from pathlib import Path
 
 # Add Detic to Python path
-detic_path = '/home/stash/dimensional/external/Detic'
+detic_path = os.path.join(os.path.dirname(__file__), '..', '..', 'models', 'Detic')
+print("detic path", detic_path)
 if detic_path not in sys.path:
     sys.path.append(detic_path)
     sys.path.append(os.path.join(detic_path, 'third_party/CenterNet2'))
@@ -215,23 +216,6 @@ class Detic2DDetector:
         
         # Initialize our simple tracker
         self.tracker = SimpleTracker(iou_threshold=0.5, max_age=5)
-        
-    def _setup_detic(self):
-        """Setup Detic repository if it doesn't exist."""
-        # Determine if we're in a development environment or installed package
-        detic_path = os.path.expanduser("~/.detic")
-        
-        # If Detic is not already cloned, clone it
-        if not os.path.exists(detic_path):
-            os.makedirs(detic_path, exist_ok=True)
-            os.system(f"git clone https://github.com/facebookresearch/Detic.git {detic_path} --recurse-submodules")
-            
-            # Install requirements
-            req_file = os.path.join(detic_path, "requirements.txt")
-            if os.path.exists(req_file):
-                os.system(f"pip install -r {req_file}")
-                
-        return detic_path
             
     def setup_vocabulary(self, vocabulary):
         """
