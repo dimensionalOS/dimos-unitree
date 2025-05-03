@@ -26,14 +26,13 @@ from reactivex import operators as ops
 from dimos.stream.frame_processor import FrameProcessor
 from dimos.stream.video_operators import VideoOperators as vops
 from dimos.stream.video_provider import get_scheduler
+from dimos.utils.logging_config import setup_logger
 
-logger = logging.getLogger(__name__)
+
+logger = setup_logger("tests.test_rtsp_video_provider")
 
 import sys
 import os
-
-# Setup basic logging to see output
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 
 # Load environment variables from .env file
 from dotenv import load_dotenv
