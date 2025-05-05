@@ -507,41 +507,6 @@ class ClaudeAgent(LLMAgent):
             logger.error(f"Unexpected error in Anthropic API call: {e}")
             logger.exception(e)  # This will print the full traceback
             raise
-    
-    # TODO: Delete, deprecated
-    def direct_query(self, query_text: str, base64_image: Optional[str] = None, dimensions: Optional[Tuple[int, int]] = None, rag_results: Optional[str] = None) -> str:
-        """Execute a direct query with Claude.
-        
-        This is a convenience wrapper around _observable_query that returns just the response text.
-        It creates a temporary observer to collect the response.
-        
-        Args:
-            query_text (str): The query text to process
-            base64_image (Optional[str]): Optional Base64-encoded image
-            dimensions (Optional[Tuple[int, int]]): Optional image dimensions
-            rag_results (Optional[str]): Optional RAG context
-            
-        Returns:
-            str: The response text from Claude
-        """
-        # Store the new query text
-        self.query = query_text
-        logger.info(f"Processing new query: {self.query}")
-        
-        # Create a temporary observer to collect the response
-        class TempObserver(Observer):
-            def __init__(self):
-                self.response = ""
-            def on_next(self, value):
-                self.response = value
-            def on_error(self, error):
-                logger.error(f"Error in direct query: {error}")
-            def on_completed(self):
-                pass
-                
-        observer = TempObserver()
-        self._observable_query(observer, base64_image, dimensions, False, query_text, False)
-        return observer.response
 
     def _observable_query(self,
                              observer: Observer,
