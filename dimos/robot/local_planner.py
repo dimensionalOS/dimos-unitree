@@ -14,7 +14,8 @@ from dimos.utils.logging_config import setup_logger
 from dimos.utils.ros_utils import (
     ros_msg_to_numpy_grid, 
     normalize_angle,
-    visualize_local_planner_state
+    visualize_local_planner_state,
+    distance_angle_to_goal_xy
 )
 
 from dimos.robot.robot import Robot
@@ -879,3 +880,139 @@ class VFHPurePursuitPlanner(BaseLocalPlanner):
                         (self.visualization_size // 4, self.visualization_size // 2),
                         cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 0), 2)
             return blank
+
+def navigate_to_goal_local(
+    robot, goal_xy_robot: Tuple[float, float], distance: float = 0.0, timeout: float = 60.0,
+    stop_event: Optional[threading.Event] = None
+) -> bool:
+    """
+    Navigates the robot to a goal specified in the robot's local frame
+    using the local planner.
+
+    Args:
+        robot: Robot instance to control
+        goal_xy_robot: Tuple (x, y) representing the goal position relative
+                       to the robot's current position and orientation.
+        distance: Desired distance to maintain from the goal in meters.
+                 If non-zero, the robot will stop this far away from the goal.
+        timeout: Maximum time (in seconds) allowed to reach the goal.
+        stop_event: Optional threading.Event to signal when navigation should stop
+
+    Returns:
+        bool: True if the goal was reached within the timeout, False otherwise.
+    """
+    logger.info(f"Starting navigation to local goal {goal_xy_robot} with distance {distance}m and timeout {timeout}s.")
+
+    goal_x, goal_y = goal_xy_robot
+    
+    # Calculate goal orientation to face the target
+    goal_theta = np.arctan2(goal_y, goal_x)
+    
+    # If distance is non-zero, adjust the goal to stop at the desired distance
+    if distance > 0:
+        # Calculate magnitude of the goal vector
+        goal_distance = np.sqrt(goal_x**2 + goal_y**2)
+        
+        # Only adjust if goal is further than the desired distance
+        if goal_distance > distance:
+            goal_x, goal_y = distance_angle_to_goal_xy(goal_distance - distance, goal_theta)
+    
+    # Set the goal in the robot's frame with orientation to face the original target
+    robot.local_planner.set_goal((goal_x, goal_y), frame="base_link", goal_theta=-goal_theta)
+
+    start_time = time.time()
+    goal_reached = False
+
+    try:
+        while time.time() - start_time < timeout and not (stop_event and stop_event.is_set()):
+            # Check if goal has been reached
+            if robot.local_planner.is_goal_reached():
+                logger.info("Goal reached successfully.")
+                goal_reached = True
+                break
+
+            # Get planned velocity towards the goal
+            vel_command = robot.local_planner.plan()
+            x_vel = vel_command.get("x_vel", 0.0)
+            angular_vel = vel_command.get("angular_vel", 0.0)
+
+            # Send velocity command
+            robot.ros_control.move_vel_control(x=x_vel, y=0, yaw=angular_vel)
+
+            # Control loop frequency
+            time.sleep(0.1)
+
+        if not goal_reached:
+            logger.warning(f"Navigation timed out after {timeout} seconds before reaching goal.")
+
+    except KeyboardInterrupt:
+        logger.info("Navigation to local goal interrupted by user.")
+        goal_reached = False  # Consider interruption as failure
+    except Exception as e:
+        logger.error(f"Error during navigation to local goal: {e}")
+        goal_reached = False  # Consider error as failure
+    finally:
+        logger.info("Stopping robot after navigation attempt.")
+        robot.ros_control.stop()
+
+    return goal_reached
+
+def navigate_path_local(
+    robot, path: Path, timeout: float = 120.0, goal_theta: Optional[float] = None, 
+    stop_event: Optional[threading.Event] = None
+) -> bool:
+    """
+    Navigates the robot along a path of waypoints using the waypoint following capability
+    of the VFHPurePursuitPlanner.
+
+    Args:
+        robot: Robot instance to control
+        path: Path object containing waypoints in odom/map frame
+        timeout: Maximum time (in seconds) allowed to follow the complete path
+        goal_theta: Optional final orientation in radians
+        stop_event: Optional threading.Event to signal when navigation should stop
+
+    Returns:
+        bool: True if the entire path was successfully followed, False otherwise
+    """
+    logger.info(f"Starting navigation along path with {len(path)} waypoints and timeout {timeout}s.")
+
+    # Set the path in the local planner
+    robot.local_planner.set_goal_waypoints(path, goal_theta=goal_theta)
+
+    start_time = time.time()
+    path_completed = False
+
+    try:
+        while time.time() - start_time < timeout and not (stop_event and stop_event.is_set()):
+            # Check if the entire path has been traversed
+            if robot.local_planner.is_goal_reached():
+                logger.info("Path traversed successfully.")
+                path_completed = True
+                break
+
+            # Get planned velocity towards the current waypoint target
+            vel_command = robot.local_planner.plan()
+            x_vel = vel_command.get("x_vel", 0.0)
+            angular_vel = vel_command.get("angular_vel", 0.0)
+
+            # Send velocity command
+            robot.ros_control.move_vel_control(x=x_vel, y=0, yaw=angular_vel)
+
+            # Control loop frequency
+            time.sleep(0.1)
+
+        if not path_completed:
+            logger.warning(f"Path following timed out after {timeout} seconds before completing the path.")
+
+    except KeyboardInterrupt:
+        logger.info("Path navigation interrupted by user.")
+        path_completed = False
+    except Exception as e:
+        logger.error(f"Error during path navigation: {e}")
+        path_completed = False
+    finally:
+        logger.info("Stopping robot after path navigation attempt.")
+        robot.ros_control.stop()
+
+    return path_completed
