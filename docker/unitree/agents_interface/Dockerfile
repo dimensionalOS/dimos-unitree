@@ -70,7 +70,6 @@ RUN apt-get update && apt-get install -y \
     ros-${ROS_DISTRO}-pointcloud-to-laserscan \
     ros-${ROS_DISTRO}-slam-toolbox \
     ros-${ROS_DISTRO}-foxglove-bridge \
-    ros-${ROS_DISTRO}-compressed-image-transport \
     python3-rosdep \
     python3-rosinstall \
     python3-rosinstall-generator \
