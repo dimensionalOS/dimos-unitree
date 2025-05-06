@@ -58,7 +58,7 @@ web_interface = RobotWebInterface(port=5555, text_streams=text_streams, **stream
 stt_node = stt()
 
 # Read system query from prompt.txt file
-with open(os.path.join(os.path.dirname(os.path.dirname(__file__)), 'prompt.txt'), 'r') as f:
+with open(os.path.join(os.path.dirname(os.path.dirname(__file__)), 'assets', 'agent', 'prompt.txt'), 'r') as f:
     system_query = f.read()
 
 # Create a ClaudeAgent instance
