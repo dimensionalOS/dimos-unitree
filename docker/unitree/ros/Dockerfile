@@ -53,6 +53,7 @@ RUN apt-get update && apt-get install -y \
     ros-${ROS_DISTRO}-desktop \
     ros-${ROS_DISTRO}-ros-base \
     ros-${ROS_DISTRO}-image-tools \
+    ros-${ROS_DISTRO}-compressed-image-transport \
     ros-${ROS_DISTRO}-vision-msgs \
     ros-${ROS_DISTRO}-rviz2 \
     ros-${ROS_DISTRO}-rqt \
@@ -84,7 +85,7 @@ RUN rosdep init && rosdep update
 WORKDIR /ros2_ws
 
 # Clone the repository with submodules
-RUN git clone --recurse-submodules https://github.com/dimensionalOS/go2_ros2_sdk src
+RUN git clone --branch prod --recurse-submodules https://github.com/dimensionalOS/go2_ros2_sdk src
 
 # Install Python requirements (with numpy constraint)
 RUN cd src && pip install -r requirements.txt
