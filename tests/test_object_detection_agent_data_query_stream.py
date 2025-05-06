@@ -207,7 +207,6 @@ def main():
             # input_query_stream=stt_node.emit_text(),
             input_query_stream=web_interface.query_stream,
             input_data_stream=object_data_stream,
-            skills=robot.get_skills(),
             system_query="Tell me what you see",
             model_name="claude-3-7-sonnet-latest",
             thinking_budget_tokens=0
