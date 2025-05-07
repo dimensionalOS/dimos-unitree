@@ -31,6 +31,7 @@ from dimos.perception.visual_servoing import VisualServoing
 from dimos.models.qwen.video_query import get_bbox_from_qwen_frame
 from dimos.utils.generic_subscriber import GenericSubscriber
 from dimos.utils.ros_utils import distance_angle_to_goal_xy
+from dimos.robot.local_planner.local_planner import navigate_to_goal_local
 from pydantic import Field
 from reactivex import operators as ops
 
@@ -194,7 +195,7 @@ class NavigateToObject(AbstractRobotSkill):
     
                 try:
                     # Capture a single frame from the video stream
-                    frame = self._robot.video_stream_ros.pipe(ops.take(1)).run()
+                    frame = self._robot.get_ros_video_stream().pipe(ops.take(1)).run()
                     # Use the frame-based function
                     bbox, object_size = get_bbox_from_qwen_frame(frame, object_name=self.object_name)
                 except Exception as e:
@@ -214,65 +215,49 @@ class NavigateToObject(AbstractRobotSkill):
             # Create a GenericSubscriber to get latest tracking data
             self._tracking_subscriber = GenericSubscriber(self._robot.object_tracking_stream)
     
-            # Main navigation loop
+            # Get the first tracking data with valid distance and angle
             start_time = time.time()
-            goal_reached = False
-            tracking_started = False
-            last_update_time = 0
-            min_update_interval = 0.2  # Update goal at max 5Hz
+            target_acquired = False
+            goal_x_robot = 0
+            goal_y_robot = 0
+            goal_angle = 0
             
-            while time.time() - start_time < self.timeout and not self._stop_event.is_set():
-                # Get latest tracking data
+            while time.time() - start_time < 5.0 and not self._stop_event.is_set() and not target_acquired:
                 tracking_data = self._tracking_subscriber.get_data()
-    
-                # Check if we have valid tracking data with targets
-                if tracking_data and tracking_data.get("targets") and tracking_data["targets"] and not tracking_started:
+                
+                if tracking_data and tracking_data.get("targets") and tracking_data["targets"]:
                     target = tracking_data["targets"][0]
-    
-                    # Only update goal position if we have distance and angle data
-                    current_time = time.time()
-                    if (
-                        "distance" in target
-                        and "angle" in target
-                        and current_time - last_update_time >= min_update_interval
-                    ):
+                    
+                    if "distance" in target and "angle" in target:
                         # Convert target distance and angle to xy coordinates in robot frame
-                        logger.info(f"Target distance: {target['distance'] - self.distance}, Target angle: {target['angle']}")
-                        goal_x_robot, goal_y_robot = distance_angle_to_goal_xy(
-                            target["distance"] - self.distance,  # Subtract desired distance to stop short
-                            -target["angle"],
-                        )
-    
-                        # Update the goal in the local planner
-                        self._robot.local_planner.set_goal((goal_x_robot, goal_y_robot), frame="base_link", goal_theta=-target["angle"])
-                        logger.info(f"Goal set in local planner: {goal_x_robot}, {goal_y_robot}, {target['angle']}")
-                        last_update_time = current_time
-                        tracking_started = True
-                    else:
-                        logger.warning("No distance or angle data in tracking data")
-                        continue
-    
-                # Check if goal has been reached (near to object at desired distance)
-                if tracking_started and self._robot.local_planner.is_goal_reached():
-                    goal_reached = True
-                    logger.info(f"Goal reached! Arrived at {self.object_name} at desired distance.")
-                    success = True
-                    break
-    
-                # Get planned velocity from local planner
-                vel_command = self._robot.local_planner.plan()
-                x_vel = vel_command.get("x_vel", 0.0)
-                angular_vel = vel_command.get("angular_vel", 0.0)
-    
-                # Send velocity command to robot
-                self._robot.ros_control.move_vel_control(x=x_vel, y=0, yaw=angular_vel)
-    
-                # Control rate
-                time.sleep(0.05)
-    
-            if goal_reached:
+                        goal_distance = target["distance"] - self.distance  # Subtract desired distance to stop short
+                        goal_angle = -target["angle"]
+                        logger.info(f"Target distance: {goal_distance}, Target angle: {goal_angle}")
+                        
+                        goal_x_robot, goal_y_robot = distance_angle_to_goal_xy(goal_distance, goal_angle)
+                        target_acquired = True
+                        break
+                
+                time.sleep(0.1)
+            
+            if not target_acquired:
+                logger.error("Failed to acquire valid target tracking data")
+                return False
+                
+            logger.info(f"Navigating to target at local coordinates: ({goal_x_robot:.2f}, {goal_y_robot:.2f}), angle: {goal_angle:.2f}")
+            
+            # Use navigate_to_goal_local instead of directly controlling the local planner
+            success = navigate_to_goal_local(
+                robot=self._robot,
+                goal_xy_robot=(goal_x_robot, goal_y_robot),
+                goal_theta=goal_angle,
+                distance=0.0,  # We already accounted for desired distance
+                timeout=self.timeout,
+                stop_event=self._stop_event
+            )
+            
+            if success:
                 logger.info(f"Successfully navigated to {self.object_name}")
-                success = True
             else:
                 logger.warning(f"Failed to reach {self.object_name} within timeout or operation was stopped")
             

@@ -587,12 +587,12 @@ class BaseLocalPlanner(ABC):
                 
                 # Calculate position with additional clearance
                 if clearance > 0:
-                    # Direction from robot to goal (opposite of dx, dy)
-                    odx, ody = -dx, -dy
                     
                     # Calculate clearance position
-                    clearance_x = current_x + odx * clearance
-                    clearance_y = current_y + ody * clearance
+                    clearance_x = current_x + dx * clearance
+                    clearance_y = current_y + dy * clearance
+
+                    logger.info(f"Checking clearance position at ({clearance_x:.2f}, {clearance_y:.2f})")
                     
                     # Check if the clearance position is also valid
                     if (not self.check_goal_collision((clearance_x, clearance_y)) and 
@@ -630,7 +630,7 @@ class BaseLocalPlanner(ABC):
         self.position_history.append(current_position)
         
         # Need enough history to make a determination
-        min_history_size = max(3, int(self.control_frequency * 2.0))
+        min_history_size = self.stuck_detection_window_seconds * self.control_frequency
         if len(self.position_history) < min_history_size:
             return False
             
@@ -722,7 +722,7 @@ class BaseLocalPlanner(ABC):
             return {'x_vel': 0.0, 'angular_vel': 0.0}
 
 def navigate_to_goal_local(
-    robot, goal_xy_robot: Tuple[float, float], distance: float = 0.0, timeout: float = 60.0,
+    robot, goal_xy_robot: Tuple[float, float], goal_theta: Optional[float] = None, distance: float = 0.0, timeout: float = 60.0,
     stop_event: Optional[threading.Event] = None
 ) -> bool:
     """
@@ -746,7 +746,8 @@ def navigate_to_goal_local(
     goal_x, goal_y = goal_xy_robot
     
     # Calculate goal orientation to face the target
-    goal_theta = np.arctan2(goal_y, goal_x)
+    if goal_theta is None:
+        goal_theta = np.arctan2(goal_y, goal_x)
     
     # If distance is non-zero, adjust the goal to stop at the desired distance
     if distance > 0:
@@ -758,7 +759,7 @@ def navigate_to_goal_local(
             goal_x, goal_y = distance_angle_to_goal_xy(goal_distance - distance, goal_theta)
     
     # Set the goal in the robot's frame with orientation to face the original target
-    robot.local_planner.set_goal((goal_x, goal_y), frame="base_link", goal_theta=-goal_theta)
+    robot.local_planner.set_goal((goal_x, goal_y), frame="base_link", goal_theta=goal_theta)
     
     # Get control period from robot's local planner for consistent timing
     control_period = 1.0 / robot.local_planner.control_frequency

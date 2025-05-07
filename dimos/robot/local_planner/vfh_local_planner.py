@@ -80,7 +80,7 @@ class VFHPurePursuitPlanner(BaseLocalPlanner):
         
         # VFH tuning parameters
         self.alpha = 0.2  # Histogram smoothing factor
-        self.obstacle_weight = 20.0
+        self.obstacle_weight = 10.0
         self.goal_weight = 1.0
         self.prev_direction_weight = 0.5
         self.prev_selected_angle = 0.0
@@ -137,7 +137,7 @@ class VFHPurePursuitPlanner(BaseLocalPlanner):
             linear_vel *= turn_factor
 
         # Apply Collision Avoidance Stop
-        if self.check_collision(self.selected_direction, safety_threshold=1.0):
+        if self.check_collision(self.selected_direction, safety_threshold=0.5):
             logger.debug("Collision detected ahead. Slowing down.")
             # Re-select direction prioritizing obstacle avoidance if colliding
             self.selected_direction = self.select_direction(
