@@ -29,7 +29,6 @@ from dimos.skills.visual_navigation_skills import FollowHuman
 import reactivex as rx
 import reactivex.operators as ops
 from dimos.stream.audio.pipelines import tts, stt
-from dimos.web.websocket_vis.server import WebsocketVis
 import threading
 import json
 from dimos.types.vector import Vector
@@ -175,25 +174,5 @@ agent.get_response_observable().subscribe(
 
 print("ObserveStream and Kill skills registered and ready for use")
 print("Created memory.txt file")
-
-websocket_vis = WebsocketVis()
-websocket_vis.start()
-websocket_vis.connect(robot.global_planner.vis_stream())
-
-
-def msg_handler(msgtype, data):
-    if msgtype == "click":
-        target = Vector(data["position"])
-        try:
-            robot.global_planner.set_goal(target)
-        except Exception as e:
-            print(f"Error setting goal: {e}")
-            return
-def threaded_msg_handler(msgtype, data):
-    thread = threading.Thread(target=msg_handler, args=(msgtype, data))
-    thread.daemon = True
-    thread.start()
-
-websocket_vis.msg_handler = threaded_msg_handler
 
 web_interface.run()
