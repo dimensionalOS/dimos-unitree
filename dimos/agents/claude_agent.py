@@ -49,7 +49,7 @@ from dimos.utils.threadpool import get_scheduler
 load_dotenv()
 
 # Initialize logger for the Claude agent
-logger = setup_logger("dimos.agents.claude")
+logger = setup_logger("dimos.agents.claude", level=logging.DEBUG)
 
 # Response object compatible with LLMAgent
 class ResponseMessage:
