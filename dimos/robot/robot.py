@@ -70,7 +70,8 @@ class Robot(ABC):
                  pool_scheduler: ThreadPoolScheduler = None,
                  skill_library: SkillLibrary = None,
                  spatial_memory_dir: str = None,
-                 spatial_memory_collection: str = "spatial_memory"):
+                 spatial_memory_collection: str = "spatial_memory",
+                 new_memory: bool = False,):
         """Initialize a Robot instance.
         
         Args:
@@ -81,6 +82,7 @@ class Robot(ABC):
             skill_library: Skill library instance. If None, one will be created.
             spatial_memory_dir: Directory for storing spatial memory data. If None, uses output_dir/spatial_memory.
             spatial_memory_collection: Name of the collection in the ChromaDB database.
+            new_memory: If True, creates a new spatial memory from scratch. Defaults to False.
         """
         self.hardware_interface = hardware_interface
         self.ros_control = ros_control
@@ -91,6 +93,9 @@ class Robot(ABC):
 
         # Create output directory if it doesn't exist
         os.makedirs(self.output_dir, exist_ok=True)
+
+        # Create output directory if it doesn't exist
+        logger.info(f"Robot outputs will be saved to: {self.output_dir}")
         
         # Initialize spatial memory properties
         self.spatial_memory_dir = spatial_memory_dir or os.path.join(self.output_dir, "spatial_memory")
@@ -105,7 +110,7 @@ class Robot(ABC):
         # Initialize SpatialMemory immediately
         self._spatial_memory = None
         self._spatial_memory_subscription = None
-        self._init_spatial_memory()
+        self._init_spatial_memory(new_map=new_memory)
 
     def get_ros_video_stream(self, fps: int = 30) -> Observable:
         """Get the ROS video stream with rate limiting and frame processing.

@@ -51,12 +51,15 @@ class UnitreeGo2(Robot):
         ip=None,
         connection_method: WebRTCConnectionMethod = WebRTCConnectionMethod.LocalSTA,
         serial_number: str = None,
-        output_dir: str = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__)))), "assets", "output"),
+        output_dir: str = os.path.join(os.getcwd(), "assets", "output"),
         use_ros: bool = True,
         use_webrtc: bool = False,
         disable_video_stream: bool = False,
         mock_connection: bool = False,
         skills: Optional[Union[MyUnitreeSkills, AbstractSkill]] = None,
+        spatial_memory_dir: str = None,
+        spatial_memory_collection: str = "spatial_memory",
+        new_memory: bool = False,
     ):
         """Initialize the UnitreeGo2 robot.
 
@@ -71,6 +74,9 @@ class UnitreeGo2(Robot):
             disable_video_stream: Whether to disable the video stream
             mock_connection: Whether to mock the connection to the robot
             skills: Skills library or custom skill implementation. Default is MyUnitreeSkills() if None.
+            spatial_memory_dir: Directory for storing spatial memory data. If None, uses output_dir/spatial_memory.
+            spatial_memory_collection: Name of the collection in the ChromaDB database.
+            new_memory: If True, creates a new spatial memory from scratch.
         """
         print(f"Initializing UnitreeGo2 with use_ros: {use_ros} and use_webrtc: {use_webrtc}")
         if not (use_ros ^ use_webrtc):  # XOR operator ensures exactly one is True
@@ -86,7 +92,14 @@ class UnitreeGo2(Robot):
         if skills is None:
             skills = MyUnitreeSkills(robot=self)
 
-        super().__init__(ros_control=ros_control, output_dir=output_dir, skill_library=skills)
+        super().__init__(
+            ros_control=ros_control,
+            output_dir=output_dir,
+            skill_library=skills,
+            spatial_memory_dir=spatial_memory_dir,
+            spatial_memory_collection=spatial_memory_collection,
+            new_memory=new_memory,
+        )
 
         if self.skill_library is not None:
             for skill in self.skill_library:
@@ -103,7 +116,6 @@ class UnitreeGo2(Robot):
         self.camera_height = 0.44  # meters
 
         # Initialize UnitreeGo2-specific attributes
-        self.output_dir = output_dir
         self.ip = ip
         self.disposables = CompositeDisposable()
         self.main_stream_obs = None
@@ -114,10 +126,6 @@ class UnitreeGo2(Robot):
 
         if (connection_method == WebRTCConnectionMethod.LocalSTA) and (ip is None):
             raise ValueError("IP address is required for LocalSTA connection")
-
-        # Create output directory if it doesn't exist
-        os.makedirs(self.output_dir, exist_ok=True)
-        print(f"Agent outputs will be saved to: {os.path.join(self.output_dir, 'memory.txt')}")
 
         # Choose data provider based on configuration
         if use_ros and not disable_video_stream:
