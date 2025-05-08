@@ -38,6 +38,7 @@ from pydantic import Field
 from dimos.skills.skills import AbstractRobotSkill
 from dimos.perception.spatial_perception import SpatialMemory
 from dimos.agents.memory.visual_memory import VisualMemory
+from dimos.types.robot_location import RobotLocation
 from dimos.utils.threadpool import get_scheduler
 from dimos.utils.logging_config import setup_logger
 
@@ -52,18 +53,10 @@ class BuildSemanticMap(AbstractRobotSkill):
     a vector database for later querying. It runs until terminated (Ctrl+C).
     """
     
-    db_path: str = Field("/home/stash/dimensional/dimos/assets/spatial_memory/chromadb_data", 
-                        description="Path to store the ChromaDB database")
-    collection_name: str = Field("spatial_memory", 
-                                description="Name of the collection in the ChromaDB database")
     min_distance_threshold: float = Field(0.01, 
                                         description="Min distance in meters to record a new frame")
     min_time_threshold: float = Field(1.0, 
                                     description="Min time in seconds to record a new frame")
-    visual_memory_dir: str = Field("/home/stash/dimensional/dimos/assets/spatial_memory", 
-                                 description="Directory to store visual memory data")
-    visual_memory_file: str = Field("visual_memory.pkl", 
-                                   description="Filename for visual memory storage")
     new_map: bool = Field(False,
                         description="If True, creates new spatial and visual memory from scratch instead of using existing.")
 
@@ -99,42 +92,15 @@ class BuildSemanticMap(AbstractRobotSkill):
         self._stop_event.clear()
         self._stored_count = 0
         
-        # Setup output directory for visual memory
-        os.makedirs(self.visual_memory_dir, exist_ok=True)
-        
-        # Setup persistent storage path for visual memory
-        visual_memory_path = os.path.join(self.visual_memory_dir, self.visual_memory_file)
-        
-        # Create a new visual memory or try to load existing one
-        if self.new_map:
-            logger.info("Creating new visual memory as requested (new_map=True)")
-            visual_memory = VisualMemory(output_dir=self.visual_memory_dir)
-        elif os.path.exists(visual_memory_path):
-            try:
-                logger.info(f"Loading existing visual memory from {visual_memory_path}...")
-                visual_memory = VisualMemory.load(visual_memory_path, output_dir=self.visual_memory_dir)
-                logger.info(f"Loaded {visual_memory.count()} images from previous runs")
-            except Exception as e:
-                logger.error(f"Error loading visual memory: {e}")
-                visual_memory = VisualMemory(output_dir=self.visual_memory_dir)
-        else:
-            logger.info("No existing visual memory found. Starting with empty visual memory.")
-            visual_memory = VisualMemory(output_dir=self.visual_memory_dir)
-        
-        # Setup a persistent database for ChromaDB
-        db_client = self._setup_persistent_chroma_db(new_map=self.new_map)
-        
         # Get the ros_control instance from the robot
         ros_control = self._robot.ros_control
         
-        # Create spatial memory instance with persistent storage
-        logger.info("Creating SpatialMemory with persistent vector database...")
-        spatial_memory = SpatialMemory(
-            collection_name=self.collection_name,
+        # Get or initialize spatial memory from the robot
+        logger.info("Getting SpatialMemory from robot...")
+        spatial_memory = self._robot.get_spatial_memory(
+            new_map=self.new_map,
             min_distance_threshold=self.min_distance_threshold,
-            min_time_threshold=self.min_time_threshold,
-            chroma_client=db_client,
-            visual_memory=visual_memory
+            min_time_threshold=self.min_time_threshold
         )
         
         logger.info("Setting up video stream...")
@@ -174,38 +140,7 @@ class BuildSemanticMap(AbstractRobotSkill):
         return (f"BuildSemanticMap started. Recording frames with min_distance={self.min_distance_threshold}m, "
                 f"min_time={self.min_time_threshold}s. Press Ctrl+C to stop.")
     
-    def _setup_persistent_chroma_db(self, new_map=False):
-        """
-        Set up a persistent ChromaDB database at the specified path.
-        
-        Args:
-            new_map: If True, deletes existing database and creates a new one
-            
-        Returns:
-            The ChromaDB client instance
-        """
-        logger.info(f"Setting up persistent ChromaDB at: {self.db_path}")
-        
-        # Ensure the directory exists
-        os.makedirs(self.db_path, exist_ok=True)
-        
-        # If new_map is True, remove the existing ChromaDB files
-        if new_map:
-            try:
-                logger.info(f"Creating new ChromaDB database (new_map=True)")
-                # Try to delete any existing database files
-                import shutil
-                for item in os.listdir(self.db_path):
-                    item_path = os.path.join(self.db_path, item)
-                    if os.path.isfile(item_path):
-                        os.unlink(item_path)
-                    elif os.path.isdir(item_path):
-                        shutil.rmtree(item_path)
-                logger.info(f"Removed existing ChromaDB files from {self.db_path}")
-            except Exception as e:
-                logger.error(f"Error clearing ChromaDB directory: {e}")
-        
-        return chromadb.PersistentClient(path=self.db_path)
+
 
     def _extract_transform_data(self, position, rotation):
         """
@@ -257,11 +192,8 @@ class BuildSemanticMap(AbstractRobotSkill):
             self._subscription.dispose()
             self._subscription = None
             
-            # Save visual memory to disk for later use
-            if hasattr(self, '_visual_memory') and self._visual_memory is not None:
-                saved_path = self._visual_memory.save(self.visual_memory_file)
-                logger.info(f"Saved {self._visual_memory.count()} images to disk at {saved_path}")
-                self._visual_memory = None
+            # Save spatial memory (visual memory) to disk for later use
+            self._robot.save_spatial_memory()
             
             # Clean up spatial memory
             if hasattr(self, '_spatial_memory') and self._spatial_memory is not None:
@@ -282,12 +214,6 @@ class Navigate(AbstractRobotSkill):
     """
     
     query: str = Field("", description="Text query to search for in the semantic map")
-    db_path: str = Field("/home/stash/dimensional/dimos/assets/spatial_memory/chromadb_data",
-                        description="Path to the ChromaDB database")
-    collection_name: str = Field("spatial_memory",
-                                description="Name of the collection in the ChromaDB database")
-    visual_memory_path: str = Field("/home/stash/dimensional/dimos/assets/spatial_memory/visual_memory.pkl",
-                                   description="Path to the visual memory file")
     limit: int = Field(1, description="Maximum number of results to return")
     
     def __init__(self, robot=None, **data):
@@ -320,27 +246,8 @@ class Navigate(AbstractRobotSkill):
         
         logger.info(f"Querying semantic map for: '{self.query}'")
         
-        # Setup the persistent ChromaDB client
-        db_client = self._setup_persistent_chroma_db()
-        
-        # Setup output directory for any saved results
-        output_dir = os.path.dirname(self.visual_memory_path)
-        
-        # Load the visual memory
-        logger.info(f"Loading visual memory from {self.visual_memory_path}...")
-        if os.path.exists(self.visual_memory_path):
-            visual_memory = VisualMemory.load(self.visual_memory_path, output_dir=output_dir)
-            logger.info(f"Loaded {visual_memory.count()} images from visual memory")
-        else:
-            visual_memory = VisualMemory(output_dir=output_dir)
-            logger.warning("No existing visual memory found. Query results won't include images.")
-        
-        # Create SpatialMemory with the existing database and visual memory
-        spatial_memory = SpatialMemory(
-            collection_name=self.collection_name,
-            chroma_client=db_client,
-            visual_memory=visual_memory
-        )
+        # Get SpatialMemory from robot
+        spatial_memory = self._robot.get_spatial_memory()
         
         # Run the query
         results = spatial_memory.query_by_text(self.query, limit=self.limit)
@@ -429,19 +336,7 @@ class Navigate(AbstractRobotSkill):
                 "error": "No valid position data found"
             }
     
-    def _setup_persistent_chroma_db(self):
-        """
-        Set up a persistent ChromaDB database at the specified path.
-            
-        Returns:
-            The ChromaDB client instance
-        """
-        logger.info(f"Setting up persistent ChromaDB at: {self.db_path}")
-        
-        # Ensure the directory exists
-        os.makedirs(self.db_path, exist_ok=True)
-        
-        return chromadb.PersistentClient(path=self.db_path)
+
 
     def stop(self):
         """
@@ -483,8 +378,12 @@ class GetPose(AbstractRobotSkill):
     if you want to remember a location, for example, "remember this is where my favorite chair is" and then
     call this skill to get the position and rotation of approximately where the chair is. You can then use 
     the position to navigate to the chair.
-
+    
+    When location_name is provided, this skill will also remember the current location with that name,
+    allowing you to navigate back to it later using the Navigate skill.
     """
+    
+    location_name: str = Field("", description="Optional name to assign to this location (e.g., 'kitchen', 'office')")
     
     def __init__(self, robot=None, **data):
         """
@@ -520,7 +419,7 @@ class GetPose(AbstractRobotSkill):
                 "position": {
                     "x": position[0],
                     "y": position[1],
-                    "z": 0.0 if len(position) == 2 else position[2]
+                    "z": position[2] if len(position) > 2 else 0.0
                 },
                 "rotation": {
                     "roll": rotation[0],
@@ -529,12 +428,33 @@ class GetPose(AbstractRobotSkill):
                 }
             }
             
+            # If location_name is provided, remember this location
+            if self.location_name:
+                # Get the spatial memory instance
+                spatial_memory = self._robot.get_spatial_memory()
+                
+                # Create a RobotLocation object
+                location = RobotLocation(
+                    name=self.location_name,
+                    position=position,
+                    rotation=rotation
+                )
+                
+                # Add to spatial memory
+                if spatial_memory.add_robot_location(location):
+                    result["location_saved"] = True
+                    result["location_name"] = self.location_name
+                    logger.info(f"Location '{self.location_name}' saved at {position}")
+                else:
+                    result["location_saved"] = False
+                    logger.error(f"Failed to save location '{self.location_name}'")
+            
             return result
         except Exception as e:
             error_msg = f"Error getting robot pose: {e}"
             logger.error(error_msg)
             return {"success": False, "error": error_msg}
-
+    
 
 class NavigateToGoal(AbstractRobotSkill):
     """

@@ -19,10 +19,9 @@ Spatial Memory module for creating a semantic map of the environment.
 import logging
 import uuid
 import time
-import uuid
 import os
 import math
-from typing import Dict, List, Tuple, Optional, Any
+from typing import Dict, List, Tuple, Optional, Any, Union
 
 import numpy as np
 import cv2
@@ -36,6 +35,7 @@ from dimos.agents.memory.spatial_vector_db import SpatialVectorDB
 from dimos.agents.memory.image_embedding import ImageEmbeddingProvider
 from dimos.agents.memory.visual_memory import VisualMemory
 from dimos.types.vector import Vector
+from dimos.types.robot_location import RobotLocation
 
 logger = setup_logger("dimos.perception.spatial_memory")
 
@@ -45,6 +45,7 @@ class SpatialMemory:
     
     This class processes video frames from ROSControl, associates them with
     XY locations, and stores them in a vector database for later retrieval.
+    It also maintains a list of named robot locations that can be queried by name.
     """
     
     def __init__(
@@ -54,9 +55,9 @@ class SpatialMemory:
         embedding_dimensions: int = 512,
         min_distance_threshold: float = 0.01,  # Min distance in meters to store a new frame
         min_time_threshold: float = 1.0,  # Min time in seconds to store a new frame
-        chroma_client = None,  # Optional ChromaDB client for persistence
-        visual_memory = None,  # Optional VisualMemory instance for storing images
-        output_dir: str = None,  # Directory for storing visual memory data
+        chroma_client: Any = None,  # Optional ChromaDB client for persistence
+        visual_memory: Optional['VisualMemory'] = None,  # Optional VisualMemory instance for storing images
+        output_dir: Optional[str] = None,  # Directory for storing visual memory data
     ):
         """
         Initialize the spatial perception system.
@@ -82,13 +83,13 @@ class SpatialMemory:
             visual_memory = VisualMemory(output_dir=output_dir)
         
         # Pass the chroma_client and visual_memory to SpatialVectorDB
-        self.vector_db = SpatialVectorDB(
+        self.vector_db: SpatialVectorDB = SpatialVectorDB(
             collection_name=collection_name,
             chroma_client=chroma_client,
             visual_memory=visual_memory
         )
         
-        self.embedding_provider = ImageEmbeddingProvider(
+        self.embedding_provider: ImageEmbeddingProvider = ImageEmbeddingProvider(
             model_name=embedding_model,
             dimensions=embedding_dimensions
         )
@@ -96,8 +97,11 @@ class SpatialMemory:
         self.last_position: Optional[Vector] = None
         self.last_record_time: Optional[float] = None
         
-        self.frame_count = 0
-        self.stored_frame_count = 0
+        self.frame_count: int = 0
+        self.stored_frame_count: int = 0
+        
+        # Initialize robot_locations 
+        self.robot_locations: List[RobotLocation] = []
         
         logger.info(f"SpatialMemory initialized with model {embedding_model}")
     
@@ -230,6 +234,52 @@ class SpatialMemory:
         """
         logger.info(f"Querying spatial memory with text: '{text}'")
         return self.vector_db.query_by_text(text, limit)
+    
+    def add_robot_location(self, location: RobotLocation) -> bool:
+        """
+        Add a named robot location to spatial memory.
+        
+        Args:
+            location: The RobotLocation object to add
+            
+        Returns:
+            True if successfully added, False otherwise
+        """
+        try:
+            # Add to our list of robot locations
+            self.robot_locations.append(location)
+            logger.info(f"Added robot location '{location.name}' at position {location.position}")
+            return True
+            
+        except Exception as e:
+            logger.error(f"Error adding robot location: {e}")
+            return False
+    
+    def get_robot_locations(self) -> List[RobotLocation]:
+        """
+        Get all stored robot locations.
+        
+        Returns:
+            List of RobotLocation objects
+        """
+        return self.robot_locations
+    
+    def find_robot_location(self, name: str) -> Optional[RobotLocation]:
+        """
+        Find a robot location by name.
+        
+        Args:
+            name: Name of the location to find
+            
+        Returns:
+            RobotLocation object if found, None otherwise
+        """
+        # Simple search through our list of locations
+        for location in self.robot_locations:
+            if location.name.lower() == name.lower():
+                return location
+        
+        return None
     
     def cleanup(self):
         """Clean up resources."""
