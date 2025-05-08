@@ -43,7 +43,7 @@ class BaseLocalPlanner(ABC):
                  max_angular_vel: float = 1.0,
                  lookahead_distance: float = 1.0,
                  goal_tolerance: float = 0.75,
-                 angle_tolerance: float = 0.1,  # ~5.7 degrees
+                 angle_tolerance: float = 0.15,
                  robot_width: float = 0.5,
                  robot_length: float = 0.7,
                  visualization_size: int = 400,
@@ -207,6 +207,200 @@ class BaseLocalPlanner(ABC):
             transformed_rot = self.transform.transform_rot(Vector(0.0, 0.0, goal_theta), source_frame=frame, target_frame="odom")
             self.goal_theta = transformed_rot[2]
 
+    def _get_robot_pose(self) -> Tuple[Tuple[float, float], float]:
+        """
+        Get the current robot position and orientation.
+        
+        Returns:
+            Tuple containing:
+            - position as (x, y) tuple
+            - orientation (theta) in radians
+        """
+        [pos, rot] = self.transform.transform_euler("base_link", "odom")
+        return (pos[0], pos[1]), rot[2]
+        
+    def _get_final_goal_position(self) -> Optional[Tuple[float, float]]:
+        """
+        Get the final goal position (either last waypoint or direct goal).
+        
+        Returns:
+            Tuple (x, y) of the final goal, or None if no goal is set
+        """
+        if self.waypoints_in_odom is not None and len(self.waypoints_in_odom) > 0:
+            return to_tuple(self.waypoints_in_odom[-1])
+        elif self.goal_xy is not None:
+            return self.goal_xy
+        return None
+        
+    def _distance_to_position(self, target_position: Tuple[float, float]) -> float:
+        """
+        Calculate distance from the robot to a target position.
+        
+        Args:
+            target_position: Target (x, y) position
+            
+        Returns:
+            Distance in meters
+        """
+        robot_pos, _ = self._get_robot_pose()
+        return np.linalg.norm([target_position[0] - robot_pos[0], 
+                              target_position[1] - robot_pos[1]])
+        
+    def plan(self) -> Dict[str, float]:
+        """
+        Main planning method that computes velocity commands.
+        This includes common planning logic like waypoint following,
+        with algorithm-specific calculations delegated to subclasses.
+        
+        Returns:
+            Dict[str, float]: Velocity commands with 'x_vel' and 'angular_vel' keys
+        """
+        # If goal orientation is specified, rotate to match it
+        if self.position_reached and self.goal_theta is not None and not self._is_goal_orientation_reached():
+            logger.info("Position goal reached. Rotating to target orientation.")
+            return self._rotate_to_goal_orientation()
+
+        # Check if the robot is stuck and handle accordingly
+        if self.check_if_stuck() and not self.position_reached:
+            # Check if we're stuck but close to our goal
+            final_goal_pos = self._get_final_goal_position()
+                
+            # If we have a goal position, check distance to it
+            if final_goal_pos is not None:
+                distance_to_goal = self._distance_to_position(final_goal_pos)
+                
+                # If we're stuck but within 2x safe_goal_distance of the goal, consider it a success
+                if distance_to_goal < 2.0 * self.safe_goal_distance:
+                    logger.info(f"Robot is stuck but within {distance_to_goal:.2f}m of goal (< {2.0 * self.safe_goal_distance:.2f}m). Considering navigation successful.")
+                    self.position_reached = True
+                    return {'x_vel': 0.0, 'angular_vel': 0.0}
+            
+            # Otherwise, execute normal recovery behavior            
+            logger.warning("Robot is stuck - executing recovery behavior")
+            return self.execute_recovery_behavior()
+        
+        # Reset obstacle ignore flag
+        self.ignore_obstacles = False
+        
+        # --- Waypoint Following Mode --- 
+        if self.waypoints is not None:
+            if self.final_goal_reached:
+                logger.info("Final waypoint reached. Stopping.")
+                return {'x_vel': 0.0, 'angular_vel': 0.0}
+            
+            # Get current robot pose
+            robot_pos, robot_theta = self._get_robot_pose()
+            robot_pos_np = np.array(robot_pos)
+            
+            # Check if close to final waypoint
+            if self.waypoints_in_odom is not None and len(self.waypoints_in_odom) > 0:
+                final_waypoint = self.waypoints_in_odom[-1]
+                dist_to_final = np.linalg.norm(robot_pos_np - final_waypoint)
+                
+                # If we're close to the final waypoint, adjust it and ignore obstacles
+                if dist_to_final < self.safe_goal_distance:
+                    final_wp_tuple = to_tuple(final_waypoint)
+                    adjusted_goal = self.adjust_goal_to_valid_position(final_wp_tuple)
+                    # Create a new Path with the adjusted final waypoint
+                    new_waypoints = self.waypoints_in_odom[:-1]  # Get all but the last waypoint
+                    new_waypoints.append(adjusted_goal)  # Append the adjusted goal
+                    self.waypoints_in_odom = new_waypoints
+                    self.ignore_obstacles = True
+                    logger.debug(f"Within safe distance of final waypoint. Ignoring obstacles.")
+            
+            # Update the target goal based on waypoint progression
+            just_reached_final = self._update_waypoint_target(robot_pos_np)
+            
+            # If the helper indicates the final goal was just reached, stop immediately
+            if just_reached_final:
+                 return {'x_vel': 0.0, 'angular_vel': 0.0}
+
+        # --- Single Goal or Current Waypoint Target Set --- 
+        if self.goal_xy is None:
+            # If no goal is set (e.g., empty path or rejected goal), stop.
+            return {'x_vel': 0.0, 'angular_vel': 0.0}
+
+        # Get necessary data for planning
+        costmap = self.get_costmap()
+        if costmap is None:
+            logger.warning("Local costmap is None. Cannot plan.")
+            return {'x_vel': 0.0, 'angular_vel': 0.0}
+        
+        # Check if close to single goal mode goal
+        if self.waypoints is None:
+            # Get distance to goal
+            goal_distance = self._distance_to_position(self.goal_xy)
+            
+            # If within safe distance of goal, adjust it and ignore obstacles
+            if goal_distance < self.safe_goal_distance:
+                self.goal_xy = self.adjust_goal_to_valid_position(self.goal_xy)
+                self.ignore_obstacles = True
+                logger.debug(f"Within safe distance of goal. Ignoring obstacles.")
+            
+            # First check position
+            if goal_distance < self.goal_tolerance or self.position_reached:
+                self.position_reached = True
+
+            else:
+                self.position_reached = False
+        
+        # Call the algorithm-specific planning implementation
+        return self._compute_velocity_commands()
+
+    @abstractmethod
+    def _compute_velocity_commands(self) -> Dict[str, float]:
+        """
+        Algorithm-specific method to compute velocity commands.
+        Must be implemented by derived classes.
+        
+        Returns:
+            Dict[str, float]: Velocity commands with 'x_vel' and 'angular_vel' keys
+        """
+        pass
+
+    def _rotate_to_goal_orientation(self) -> Dict[str, float]:
+        """Compute velocity commands to rotate to the goal orientation.
+        
+        Returns:
+            Dict[str, float]: Velocity commands with zero linear velocity
+        """
+        # Get current robot orientation
+        _, robot_theta = self._get_robot_pose()
+        
+        # Calculate the angle difference
+        angle_diff = normalize_angle(self.goal_theta - robot_theta)
+        
+        # Determine rotation direction and speed
+        if abs(angle_diff) < self.angle_tolerance:
+            # Already at correct orientation
+            return {'x_vel': 0.0, 'angular_vel': 0.0}
+            
+        # Calculate rotation speed - proportional to the angle difference
+        # but capped at max_angular_vel
+        direction = 1.0 if angle_diff > 0 else -1.0
+        angular_vel = direction * min(abs(angle_diff) * 2.0, self.max_angular_vel)
+        
+        # logger.debug(f"Rotating to goal orientation: angle_diff={angle_diff:.4f}, angular_vel={angular_vel:.4f}")
+        return {'x_vel': 0.0, 'angular_vel': angular_vel}
+
+    def _is_goal_orientation_reached(self) -> bool:
+        """Check if the current robot orientation matches the goal orientation.
+        
+        Returns:
+            bool: True if orientation is reached or no orientation goal is set
+        """
+        if self.goal_theta is None:
+            return True  # No orientation goal set
+            
+        # Get current robot orientation
+        _, robot_theta = self._get_robot_pose()
+        
+        # Calculate the angle difference and normalize
+        angle_diff = abs(normalize_angle(self.goal_theta - robot_theta))
+        
+        logger.debug(f"Orientation error: {angle_diff:.4f} rad, tolerance: {self.angle_tolerance:.4f} rad")
+        return angle_diff <= self.angle_tolerance
+
     def _update_waypoint_target(self, robot_pos_np: np.ndarray) -> bool:
         """Helper function to manage waypoint progression and update the target goal.
         
@@ -265,160 +459,6 @@ class BaseLocalPlanner(ABC):
             self.goal_xy = to_tuple(lookahead_point)
                 
         return False  # Final goal not reached in this update cycle
-
-    def _is_goal_orientation_reached(self) -> bool:
-        """Check if the current robot orientation matches the goal orientation.
-        
-        Returns:
-            bool: True if orientation is reached or no orientation goal is set
-        """
-        if self.goal_theta is None:
-            return True  # No orientation goal set
-            
-        # Get current robot orientation in odom frame
-        [_, rot] = self.transform.transform_euler("base_link", "odom")
-        _, _, robot_theta = rot  # yaw component
-        
-        # Calculate the angle difference and normalize
-        angle_diff = abs(normalize_angle(self.goal_theta - robot_theta))
-        
-        logger.debug(f"Orientation error: {angle_diff:.4f} rad, tolerance: {self.angle_tolerance:.4f} rad")
-        return angle_diff <= self.angle_tolerance
-
-    def plan(self) -> Dict[str, float]:
-        """
-        Main planning method that computes velocity commands.
-        This includes common planning logic like waypoint following,
-        with algorithm-specific calculations delegated to subclasses.
-        
-        Returns:
-            Dict[str, float]: Velocity commands with 'x_vel' and 'angular_vel' keys
-        """
-        # Check if the robot is stuck and execute recovery behavior if needed
-        if self.check_if_stuck():
-            logger.warning("Robot is stuck - executing recovery behavior")
-            return self.execute_recovery_behavior()
-        
-        # Reset obstacle ignore flag
-        self.ignore_obstacles = False
-        
-        # --- Waypoint Following Mode --- 
-        if self.waypoints is not None:
-            if self.final_goal_reached:
-                logger.info("Final waypoint reached. Stopping.")
-                return {'x_vel': 0.0, 'angular_vel': 0.0}
-            
-            # Get current robot pose
-            [pos, rot] = self.transform.transform_euler("base_link", "odom")
-            robot_x, robot_y, robot_theta = pos[0], pos[1], rot[2]
-            robot_pos_np = np.array([robot_x, robot_y])
-            
-            # Check if close to final waypoint
-            if self.waypoints_in_odom is not None and len(self.waypoints_in_odom) > 0:
-                final_waypoint = self.waypoints_in_odom[-1]
-                dist_to_final = np.linalg.norm(robot_pos_np - final_waypoint)
-                
-                # If we're close to the final waypoint, adjust it and ignore obstacles
-                if dist_to_final < self.safe_goal_distance:
-                    final_wp_tuple = to_tuple(final_waypoint)
-                    adjusted_goal = self.adjust_goal_to_valid_position(final_wp_tuple)
-                    # Create a new Path with the adjusted final waypoint
-                    new_waypoints = self.waypoints_in_odom[:-1]  # Get all but the last waypoint
-                    new_waypoints.append(adjusted_goal)  # Append the adjusted goal
-                    self.waypoints_in_odom = new_waypoints
-                    self.ignore_obstacles = True
-                    logger.debug(f"Within safe distance of final waypoint. Ignoring obstacles.")
-            
-            # Update the target goal based on waypoint progression
-            just_reached_final = self._update_waypoint_target(robot_pos_np)
-            
-            # If the helper indicates the final goal was just reached, stop immediately
-            if just_reached_final:
-                 return {'x_vel': 0.0, 'angular_vel': 0.0}
-                 
-            # Check if position is reached but orientation isn't
-            if self.position_reached and self.goal_theta is not None and not self._is_goal_orientation_reached():
-                # We need to rotate in place to match the goal orientation
-                return self._rotate_to_goal_orientation()
-
-        # --- Single Goal or Current Waypoint Target Set --- 
-        if self.goal_xy is None:
-            # If no goal is set (e.g., empty path or rejected goal), stop.
-            return {'x_vel': 0.0, 'angular_vel': 0.0}
-
-        # Get necessary data for planning
-        costmap = self.get_costmap()
-        if costmap is None:
-            logger.warning("Local costmap is None. Cannot plan.")
-            return {'x_vel': 0.0, 'angular_vel': 0.0}
-        
-        # Check if close to single goal mode goal
-        if self.waypoints is None:
-            # Get current robot pose
-            [pos, _] = self.transform.transform_euler("base_link", "odom")
-            robot_x, robot_y = pos[0], pos[1]
-            goal_x, goal_y = self.goal_xy
-            goal_distance = np.linalg.norm([goal_x - robot_x, goal_y - robot_y])
-            
-            # If within safe distance of goal, adjust it and ignore obstacles
-            if goal_distance < self.safe_goal_distance:
-                self.goal_xy = self.adjust_goal_to_valid_position(self.goal_xy)
-                self.ignore_obstacles = True
-                logger.debug(f"Within safe distance of goal. Ignoring obstacles.")
-            
-            # First check position
-            if goal_distance < self.goal_tolerance:
-                self.position_reached = True
-                
-                # If goal orientation is specified, rotate to match it
-                if self.goal_theta is not None and not self._is_goal_orientation_reached():
-                    logger.info("Position goal reached. Rotating to target orientation.")
-                    return self._rotate_to_goal_orientation()
-                else:
-                    logger.info("Single goal reached.")
-                    return {'x_vel': 0.0, 'angular_vel': 0.0}
-            else:
-                self.position_reached = False
-        
-        # Call the algorithm-specific planning implementation
-        return self._compute_velocity_commands()
-
-    @abstractmethod
-    def _compute_velocity_commands(self) -> Dict[str, float]:
-        """
-        Algorithm-specific method to compute velocity commands.
-        Must be implemented by derived classes.
-        
-        Returns:
-            Dict[str, float]: Velocity commands with 'x_vel' and 'angular_vel' keys
-        """
-        pass
-
-    def _rotate_to_goal_orientation(self) -> Dict[str, float]:
-        """Compute velocity commands to rotate to the goal orientation.
-        
-        Returns:
-            Dict[str, float]: Velocity commands with zero linear velocity
-        """
-        # Get current robot orientation
-        [_, rot] = self.transform.transform_euler("base_link", "odom")
-        _, _, robot_theta = rot
-        
-        # Calculate the angle difference
-        angle_diff = normalize_angle(self.goal_theta - robot_theta)
-        
-        # Determine rotation direction and speed
-        if abs(angle_diff) < self.angle_tolerance:
-            # Already at correct orientation
-            return {'x_vel': 0.0, 'angular_vel': 0.0}
-            
-        # Calculate rotation speed - proportional to the angle difference
-        # but capped at max_angular_vel
-        direction = 1.0 if angle_diff > 0 else -1.0
-        angular_vel = direction * min(abs(angle_diff) * 2.0, self.max_angular_vel)
-        
-        # logger.debug(f"Rotating to goal orientation: angle_diff={angle_diff:.4f}, angular_vel={angular_vel:.4f}")
-        return {'x_vel': 0.0, 'angular_vel': angular_vel}
 
     @abstractmethod
     def update_visualization(self) -> np.ndarray:
@@ -489,20 +529,7 @@ class BaseLocalPlanner(ABC):
             if self.goal_xy is None:
                 return False # No goal set
             
-            [pos, rot] = self.transform.transform_euler("base_link", "odom")
-            robot_x, robot_y = pos[0], pos[1]
-            
-            goal_x, goal_y = self.goal_xy
-            distance_to_goal = np.linalg.norm([goal_x - robot_x, goal_y - robot_y])
-            
-            # First check position
-            position_reached = distance_to_goal < self.goal_tolerance
-            
-            # Then check orientation if a goal orientation was specified
-            if position_reached and self.goal_theta is not None:
-                return self._is_goal_orientation_reached()
-                
-            return position_reached
+            return self.position_reached and self._is_goal_orientation_reached()
 
     def check_goal_collision(self, goal_xy: VectorLike) -> bool:
         """Check if the current goal is in collision with obstacles in the costmap.

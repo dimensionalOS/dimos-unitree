@@ -62,165 +62,6 @@ def get_dimos_base_path():
     user = os.environ.get('USER', os.path.basename(os.path.expanduser('~')))
     return f"/home/{user}/dimos"
 
-class BuildSemanticMap(AbstractRobotSkill):
-    """
-    A skill that builds a semantic map of the environment by recording video frames
-    at different locations as the robot moves.
-    
-    This skill records video frames and their associated positions, storing them in
-    a vector database for later querying. It runs until terminated (Ctrl+C).
-    """
-    
-    min_distance_threshold: float = Field(0.01, 
-                                        description="Min distance in meters to record a new frame")
-    min_time_threshold: float = Field(1.0, 
-                                    description="Min time in seconds to record a new frame")
-    new_map: bool = Field(False,
-                        description="If True, creates new spatial and visual memory from scratch instead of using existing.")
-
-    def __init__(self, robot=None, **data):
-        """
-        Initialize the BuildSemanticMap skill.
-        
-        Args:
-            robot: The robot instance
-            **data: Additional data for configuration
-        """
-        super().__init__(robot=robot, **data)
-        self._stop_event = threading.Event()
-        self._subscription = None
-        self._scheduler = get_scheduler()
-        self._stored_count = 0
-        
-    def __call__(self):
-        """
-        Start building a semantic map.
-        
-        Returns:
-            A message indicating whether the map building started successfully
-        """
-        super().__call__()
-        
-        if self._robot is None:
-            error_msg = "No robot instance provided to BuildSemanticMap skill"
-            logger.error(error_msg)
-            return error_msg
-        
-        self.stop()  # Stop any existing execution
-        self._stop_event.clear()
-        self._stored_count = 0
-        
-        # Get the ros_control instance from the robot
-        ros_control = self._robot.ros_control
-        
-        # Get or initialize spatial memory from the robot
-        logger.info("Getting SpatialMemory from robot...")
-        spatial_memory = self._robot.get_spatial_memory(
-            new_map=self.new_map,
-            min_distance_threshold=self.min_distance_threshold,
-            min_time_threshold=self.min_time_threshold
-        )
-        
-        logger.info("Setting up video stream...")
-        video_stream = self._robot.get_ros_video_stream()
-        
-        # Setup video stream processing with transform acquisition
-        logger.info("Setting up video stream with position mapping...")
-        
-        # Map each video frame to include both position and rotation from transform
-        combined_stream = video_stream.pipe(
-            ops.map(lambda video_frame: {
-                "frame": video_frame,
-                **self._extract_transform_data(*ros_control.transform_euler("base_link"))
-            })
-        )
-        
-        # Process with spatial memory
-        result_stream = spatial_memory.process_stream(combined_stream)
-        
-        # Subscribe to the result stream
-        logger.info("Subscribing to spatial perception results...")
-        self._subscription = result_stream.subscribe(
-            on_next=self._on_stored_frame,
-            on_error=lambda e: logger.error(f"Error in spatial memory stream: {e}"),
-            on_completed=lambda: logger.info("Spatial memory stream completed")
-        )
-        
-        # Store the spatial memory instance for later cleanup
-        self._spatial_memory = spatial_memory
-        self._visual_memory = visual_memory
-        
-        skill_library = self._robot.get_skills()
-        self.register_as_running("BuildSemanticMap", skill_library, self._subscription)
-        
-        logger.info(f"BuildSemanticMap started with min_distance={self.min_distance_threshold}m, "
-                 f"min_time={self.min_time_threshold}s")
-        return (f"BuildSemanticMap started. Recording frames with min_distance={self.min_distance_threshold}m, "
-                f"min_time={self.min_time_threshold}s. Press Ctrl+C to stop.")
-    
-
-
-    def _extract_transform_data(self, position, rotation):
-        """
-        Extract both position and rotation data from a transform message in a single operation.
-        
-        Args:
-            position: The position message
-            rotation: The rotation message
-            
-        Returns:
-            A dictionary containing:
-            - 'position': tuple of (x, y, z) coordinates
-            - 'rotation': the quaternion object for complete orientation data
-        """
-        if position is None or rotation is None:
-            return {
-                "position": None,
-                "rotation": None
-            }
-
-        return {
-            "position": position,
-            "rotation": rotation
-        }
-    
-    def _on_stored_frame(self, result):
-        """
-        Callback for when a frame is stored in the vector database.
-        
-        Args:
-            result: The result of storing the frame
-        """
-        # Only count actually stored frames (not debug frames)
-        if not result.get('stored', True) == False:
-            self._stored_count += 1
-            pos = result['position']
-            logger.info(f"Stored frame #{self._stored_count} at ({pos[0]:.2f}, {pos[1]:.2f}, {pos[2]:.2f})")
-    
-    def stop(self):
-        """
-        Stop building the semantic map.
-        
-        Returns:
-            A message indicating whether the map building was stopped successfully
-        """
-        if self._subscription is not None and not self._subscription.is_disposed:
-            logger.info("Stopping BuildSemanticMap")
-            self._stop_event.set()
-            self._subscription.dispose()
-            self._subscription = None
-            
-            # Save spatial memory (visual memory) to disk for later use
-            self._robot.save_spatial_memory()
-            
-            # Clean up spatial memory
-            if hasattr(self, '_spatial_memory') and self._spatial_memory is not None:
-                self._spatial_memory.cleanup()
-                self._spatial_memory = None
-                        
-            return f"BuildSemanticMap stopped. Stored {self._stored_count} frames."
-        return "BuildSemanticMap was not running."
-
 
 class NavigateWithText(AbstractRobotSkill):
     """
@@ -280,11 +121,11 @@ class NavigateWithText(AbstractRobotSkill):
                 bbox, object_size = get_bbox_from_qwen_frame(frame, object_name=self.query)
             except Exception as e:
                 logger.error(f"Error querying Qwen: {e}")
-                return {"success": False, "error": f"Could not detect {self.query} in view: {e}"}
+                return {"success": False, "failure_reason": "Perception", "error": f"Could not detect {self.query} in view: {e}"}
     
             if bbox is None or self._stop_event.is_set():
                 logger.error(f"Failed to get bounding box for {self.query}")
-                return {"success": False, "error": f"Could not find {self.query} in view"}
+                return {"success": False, "failure_reason": "Perception", "error": f"Could not find {self.query} in view"}
     
             logger.info(f"Found {self.query} at {bbox} with size {object_size}")
     
@@ -325,7 +166,7 @@ class NavigateWithText(AbstractRobotSkill):
             
             if not target_acquired:
                 logger.error("Failed to acquire valid target tracking data")
-                return {"success": False, "error": "Failed to track object"}
+                return {"success": False, "failure_reason": "Perception", "error": "Failed to track object"}
                 
             logger.info(f"Navigating to target at local coordinates: ({goal_x_robot:.2f}, {goal_y_robot:.2f}), angle: {goal_angle:.2f}")
             
@@ -343,6 +184,7 @@ class NavigateWithText(AbstractRobotSkill):
                 logger.info(f"Successfully navigated to {self.query}")
                 return {
                     "success": True,
+                    "failure_reason": None,
                     "query": self.query,
                     "message": f"Successfully navigated to {self.query} in view"
                 }
@@ -350,12 +192,13 @@ class NavigateWithText(AbstractRobotSkill):
                 logger.warning(f"Failed to reach {self.query} within timeout or operation was stopped")
                 return {
                     "success": False, 
+                    "failure_reason": "Navigation",
                     "error": f"Failed to reach {self.query} within timeout"
                 }
             
         except Exception as e:
             logger.error(f"Error in navigate to object: {e}")
-            return {"success": False, "error": f"Error: {e}"}
+            return {"success": False, "failure_reason": "Code Error", "error": f"Error: {e}"}
         finally:
             # Clean up
             self._robot.ros_control.stop()
@@ -489,14 +332,18 @@ class NavigateWithText(AbstractRobotSkill):
         logger.info(f"First attempting to find and navigate to visible object: '{self.query}'")
         object_result = self._navigate_to_object()
         
-        if object_result and object_result.get("success", True):
+        if object_result and object_result['success']:
             logger.info(f"Successfully navigated to {self.query} in view")
             return object_result
         
+        elif object_result and object_result['failure_reason'] == "Navigation":
+            logger.info(f"Failed to navigate to {self.query} in view: {object_result.get('error', 'Unknown error')}")
+            return object_result
+
         # If object navigation failed, fall back to semantic map
         logger.info(f"Object not found in view. Falling back to semantic map query for: '{self.query}'")
         
-        return self._navigate_using_semantic_map()    
+        return self._navigate_using_semantic_map()
 
 
     def stop(self):

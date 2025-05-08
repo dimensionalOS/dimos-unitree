@@ -124,7 +124,6 @@ class VFHPurePursuitPlanner(BaseLocalPlanner):
         
         # If we're ignoring obstacles near the goal, zero out the histogram
         if self.ignore_obstacles:
-            logger.debug("Ignoring obstacles near goal - zeroing out histogram")
             self.histogram = np.zeros_like(self.histogram)
         
         self.selected_direction = self.select_direction(
@@ -142,12 +141,10 @@ class VFHPurePursuitPlanner(BaseLocalPlanner):
         if abs(self.selected_direction) > 0.25:  # ~15 degrees
             # Scale from 1.0 (small turn) to 0.5 (sharp turn at 90 degrees or more)
             turn_factor = max(0.25, 1.0 - (abs(self.selected_direction) / (np.pi/2)))
-            logger.debug(f"Slowing for turn: factor={turn_factor:.2f}")
             linear_vel *= turn_factor
 
         # Apply Collision Avoidance Stop - skip if ignoring obstacles
         if not self.ignore_obstacles and self.check_collision(self.selected_direction, safety_threshold=0.5):
-            logger.debug("Collision detected ahead. Slowing down.")
             # Re-select direction prioritizing obstacle avoidance if colliding
             self.selected_direction = self.select_direction(
                 self.goal_weight * 0.2,
@@ -159,6 +156,7 @@ class VFHPurePursuitPlanner(BaseLocalPlanner):
             linear_vel, angular_vel = self.compute_pure_pursuit(goal_distance, self.selected_direction)
 
         if self.check_collision(0.0, safety_threshold=self.safety_threshold):
+            logger.warning("Collision detected ahead. Stopping.")
             linear_vel = 0.0
 
         self.prev_linear_vel = linear_vel
