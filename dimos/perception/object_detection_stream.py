@@ -194,6 +194,51 @@ class ObjectDetectionStream:
         if self.stream is None:
             raise ValueError("Stream not initialized. Either provide a video_stream during initialization or call create_stream first.")
         return self.stream
+        
+    def get_formatted_stream(self):
+        """
+        Returns a formatted stream of object detection data for better readability.
+        This is especially useful for LLMs like Claude that need structured text input.
+        
+        Returns:
+            Observable: A stream of formatted string representations of object data
+        """
+        if self.stream is None:
+            raise ValueError("Stream not initialized. Either provide a video_stream during initialization or call create_stream first.")
+            
+        def format_detection_data(result):
+            # Extract objects from result
+            objects = result.get("objects", [])
+
+            if not objects:
+                return "No objects detected."
+                
+            formatted_data = "[DETECTED OBJECTS]\n"
+            
+            for i, obj in enumerate(objects):
+                pos = obj["position"]
+                rot = obj["rotation"]
+                size = obj["size"]
+                bbox = obj["bbox"]
+                
+                # Format each object with a multiline f-string for better readability
+                bbox_str = f"[{int(bbox[0])}, {int(bbox[1])}, {int(bbox[2])}, {int(bbox[3])}]"
+                formatted_data += f"Object {i+1}: {obj['label']}\n"\
+                f"  ID: {obj['object_id']}\n"\
+                f"  Confidence: {obj['confidence']:.2f}\n"\
+                f"  Position: x={pos['x']:.2f}m, y={pos['y']:.2f}m, z={pos['z']:.2f}m\n"\
+                f"  Rotation: yaw={rot['yaw']:.2f} rad\n"\
+                f"  Size: width={size['width']:.2f}m, height={size['height']:.2f}m\n"\
+                f"  Depth: {obj['depth']:.2f}m\n"\
+                f"  Bounding box: {bbox_str}\n"\
+                "----------------------------------\n"
+            
+            return formatted_data
+            
+        # Return a new stream with the formatter applied
+        return self.stream.pipe(
+            ops.map(format_detection_data)
+        )
 
     def cleanup(self):
         """Clean up resources."""

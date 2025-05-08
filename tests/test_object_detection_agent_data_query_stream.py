@@ -28,53 +28,10 @@ def parse_args():
     return parser.parse_args()
 load_dotenv()
 
-class ResultPrinter:
-    def __init__(self, print_interval: float = 1.0):
-        """
-        Initialize a result printer that limits console output frequency.
-        
-        Args:
-            print_interval: Minimum time between console prints in seconds
-        """
-        self.print_interval = print_interval
-        self.last_print_time = 0
-        
-    def print_results(self, objects: List[Dict[str, Any]]):
-        """Print object detection results to console with rate limiting."""
-        current_time = time.time()
-        
-        # Only print results at the specified interval
-        if current_time - self.last_print_time >= self.print_interval:
-            self.last_print_time = current_time
-            
-            if not objects:
-                print("\n[No objects detected]")
-                return
-                
-            print("\n" + "="*50)
-            print(f"Detected {len(objects)} objects at {time.strftime('%H:%M:%S')}:")
-            print("="*50)
-            
-            for i, obj in enumerate(objects):
-                pos = obj["position"]
-                rot = obj["rotation"]
-                size = obj["size"]
-                
-                print(f"{i+1}. {obj['label']} (ID: {obj['object_id']}, Conf: {obj['confidence']:.2f})")
-                print(f"   Position: x={pos['x']:.2f}, y={pos['y']:.2f}, z={pos['z']:.2f} m")
-                print(f"   Rotation: yaw={rot['yaw']:.2f} rad")
-                print(f"   Size: width={size['width']:.2f}, height={size['height']:.2f} m")
-                print(f"   Depth: {obj['depth']:.2f} m")
-                print("-" * 30)
-
-
 def main():
     # Get command line arguments
     args = parse_args()
     
-    # Set up the result printer for console output
-    result_printer = ResultPrinter(print_interval=1.0)
-
     # Set default parameters
     min_confidence = 0.6
     class_filter = None  # No class filtering
@@ -112,8 +69,6 @@ def main():
             video_stream=video_stream
         )
         
-
-        
     else:  # webcam mode
         print("Initializing in webcam mode...")
         
@@ -146,8 +101,6 @@ def main():
             video_stream=video_stream
         )
         
-        
-        
         # Set placeholder robot for cleanup
         robot = None
     
@@ -158,43 +111,16 @@ def main():
         ops.filter(lambda x: x is not None),
     )
 
-    # Create object data observable for Agent
-    object_data_stream = object_detector.get_stream().pipe(
+    # Create object data observable for Agent using the formatted stream
+    object_data_stream = object_detector.get_formatted_stream().pipe(
         ops.share(),
-        ops.map(lambda x: x["objects"] if x is not None else None),
-        ops.filter(lambda x: x is not None),
+        ops.filter(lambda x: x is not None)
     )
-
-
 
     # Create stop event for clean shutdown
     stop_event = threading.Event()
     
-    # Define subscription callback to print results
-    def on_next(result):
-        if stop_event.is_set():
-            return
-        
-        # Print detected objects to console
-        if "objects" in result:
-            result_printer.print_results(result["objects"])
-    
-    def on_error(error):
-        print(f"Error in detection stream: {error}")
-        stop_event.set()
-    
-    def on_completed():
-        print("Detection stream completed")
-        stop_event.set()
-    
     try:
-        # # Subscribe to the detection stream
-        # subscription = object_detector.get_stream().subscribe(
-        #     on_next=on_next,
-        #     on_error=on_error,
-        #     on_completed=on_completed
-        # )
-        
         # Set up web interface
         print("Initializing web interface...")
         web_interface = RobotWebInterface(
@@ -229,10 +155,7 @@ def main():
         # Clean up resources
         print("Cleaning up resources...")
         stop_event.set()
-        
-        # if subscription:
-        #     subscription.dispose()
-        
+
         if args.mode == "robot" and robot:
             robot.cleanup()
         elif args.mode == "webcam":
