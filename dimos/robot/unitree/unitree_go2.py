@@ -145,7 +145,7 @@ class UnitreeGo2(Robot):
 
         # Initialize visual servoing if enabled
         if self.video_stream is not None:
-            self.video_stream_ros = backpressure(self.get_ros_video_stream(fps=8))
+            self.video_stream_ros = self.get_ros_video_stream(fps=8)
             self.person_tracker = PersonTrackingStream(
                 camera_intrinsics=self.camera_intrinsics,
                 camera_pitch=self.camera_pitch,
@@ -170,7 +170,7 @@ class UnitreeGo2(Robot):
             robot_width=0.36,  # Unitree Go2 width in meters
             robot_length=0.6,  # Unitree Go2 length in meters
             max_linear_vel=0.5,
-            lookahead_distance=2.0,
+            lookahead_distance=1.0,
             visualization_size=500,  # 500x500 pixel visualization
         )
 
