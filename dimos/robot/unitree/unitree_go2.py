@@ -30,7 +30,8 @@ import threading
 from dimos.utils.logging_config import setup_logger
 from dimos.perception.person_tracker import PersonTrackingStream
 from dimos.perception.object_tracker import ObjectTrackingStream
-from dimos.robot.local_planner import VFHPurePursuitPlanner, navigate_path_local
+from dimos.robot.local_planner.vfh_local_planner import VFHPurePursuitPlanner
+from dimos.robot.local_planner.local_planner import navigate_path_local
 from dimos.robot.global_planner.planner import AstarPlanner
 from dimos.types.path import Path
 from dimos.types.costmap import Costmap
@@ -144,7 +145,7 @@ class UnitreeGo2(Robot):
 
         # Initialize visual servoing if enabled
         if self.video_stream is not None:
-            self.video_stream_ros = backpressure(self.get_ros_video_stream(fps=8))
+            self.video_stream_ros = self.get_ros_video_stream(fps=8)
             self.person_tracker = PersonTrackingStream(
                 camera_intrinsics=self.camera_intrinsics,
                 camera_pitch=self.camera_pitch,
@@ -163,11 +164,13 @@ class UnitreeGo2(Robot):
 
         # Initialize the local planner and create BEV visualization stream
         self.local_planner = VFHPurePursuitPlanner(
-            robot=self,
+            get_costmap=self.ros_control.topic_latest("/local_costmap/costmap", Costmap),
+            transform=self.ros_control,
+            move_vel_control=self.ros_control.move_vel_control,
             robot_width=0.36,  # Unitree Go2 width in meters
             robot_length=0.6,  # Unitree Go2 length in meters
             max_linear_vel=0.5,
-            lookahead_distance=2.0,
+            lookahead_distance=1.0,
             visualization_size=500,  # 500x500 pixel visualization
         )
 
