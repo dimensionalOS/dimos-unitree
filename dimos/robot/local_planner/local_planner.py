@@ -47,7 +47,8 @@ class BaseLocalPlanner(ABC):
                  robot_width: float = 0.5,
                  robot_length: float = 0.7,
                  visualization_size: int = 400,
-                 control_frequency: float = 10.0):  # Control frequency in Hz
+                 control_frequency: float = 10.0,
+                 safe_goal_distance: float = 1.5):  # Control frequency in Hz
         """
         Initialize the base local planner.
         
@@ -65,6 +66,7 @@ class BaseLocalPlanner(ABC):
             robot_length: Length of the robot for visualization (meters)
             visualization_size: Size of the visualization image in pixels
             control_frequency: Frequency at which the planner is called (Hz)
+            safe_goal_distance: Distance at which to adjust the goal and ignore obstacles (meters)
         """
         # Store callables for robot interactions
         self.get_costmap = get_costmap
@@ -83,6 +85,8 @@ class BaseLocalPlanner(ABC):
         self.visualization_size = visualization_size
         self.control_frequency = control_frequency
         self.control_period = 1.0 / control_frequency  # Period in seconds
+        self.safe_goal_distance = safe_goal_distance  # Distance to ignore obstacles at goal
+        self.ignore_obstacles = False  # Flag for derived classes to check
 
         # Goal and Waypoint Tracking
         self.goal_xy: Optional[Tuple[float, float]] = None  # Current target for planning
@@ -122,6 +126,7 @@ class BaseLocalPlanner(ABC):
         self.navigation_failed = False
         self.position_reached = False
         self.final_goal_reached = False
+        self.ignore_obstacles = False
         
         logger.info("Local planner state has been reset")
 
@@ -294,6 +299,9 @@ class BaseLocalPlanner(ABC):
             logger.warning("Robot is stuck - executing recovery behavior")
             return self.execute_recovery_behavior()
         
+        # Reset obstacle ignore flag
+        self.ignore_obstacles = False
+        
         # --- Waypoint Following Mode --- 
         if self.waypoints is not None:
             if self.final_goal_reached:
@@ -304,6 +312,22 @@ class BaseLocalPlanner(ABC):
             [pos, rot] = self.transform.transform_euler("base_link", "odom")
             robot_x, robot_y, robot_theta = pos[0], pos[1], rot[2]
             robot_pos_np = np.array([robot_x, robot_y])
+            
+            # Check if close to final waypoint
+            if self.waypoints_in_odom is not None and len(self.waypoints_in_odom) > 0:
+                final_waypoint = self.waypoints_in_odom[-1]
+                dist_to_final = np.linalg.norm(robot_pos_np - final_waypoint)
+                
+                # If we're close to the final waypoint, adjust it and ignore obstacles
+                if dist_to_final < self.safe_goal_distance:
+                    final_wp_tuple = to_tuple(final_waypoint)
+                    adjusted_goal = self.adjust_goal_to_valid_position(final_wp_tuple)
+                    # Create a new Path with the adjusted final waypoint
+                    new_waypoints = self.waypoints_in_odom[:-1]  # Get all but the last waypoint
+                    new_waypoints.append(adjusted_goal)  # Append the adjusted goal
+                    self.waypoints_in_odom = new_waypoints
+                    self.ignore_obstacles = True
+                    logger.debug(f"Within safe distance of final waypoint. Ignoring obstacles.")
             
             # Update the target goal based on waypoint progression
             just_reached_final = self._update_waypoint_target(robot_pos_np)
@@ -328,13 +352,19 @@ class BaseLocalPlanner(ABC):
             logger.warning("Local costmap is None. Cannot plan.")
             return {'x_vel': 0.0, 'angular_vel': 0.0}
         
-        # Check if we are in position goal reached state for single goal
+        # Check if close to single goal mode goal
         if self.waypoints is None:
             # Get current robot pose
             [pos, _] = self.transform.transform_euler("base_link", "odom")
             robot_x, robot_y = pos[0], pos[1]
             goal_x, goal_y = self.goal_xy
             goal_distance = np.linalg.norm([goal_x - robot_x, goal_y - robot_y])
+            
+            # If within safe distance of goal, adjust it and ignore obstacles
+            if goal_distance < self.safe_goal_distance:
+                self.goal_xy = self.adjust_goal_to_valid_position(self.goal_xy)
+                self.ignore_obstacles = True
+                logger.debug(f"Within safe distance of goal. Ignoring obstacles.")
             
             # First check position
             if goal_distance < self.goal_tolerance:
@@ -534,7 +564,10 @@ class BaseLocalPlanner(ABC):
         
         # Original goal
         goal_x, goal_y = to_tuple(goal_xy)
-        
+
+        if not self.check_goal_collision((goal_x, goal_y)):
+            return (goal_x, goal_y)
+
         # Calculate vector from goal to robot
         dx = robot_x - goal_x
         dy = robot_y - goal_y

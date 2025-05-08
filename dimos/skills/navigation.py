@@ -449,12 +449,8 @@ class Navigate(AbstractRobotSkill):
                 # Clear stop event for new navigation
                 self._stop_event.clear()
                 
-                # Create and start direct thread instead of using scheduler
-                logger.info("Creating direct navigation thread")
-                nav_thread = threading.Thread(target=run_navigation, daemon=True)
-                logger.info("Starting direct navigation thread")
-                nav_thread.start()
-                logger.info("Direct navigation thread started successfully")
+                # Run the navigation in the main thread
+                run_navigation()
 
                 return {
                     "success": True,

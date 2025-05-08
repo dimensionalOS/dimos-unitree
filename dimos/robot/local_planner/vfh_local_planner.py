@@ -36,7 +36,8 @@ class VFHPurePursuitPlanner(BaseLocalPlanner):
                  robot_width: float = 0.5,
                  robot_length: float = 0.7,
                  visualization_size: int = 400,
-                 control_frequency: float = 10.0):
+                 control_frequency: float = 10.0,
+                 safe_goal_distance: float = 1.0):
         """
         Initialize the VFH + Pure Pursuit planner.
         
@@ -55,6 +56,7 @@ class VFHPurePursuitPlanner(BaseLocalPlanner):
             robot_length: Length of the robot for visualization (meters)
             visualization_size: Size of the visualization image in pixels
             control_frequency: Frequency at which the planner is called (Hz)
+            safe_goal_distance: Distance at which to adjust the goal and ignore obstacles (meters)
         """
         # Initialize base class
         super().__init__(
@@ -70,7 +72,8 @@ class VFHPurePursuitPlanner(BaseLocalPlanner):
             robot_width=robot_width,
             robot_length=robot_length,
             visualization_size=visualization_size,
-            control_frequency=control_frequency
+            control_frequency=control_frequency,
+            safe_goal_distance=safe_goal_distance
         )
         
         # VFH specific parameters
@@ -118,6 +121,12 @@ class VFHPurePursuitPlanner(BaseLocalPlanner):
         goal_direction = normalize_angle(goal_direction)
         
         self.histogram = self.build_polar_histogram(costmap, robot_pose)
+        
+        # If we're ignoring obstacles near the goal, zero out the histogram
+        if self.ignore_obstacles:
+            logger.debug("Ignoring obstacles near goal - zeroing out histogram")
+            self.histogram = np.zeros_like(self.histogram)
+        
         self.selected_direction = self.select_direction(
             self.goal_weight,
             self.obstacle_weight,
@@ -136,8 +145,8 @@ class VFHPurePursuitPlanner(BaseLocalPlanner):
             logger.debug(f"Slowing for turn: factor={turn_factor:.2f}")
             linear_vel *= turn_factor
 
-        # Apply Collision Avoidance Stop
-        if self.check_collision(self.selected_direction, safety_threshold=0.5):
+        # Apply Collision Avoidance Stop - skip if ignoring obstacles
+        if not self.ignore_obstacles and self.check_collision(self.selected_direction, safety_threshold=0.5):
             logger.debug("Collision detected ahead. Slowing down.")
             # Re-select direction prioritizing obstacle avoidance if colliding
             self.selected_direction = self.select_direction(
@@ -148,8 +157,9 @@ class VFHPurePursuitPlanner(BaseLocalPlanner):
                 goal_direction
             )
             linear_vel, angular_vel = self.compute_pure_pursuit(goal_distance, self.selected_direction)
-            if self.check_collision(0.0, safety_threshold=self.safety_threshold):
-                linear_vel = 0.0
+
+        if self.check_collision(0.0, safety_threshold=self.safety_threshold):
+            linear_vel = 0.0
 
         self.prev_linear_vel = linear_vel
         filtered_linear_vel = self.prev_linear_vel * self.linear_vel_filter_factor + linear_vel * (1 - self.linear_vel_filter_factor)
@@ -297,6 +307,10 @@ class VFHPurePursuitPlanner(BaseLocalPlanner):
     
     def check_collision(self, selected_direction: float, safety_threshold: float = 1.0) -> bool:
         """Check if there's an obstacle in the selected direction within safety threshold."""
+        # Skip collision check if ignoring obstacles
+        if self.ignore_obstacles:
+            return False
+            
         # Get the latest costmap and robot pose
         costmap = self.get_costmap()
         if costmap is None:
