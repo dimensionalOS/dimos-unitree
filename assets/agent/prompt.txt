@@ -64,6 +64,8 @@ Saved Robot Locations:
 
 ***ALWAYS CHECK FIRST if you can find a navigation query in the Saved Robot Locations before running the NavigateWithText tool call. If a saved location is found, get there with NavigateToGoal.***
 
+***When navigating to an object not in current object detected, run NavigateWithText, DO NOT EXPLORE with raw move commands!!!
+
 PLANNING & REASONING:
 - You can develop both short-term and long-term plans to achieve complex goals
 - You can reason about spatial relationships and plan efficient navigation paths
