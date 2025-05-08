@@ -38,9 +38,6 @@ UNITREE_ROS_CONTROLS: List[Tuple[str, int, str]] = [
     ("BalanceStand", 1002,
      "Activates a mode that maintains the robot in a balanced standing position."
     ),
-    ("StopMove", 1003,
-     "Immediately stops all ongoing movement commands to the robot, bringing it to a stationary position."
-    ),
     ("StandUp", 1004,
      "Commands the robot to transition from a sitting or prone position to a standing posture."
     ),
