@@ -131,7 +131,7 @@ text_streams = {
 
 web_interface = RobotWebInterface(port=5555, text_streams=text_streams, **streams)
 
-stt_node = stt()
+# stt_node = stt()
 
 # Read system query from prompt.txt file
 with open(os.path.join(os.path.dirname(os.path.dirname(__file__)), 'assets', 'agent', 'prompt.txt'), 'r') as f:
@@ -140,8 +140,8 @@ with open(os.path.join(os.path.dirname(os.path.dirname(__file__)), 'assets', 'ag
 # Create a ClaudeAgent instance
 agent = ClaudeAgent(
     dev_name="test_agent",
-    input_query_stream=stt_node.emit_text(),
-    # input_query_stream=web_interface.query_stream,
+    # input_query_stream=stt_node.emit_text(),
+    input_query_stream=web_interface.query_stream,
     input_data_stream=enhanced_data_stream,  # Add the enhanced data stream
     skills=robot.get_skills(),
     system_query=system_query,
@@ -149,7 +149,7 @@ agent = ClaudeAgent(
     thinking_budget_tokens=0
 )
 
-tts_node = tts()
+# tts_node = tts()
 # tts_node.consume_text(agent.get_response_observable())
 
 robot_skills = robot.get_skills()
@@ -158,7 +158,7 @@ robot_skills.add(KillSkill)
 robot_skills.add(NavigateWithText)
 robot_skills.add(FollowHuman)
 robot_skills.add(GetPose)
-robot_skills.add(Speak)
+# robot_skills.add(Speak)
 robot_skills.add(NavigateToGoal)
 robot_skills.create_instance("ObserveStream", robot=robot, agent=agent)
 robot_skills.create_instance("KillSkill", robot=robot, skill_library=robot_skills)
@@ -166,7 +166,7 @@ robot_skills.create_instance("NavigateWithText", robot=robot)
 robot_skills.create_instance("FollowHuman", robot=robot)
 robot_skills.create_instance("GetPose", robot=robot)
 robot_skills.create_instance("NavigateToGoal", robot=robot)
-robot_skills.create_instance("Speak", tts_node=tts_node)
+# robot_skills.create_instance("Speak", tts_node=tts_node)
 
 # Subscribe to agent responses and send them to the subject
 agent.get_response_observable().subscribe(
