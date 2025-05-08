@@ -222,7 +222,7 @@ class BuildSemanticMap(AbstractRobotSkill):
         return "BuildSemanticMap was not running."
 
 
-class Navigate(AbstractRobotSkill):
+class NavigateWithText(AbstractRobotSkill):
     """
     A skill that queries an existing semantic map using natural language or tries to navigate to an object in view.
     
