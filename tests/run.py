@@ -41,10 +41,24 @@ from dimos.utils.reactive import backpressure
 # Load API key from environment
 load_dotenv()
 
+# Allow command line arguments to control spatial memory parameters
+import argparse
+
+def parse_arguments():
+    parser = argparse.ArgumentParser(description='Run the robot with optional spatial memory parameters')
+    parser.add_argument('--new-memory', action='store_true', help='Create a new spatial memory from scratch')
+    parser.add_argument('--spatial-memory-dir', type=str, help='Directory for storing spatial memory data')
+    return parser.parse_args()
+
+args = parse_arguments()
+
+# Initialize robot with spatial memory parameters
 robot = UnitreeGo2(ip=os.getenv('ROBOT_IP'),
                     ros_control=UnitreeROSControl(),
                     skills=MyUnitreeSkills(),
-                    mock_connection=False)
+                    mock_connection=False,
+                    spatial_memory_dir=args.spatial_memory_dir,  # Will use default if None
+                    new_memory=args.new_memory)  # Create a new memory if specified
 
 # Create a subject for agent responses
 agent_response_subject = rx.subject.Subject()
