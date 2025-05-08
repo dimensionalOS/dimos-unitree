@@ -31,8 +31,12 @@ import reactivex.operators as ops
 from dimos.stream.audio.pipelines import tts, stt
 from dimos.web.websocket_vis.server import WebsocketVis
 import threading
+import json
 from dimos.types.vector import Vector
 from dimos.skills.speak import Speak
+from dimos.perception.object_detection_stream import ObjectDetectionStream
+from dimos.perception.detection2d.detic_2d_det import Detic2DDetector
+from dimos.utils.reactive import backpressure
 
 # Load API key from environment
 load_dotenv()
@@ -47,8 +51,66 @@ agent_response_subject = rx.subject.Subject()
 agent_response_stream = agent_response_subject.pipe(ops.share())
 local_planner_viz_stream = robot.local_planner_viz_stream.pipe(ops.share())
 
+# Initialize object detection stream
+min_confidence = 0.6
+class_filter = None  # No class filtering
+detector = Detic2DDetector(vocabulary=None, threshold=min_confidence)
+
+# Create video stream from robot's camera
+video_stream = backpressure(robot.get_ros_video_stream())
+
+# Initialize ObjectDetectionStream with robot
+object_detector = ObjectDetectionStream(
+    camera_intrinsics=robot.camera_intrinsics,
+    min_confidence=min_confidence,
+    class_filter=class_filter,
+    transform_to_map=robot.ros_control.transform_pose,
+    detector=detector,
+    video_stream=video_stream
+)
+
+# Create visualization stream for web interface
+viz_stream = object_detector.get_stream().pipe(
+    ops.share(),
+    ops.map(lambda x: x["viz_frame"] if x is not None else None),
+    ops.filter(lambda x: x is not None),
+)
+
+# Get the formatted detection stream
+formatted_detection_stream = object_detector.get_formatted_stream().pipe(
+    ops.filter(lambda x: x is not None)
+)
+
+# Create a direct mapping that combines detection data with locations
+def combine_with_locations(object_detections):
+    # Get locations from spatial memory
+    try:
+        locations = robot.get_spatial_memory().get_robot_locations()
+        
+        # Format the locations section
+        locations_text = "\n\nSaved Robot Locations:\n"
+        if locations:
+            for loc in locations:
+                locations_text += f"- {loc.name}: Position ({loc.position[0]:.2f}, {loc.position[1]:.2f}, {loc.position[2]:.2f}), "
+                locations_text += f"Rotation ({loc.rotation[0]:.2f}, {loc.rotation[1]:.2f}, {loc.rotation[2]:.2f})\n"
+        else:
+            locations_text += "None\n"
+            
+        # Simply concatenate the strings
+        return object_detections + locations_text
+    except Exception as e:
+        print(f"Error adding locations: {e}")
+        return object_detections
+
+# Create the combined stream with a simple pipe operation
+enhanced_data_stream = formatted_detection_stream.pipe(
+    ops.map(combine_with_locations),
+    ops.share()
+)
+
 streams = {"unitree_video": robot.get_ros_video_stream(),
-           "local_planner_viz": local_planner_viz_stream}
+           "local_planner_viz": local_planner_viz_stream,
+           "object_detection": viz_stream}
 text_streams = {
     "agent_responses": agent_response_stream,
 }
@@ -66,6 +128,7 @@ agent = ClaudeAgent(
     dev_name="test_agent",
     input_query_stream=stt_node.emit_text(),
     # input_query_stream=web_interface.query_stream,
+    input_data_stream=enhanced_data_stream,  # Add the enhanced data stream
     skills=robot.get_skills(),
     system_query=system_query,
     model_name="claude-3-7-sonnet-latest",
