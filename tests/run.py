@@ -84,7 +84,7 @@ object_detector = ObjectDetectionStream(
 )
 
 # Create visualization stream for web interface
-viz_stream = object_detector.get_stream().pipe(
+viz_stream = backpressure(object_detector.get_stream()).pipe(
     ops.share(),
     ops.map(lambda x: x["viz_frame"] if x is not None else None),
     ops.filter(lambda x: x is not None),
