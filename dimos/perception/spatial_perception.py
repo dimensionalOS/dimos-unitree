@@ -198,7 +198,9 @@ class SpatialMemory:
             ops.map(lambda video_frame: {
                 "frame": video_frame,
                 **transform_provider()
-            })
+            }),
+            # Filter out bad transforms
+            ops.filter(lambda data: data.get('position') is not None and data.get('rotation') is not None)
         )
         
         # Process with spatial memory
