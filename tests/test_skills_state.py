@@ -27,13 +27,11 @@ class TestGetStateSkill(unittest.TestCase):
 
     def setUp(self):
         """Set up test fixtures before each test method."""
-        # Create a MockRobot with the necessary attributes
         self.robot = MockRobot()
         
-        # Set up mock get_pose method
+        # mock get_pose method
         self.robot.get_pose = mock.MagicMock(return_value=((1.0, 2.0, 3.0), (0.1, 0.2, 0.3)))
         
-        # Set up mock ros_control
         self.mock_ros_control = mock.MagicMock()
         self.mock_ros_control.get_state = mock.MagicMock(return_value={
             "battery": 0.75,
@@ -48,7 +46,6 @@ class TestGetStateSkill(unittest.TestCase):
         # Create the skill
         skill = GetState(robot=self.robot)
         
-        # Call the skill
         result = skill()
         
         # Verify expected results
@@ -65,7 +62,6 @@ class TestGetStateSkill(unittest.TestCase):
         self.assertEqual(result['ros_state']['battery'], 0.75)
         self.assertEqual(result['ros_state']['status'], "operational")
         
-        # Verify that the methods were called
         self.robot.get_pose.assert_called_once()
         self.mock_ros_control.get_state.assert_called_once()
         
@@ -74,10 +70,8 @@ class TestGetStateSkill(unittest.TestCase):
         # Create the skill with include_details=False
         skill = GetState(robot=self.robot, include_details=False)
         
-        # Call the skill
         result = skill()
         
-        # Verify expected results
         self.assertTrue(result['success'])
         self.assertEqual(result['position']['x'], 1.0)
         self.assertEqual(result['position']['y'], 2.0)
@@ -95,10 +89,7 @@ class TestGetStateSkill(unittest.TestCase):
         # Make get_pose raise an exception
         self.robot.get_pose.side_effect = Exception("No pose available")
         
-        # Create the skill
         skill = GetState(robot=self.robot)
-        
-        # Call the skill
         result = skill()
         
         # Verify success flag is still true, but pose data is missing
@@ -115,10 +106,7 @@ class TestGetStateSkill(unittest.TestCase):
         # Make ros_control.get_state raise an exception
         self.mock_ros_control.get_state.side_effect = Exception("No ROS state available")
         
-        # Create the skill
         skill = GetState(robot=self.robot)
-        
-        # Call the skill
         result = skill()
         
         # Verify success flag is still true and pose data is present
