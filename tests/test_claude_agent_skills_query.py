@@ -26,6 +26,7 @@ from dimos.skills.observe_stream import ObserveStream
 from dimos.skills.kill_skill import KillSkill
 from dimos.skills.navigation import Navigate, BuildSemanticMap, GetPose, NavigateToGoal
 from dimos.skills.visual_navigation_skills import NavigateToObject, FollowHuman
+from dimos.skills.state import GetState
 import reactivex as rx
 import reactivex.operators as ops
 from dimos.stream.audio.pipelines import tts, stt
@@ -87,6 +88,7 @@ robot_skills.add(BuildSemanticMap)
 robot_skills.add(NavigateToObject)
 robot_skills.add(FollowHuman)
 robot_skills.add(GetPose)
+robot_skills.add(GetState)
 robot_skills.add(Speak)
 robot_skills.add(NavigateToGoal)
 robot_skills.create_instance("ObserveStream", robot=robot, agent=agent)
@@ -96,6 +98,7 @@ robot_skills.create_instance("BuildSemanticMap", robot=robot)
 robot_skills.create_instance("NavigateToObject", robot=robot)
 robot_skills.create_instance("FollowHuman", robot=robot)
 robot_skills.create_instance("GetPose", robot=robot)
+robot_skills.create_instance("GetState", robot=robot)
 robot_skills.create_instance("NavigateToGoal", robot=robot)
 robot_skills.create_instance("Speak", tts_node=tts_node)
 
@@ -104,7 +107,7 @@ agent.get_response_observable().subscribe(
     lambda x: agent_response_subject.on_next(x)
 )
 
-print("ObserveStream and Kill skills registered and ready for use")
+print("ObserveStream, Kill, and GetState skills registered and ready for use")
 print("Created memory.txt file")
 
 websocket_vis = WebsocketVis()
